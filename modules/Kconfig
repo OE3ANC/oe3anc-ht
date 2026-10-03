@@ -74,7 +74,6 @@ config HT_M17_PROTOCOL
 config HT_CODEC2
     bool "Codec2 3200 voice"
     depends on HT_M17_PROTOCOL
-    select SYS_HEAP_RUNTIME_STATS if ZTEST
     default y
 
 config HT_M17_MODULATOR

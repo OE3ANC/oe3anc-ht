@@ -2,6 +2,7 @@
 #pragma once
 #include <ht/audio.hpp>
 #include <ht/m17_settings.hpp>
+#include <ht/m17.hpp>
 
 namespace ht {
 enum class M17Phase : uint8_t {
@@ -19,6 +20,7 @@ struct M17Status {
     int error = 0;
     bool rx_active = false;
     char callsign[10] = {};
+    m17::ReceiveStatistics quality;
 };
 
 // One controller owns these operations and the RF/audio routes. RX requires

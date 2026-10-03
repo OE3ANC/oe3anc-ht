@@ -71,6 +71,29 @@ struct DecodedFrame {
     Payload payload; // Cleared on every decode, including a rejected frame.
 };
 
+struct ReceiveStatistics {
+    uint32_t frames = 0, rejected = 0, lost = 0;
+    uint16_t errors = 0; // Latest stream Viterbi distance, over 272 received coded bits.
+    int64_t sample_ms = 0;
+    bool sampled = false, locked = false;
+
+    // A sequence gap is inferred loss, including rejected or undetected frames.
+    // BER is only a coded-bit estimate: sync and LICH are outside this metric.
+    void observe(const DecodedFrame &frame, int64_t now);
+
+    bool fresh(int64_t now) const {
+        return sampled && locked && now >= sample_ms && now - sample_ms < 500;
+    }
+
+    uint16_t ber_permyriad() const {
+        return uint32_t(errors) * 10000 / 272;
+    }
+
+  private:
+    uint16_t previous_ = 0;
+    bool sequence_ = false;
+};
+
 class Decoder {
   public:
     void reset(); // Required at the start of a new receive session.

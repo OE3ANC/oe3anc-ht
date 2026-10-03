@@ -24,6 +24,7 @@ struct BackendStatus {
     bool rx_active = false;
     int16_t rssi_dbm = -127;
     char callsign[10] = {};
+    m17::ReceiveStatistics m17_quality;
     int error = 0;
 };
 

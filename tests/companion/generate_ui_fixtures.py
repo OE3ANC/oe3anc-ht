@@ -197,6 +197,20 @@ def fixtures():
         color=3,
     )
     valid.append(dict(name='fault', document=extra))
+    extra = example(0)
+    extra['home'].update(
+        frequency='145.000', mode='M17', context='BER~1.10% L2 B1',
+        settings='CAN0 ALL', activity='RX OE3VOICE',
+    )
+    valid.append(dict(name='m17-quality', document=extra))
+    extra = example(27)
+    extra['status'].update(
+        title='CODEC2 / 6 OF 6', detail='mod/3200/36600B/heap0',
+        rows=['Enc avg/max 4.3/8.1 ms', 'Dec avg/max 9.6/12.1 ms',
+              'Frames E100 D200', '>20ms E0 D1'],
+    )
+    extra['actions'] = ['OK Reset', 'BACK Menu', 'P1 Page', '']
+    valid.append(dict(name='codec2-statistics', document=extra))
     extra = example(6)
     extra['list'].update(title='T' * 24, detail='D' * 31, cursor=255, count=256)
     extra['list']['rows'] = [dict(name='N' * 24, prefix='P' * 4, suffix='S' * 4) for _ in range(4)]

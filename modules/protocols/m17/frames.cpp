@@ -422,5 +422,40 @@ DecodedFrame Decoder::decode(const Frame &frame) {
     }
     return result;
 }
+
+void ReceiveStatistics::observe(const DecodedFrame &frame, int64_t now) {
+    if (frame.kind == FrameKind::LinkSetup) {
+        const bool was_locked = locked;
+        *this = {};
+        locked = was_locked;
+    } else if (frame.kind == FrameKind::End || frame.kind == FrameKind::Preamble) {
+        sampled = false;
+        sequence_ = false;
+    }
+    if (frame.kind != FrameKind::Stream) {
+        return;
+    }
+    sample_ms = now;
+    sampled = true;
+    errors = frame.errors;
+    if (frames != UINT32_MAX) {
+        ++frames;
+    }
+    if (!frame.payload_valid) {
+        if (rejected != UINT32_MAX) {
+            ++rejected;
+        }
+        return;
+    }
+    const uint16_t distance = (frame.number - previous_) & 0x7fff;
+    if (!sequence_ || (distance && distance < 0x4000)) {
+        if (sequence_ && distance > 1) {
+            const uint32_t missing = distance - 1;
+            lost = missing > UINT32_MAX - lost ? UINT32_MAX : lost + missing;
+        }
+        previous_ = frame.number;
+        sequence_ = !frame.last;
+    }
+}
 } // namespace m17
 } // namespace ht

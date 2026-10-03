@@ -90,6 +90,7 @@ int RadioController::receive() {
     }
     state_.phase = RadioPhase::Receiving;
     state_.rx_active = false;
+    state_.m17_quality = {};
     memset(state_.received_callsign, 0, sizeof(state_.received_callsign));
     return 0;
 }
@@ -506,6 +507,9 @@ void RadioController::poll() {
     }
     state_.rssi_dbm = status.rssi_dbm;
     state_.rx_active = state_.phase == RadioPhase::Receiving && status.rx_active;
+    state_.m17_quality = state_.phase == RadioPhase::Receiving && state_.config.mode == Mode::M17
+                             ? status.m17_quality
+                             : m17::ReceiveStatistics{};
     memset(state_.received_callsign, 0, sizeof(state_.received_callsign));
     if (state_.rx_active && state_.config.mode == Mode::M17 && valid_callsign(status.callsign)) {
         memcpy(state_.received_callsign, status.callsign, sizeof(status.callsign));

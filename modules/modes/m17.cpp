@@ -42,6 +42,7 @@ struct Processing {
     m17::Speech speech;
     m17::TxSamples output;
     m17::Frame frame;
+    m17::ReceiveStatistics quality;
     int16_t input[240];
     int64_t dc_accumulator = 0;
     int32_t dc_input = 0;
@@ -103,6 +104,14 @@ static void publish_rx(uint32_t job, bool active, const char *callsign) {
     if (job == revision && !status.error) {
         status.rx_active = active;
         memcpy(status.callsign, callsign, sizeof(status.callsign));
+    }
+    k_mutex_unlock(&mutex);
+}
+
+static void publish_quality(uint32_t job) {
+    k_mutex_lock(&mutex, K_FOREVER);
+    if (job == revision && !status.error) {
+        status.quality = processing.quality;
     }
     k_mutex_unlock(&mutex);
 }
@@ -194,6 +203,7 @@ static int receive(uint32_t job, const Request &work) {
     auto &p = processing;
     p.demodulator.reset();
     p.decoder.reset();
+    p.quality = {};
     bool accepted = false;
     bool locked = false;
     bool reset_codec = true;
@@ -210,6 +220,9 @@ static int receive(uint32_t job, const Request &work) {
             const bool complete = p.demodulator.sample(sample, p.frame);
             if (p.demodulator.locked() != locked) {
                 locked = p.demodulator.locked();
+                p.quality = {};
+                p.quality.locked = locked;
+                publish_quality(job);
                 p.decoder.reset();
                 accepted = false;
                 reset_codec = true;
@@ -219,6 +232,8 @@ static int receive(uint32_t job, const Request &work) {
             if (!complete)
                 continue;
             const auto decoded = p.decoder.decode(p.frame);
+            p.quality.observe(decoded, k_uptime_get());
+            publish_quality(job);
             if (decoded.link_updated) {
                 if (decoded.kind == m17::FrameKind::LinkSetup ||
                     memcmp(previous_link.bytes, decoded.link.bytes, sizeof(previous_link.bytes)))

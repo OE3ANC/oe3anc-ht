@@ -2,6 +2,7 @@
 #pragma once
 
 #include <ht/m17_settings.hpp>
+#include <ht/m17.hpp>
 #include <ht/selection.hpp>
 #include <ht/tone.hpp>
 #include <stdint.h>
@@ -50,6 +51,7 @@ struct RadioState {
     bool companion_mode = false; // Temporary UART ownership; physical PTT disabled.
     int16_t rssi_dbm = -127;
     char received_callsign[10] = {};
+    m17::ReceiveStatistics m17_quality;
     int fault = 0;
     int command_error = 0;
     int ptt_error = 0;

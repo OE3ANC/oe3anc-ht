@@ -1161,6 +1161,73 @@
       "wire": "0100000004020002010000000200000003000000074f4b204d656e750a4241434b20517569636b095031204d656d6f727907503220536176650b524144494f204641554c540e4261636b656e64206661696c65640b54582064697361626c65640f5265626f6f74207265717569726564000003"
     },
     {
+      "name": "m17-quality",
+      "document": {
+        "screen": 0,
+        "theme": 0,
+        "contrast": 0,
+        "flags": 520,
+        "formCursor": 0,
+        "listReturn": 2,
+        "interruptions": 1,
+        "pttSequence": 2,
+        "monitorSequence": 3,
+        "actions": [
+          "OK Menu",
+          "BACK Quick",
+          "P1 Memory",
+          "P2 Save"
+        ],
+        "home": {
+          "identity": "VFO",
+          "name": "UHF SIMPLEX",
+          "context": "BER~1.10% L2 B1",
+          "frequency": "145.000",
+          "settings": "CAN0 ALL",
+          "activity": "RX OE3VOICE",
+          "battery": "7.40V",
+          "mode": "M17",
+          "status": 0,
+          "contextColor": 0,
+          "batteryColor": 0,
+          "bars": 4
+        }
+      },
+      "wire": "0100000008020002010000000200000003000000074f4b204d656e750a4241434b20517569636b095031204d656d6f727907503220536176650356464f0b5548462053494d504c45580f4245527e312e313025204c32204231073134352e3030300843414e3020414c4c0b5258204f4533564f49434505372e343056034d313700000004"
+    },
+    {
+      "name": "codec2-statistics",
+      "document": {
+        "screen": 27,
+        "theme": 3,
+        "contrast": 0,
+        "flags": 512,
+        "formCursor": 3,
+        "listReturn": 2,
+        "interruptions": 1,
+        "pttSequence": 2,
+        "monitorSequence": 3,
+        "actions": [
+          "OK Reset",
+          "BACK Menu",
+          "P1 Page",
+          ""
+        ],
+        "status": {
+          "title": "CODEC2 / 6 OF 6",
+          "detail": "mod/3200/36600B/heap0",
+          "rows": [
+            "Enc avg/max 4.3/8.1 ms",
+            "Dec avg/max 9.6/12.1 ms",
+            "Frames E100 D200",
+            ">20ms E0 D1"
+          ],
+          "color": 0
+        }
+      },
+      "wire": "011b030000020302010000000200000003000000084f4b205265736574094241434b204d656e750750312050616765000f434f44454332202f2036204f462036156d6f642f333230302f3336363030422f686561703016456e63206176672f6d617820342e332f382e31206d7317446563206176672f6d617820392e362f31322e31206d73104672616d6573204531303020443230300b3e32306d7320453020443100"
+    },
+    {
       "name": "maximum-list",
       "document": {
         "screen": 6,

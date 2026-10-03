@@ -60,6 +60,19 @@ Normal firmware updates preserve settings and do not clear this error.
   ordered banks. Edit them on the radio or share a JSON codeplug.
 - Four themes, contrast settings, idle backlight dimming, keypad lock and a TX
   time limit. The desktop emulator runs the shared radio UI with fake hardware.
+- Codec2-mod 3200 voice, with live processing statistics in **Status → Codec2**.
+  Encoder/decoder average and maximum elapsed times are per 20 ms codec frame,
+  including preemption. The page reports frame counts, processing above 20 ms,
+  fixed state reservation and zero codec heap usage. **OK Reset** clears counters;
+  it does not reset the live codec predictors. Emulator timings are simulated.
+- M17 Home shows `BER~` (latest stream Viterbi distance divided by 272 received
+  coded bits), `L` (inferred sequence-gap loss) and `B` (rejected stream frames).
+  This is an error estimate, excluding sync/LICH bits, and does not measure true
+  or residual BER. Loss includes rejected/undetected frames, is not a separate
+  additional error total, and begins at the first observed frame. Counts above
+  9999 display as `9999+`. The values
+  clear on sync loss/new LSF, expire after 500 ms without a stream frame, and
+  are unavailable during TX. Storage warnings retain priority over these stats.
 
 <img src="assets/screenshots/radio-vfo.png" alt="Emulator FM VFO Home" width="320">
 <img src="assets/screenshots/radio-m17.png" alt="Emulator M17 Memory Home" width="320">
@@ -85,6 +98,9 @@ Thanks to everyone involved in reverse-engineering the C62, the OpenRTX
 contributors, and the authors of the BK4819 driver and C62 integration we copied and
 adapted as well as to ListenAI for their help with the DSP firmware. Their work
 made this project possible. Imported code retains its original attribution and licenses.
+
+Thanks also to David Rowe and the Codec2 contributors, and the M17 Project
+contributors maintaining [Codec2-mod](https://github.com/M17-Project/Codec2-mod).
 
 We encourage amateur-radio manufacturers to publish tools, documentation and
 schematics so the open-source community can develop innovative firmware and

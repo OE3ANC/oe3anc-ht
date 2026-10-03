@@ -7,6 +7,7 @@
 #include <errno.h>
 #include <stdio.h>
 #include <string.h>
+#include <zephyr/kernel.h>
 
 namespace ht {
 void UiModel::advance_signal(int64_t now) {
@@ -68,6 +69,17 @@ void UiModel::home(UiHome &view) const {
         }
     }
 #endif
+    if (config.mode == Mode::M17) {
+        const auto &quality = state_.m17_quality;
+        if (!view.transmitting && quality.fresh(k_uptime_get())) {
+            const unsigned ber = quality.ber_permyriad();
+            snprintf(view.context, sizeof(view.context), "BER~%u.%02u%% L%u%s B%u%s", ber / 100,
+                     ber % 100, MIN(quality.lost, 9999u), quality.lost > 9999 ? "+" : "",
+                     MIN(quality.rejected, 9999u), quality.rejected > 9999 ? "+" : "");
+        } else {
+            strcpy(view.context, view.transmitting ? "TX / RX stats --" : "BER~-- / no fresh RX");
+        }
+    }
     const uint32_t frequency = view.transmitting ? config.tx_frequency_hz : config.rx_frequency_hz;
     snprintf(view.frequency, sizeof(view.frequency), "%u.%06u", frequency / 1000000,
              frequency % 1000000);

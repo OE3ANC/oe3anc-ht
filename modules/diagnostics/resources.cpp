@@ -31,13 +31,10 @@ static void report(void *, void *, void *) {
                         heap->heap.init_bytes, stats.allocated_bytes, stats.max_allocated_bytes,
                         stats.free_bytes);
         }
-        ht::m17::VoiceHeapUsage codec;
-        const int codec_error = ht::m17::voice_heap_usage(codec);
-        if (!codec_error)
-            LOG_INF("Codec2 heap used=%zu peak=%zu free=%zu", codec.used_bytes, codec.peak_bytes,
-                    codec.free_bytes);
-        else
-            LOG_INF("Codec2 heap sampling unavailable: %d", codec_error);
+        const auto codec = ht::m17::voice_statistics();
+        LOG_INF("Codec2-mod state=%zu heap=0 encode=%u decode=%u late=%u/%u", codec.state_bytes,
+                codec.encode.frames, codec.decode.frames, codec.encode.over_budget,
+                codec.decode.over_budget);
 #ifdef CONFIG_HT_AUDIO
         const auto audio = ht::audio_status();
         LOG_INF("audio error=%d FM discard=%u silence speaker=%u radio=%u", audio.error,

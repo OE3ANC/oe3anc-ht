@@ -107,9 +107,9 @@ def package(build, website, output, tag, dependencies):
     modules = dependencies / 'c62/modules/lib'
     licenses['LICENSES/LVGL.txt'] = (modules / 'gui/lvgl/LICENCE.txt').read_bytes()
     entries = dict(licenses)
-    entries['LICENSES/Codec2.txt'] = (modules / 'codec2/COPYING').read_bytes()
+    entries['LICENSES/Codec2.txt'] = (modules / 'codec2-mod/LICENSE').read_bytes()
     # Preserve KISS FFT's original attribution/license alongside its firmware binary.
-    entries['LICENSES/kiss_fft.c'] = (modules / 'codec2/src/kiss_fft.c').read_bytes()
+    entries['LICENSES/kiss_fft.c'] = (modules / 'codec2-mod/src/kiss_fft.c').read_bytes()
     entries.update(
         {'release.json': canonical(release), 'firmware-bundle.json': bundle_path.read_bytes()}
     )

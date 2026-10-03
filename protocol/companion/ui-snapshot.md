@@ -111,3 +111,8 @@ within the 512-byte bound. Four visible rows and copied footer/help lines
 preserve scroll position and pending/error explanations without exporting data
 for other pages. Brightness/idle settings are represented by visible lines;
 browser rendering does not control radio backlight.
+
+Codec2-mod timing/memory statistics use the existing Status strings. M17 reception
+quality uses the Home context string, with storage/radio explanations taking
+priority. These are rendered text, not new numeric protocol fields; schema and
+protocol versions remain unchanged. Shared fixtures cover both presentations.

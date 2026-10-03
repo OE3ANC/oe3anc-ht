@@ -25,9 +25,9 @@ manifest:
     revision: 702997cb1d61aece05fda62c140defd52dd3c36f
     path: modules/lib/gui/lvgl
   - name: codec2
-    url: https://github.com/drowe67/codec2-dev
-    revision: a298f3789d7ef9e829049ebe14da8845d97ba8c1
-    path: modules/lib/codec2
+    url: https://github.com/M17-Project/Codec2-mod
+    revision: 7c334283794fa6304dc014f12df70afc8393143a
+    path: modules/lib/codec2-mod
   - name: af
     url: https://github.com/OE3ANC/openrtx-c62-modules-af
     revision: c94c49ffb883b6d15b284b84d0eb13394ac07422

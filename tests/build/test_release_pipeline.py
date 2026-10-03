@@ -284,14 +284,17 @@ class ReleaseChecks(unittest.TestCase):
         dependencies = self.directory / 'dependencies'
         files = {
             root / 'LICENSES/project.txt': b'project license',
+            root / 'LICENSES/KISS-FFT.txt': (
+                release_packages.ROOT / 'LICENSES/KISS-FFT.txt'
+            ).read_bytes(),
             root / 'companion/src/app.mjs': b'app',
             root / 'companion/bootloader/LICENSE': b'helper license',
             build
             / 'emulator/companion-generated/release.json': release_packages.canonical(RELEASE),
             build / 'c62/zephyr/firmware-bundle.json': b'{"release":{}}',
             dependencies / 'c62/modules/lib/gui/lvgl/LICENCE.txt': b'LVGL license',
-            dependencies / 'c62/modules/lib/codec2/COPYING': b'Codec2 license',
-            dependencies / 'c62/modules/lib/codec2/src/kiss_fft.c': b'KISS license/source',
+            dependencies / 'c62/modules/lib/codec2-mod/LICENSE': b'Codec2 license',
+            dependencies / 'c62/modules/lib/codec2-mod/src/kiss_fft.c': b'KISS license/source',
         }
         for name in (
             'index.html',
@@ -328,8 +331,13 @@ class ReleaseChecks(unittest.TestCase):
             with zipfile.ZipFile(output / ('firmware-' + TAG + '.zip')) as archive:
                 self.assertEqual(json.loads(archive.read('release.json')), RELEASE)
                 self.assertIn('firmware-bundle.json', archive.namelist())
-                for name in ('project.txt', 'LVGL.txt', 'Codec2.txt', 'kiss_fft.c'):
+                for name in ('project.txt', 'LVGL.txt', 'Codec2.txt', 'kiss_fft.c', 'KISS-FFT.txt'):
                     self.assertIn('LICENSES/' + name, archive.namelist())
+                kiss_license = archive.read('LICENSES/KISS-FFT.txt')
+                self.assertIn(b'Mark Borgerding', kiss_license)
+                self.assertIn(b'Redistributions in binary form', kiss_license)
+                self.assertIn(b'Neither the author', kiss_license)
+                self.assertIn(b'EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE', kiss_license)
                 self.assertNotIn('provenance.md', archive.namelist())
             repeated = release_packages.package(build, website, output, TAG, dependencies)
             self.assertEqual(manifest, repeated)

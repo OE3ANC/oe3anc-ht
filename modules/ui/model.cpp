@@ -4,6 +4,9 @@
 #include <errno.h>
 #include <ht/backend.hpp>
 #include <ht/ui.hpp>
+#ifdef CONFIG_HT_CODEC2
+#include <ht/voice.hpp>
+#endif
 #ifdef CONFIG_HT_CODEPLUG_STORAGE
 #include <ht/settings.hpp>
 #endif
@@ -643,7 +646,12 @@ void UiModel::input(const UiInput &input, bool external_pending) {
             screen_ = UiScreen::Menu;
             selected_ = StatusItem;
         } else if (input.key == UiKey::Up || input.key == UiKey::Down || input.key == UiKey::Left) {
-            status_page_ = (status_page_ + (input.key == UiKey::Up ? 4 : 1)) % 5;
+            status_page_ = (status_page_ + (input.key == UiKey::Up ? status_page_count - 1 : 1)) %
+                           status_page_count;
+#ifdef CONFIG_HT_CODEC2
+        } else if (input.key == UiKey::Enter && codec_statistics_page()) {
+            m17::voice_statistics_reset();
+#endif
         }
         return;
     }
@@ -780,7 +788,7 @@ void UiModel::lines(char (&text)[8][32]) const {
         for (unsigned row = 0; row < 4; ++row) {
             strcpy(text[row + 2], page.rows[row]);
         }
-        strcpy(text[7], "BACK Menu | P1 Page");
+        strcpy(text[7], codec_statistics_page() ? "OK Reset | BACK Menu" : "BACK Menu | P1 Page");
         return;
     } else if (screen_ == UiScreen::TransmitLimit) {
         limit_lines(text);

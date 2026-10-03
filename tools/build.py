@@ -58,11 +58,8 @@ def main():
     parser.add_argument(
         '--codec2',
         type=Path,
-        default=Path(
-            os.environ.get(
-                'HT_CODEC2_DIR', Path.home() / 'openrtx-build/OpenRTX/subprojects/codec2'
-            )
-        ),
+        default=os.environ.get('HT_CODEC2_DIR'),
+        help='pinned Codec2-mod checkout (default: C62 workspace/modules/lib/codec2-mod)',
     )
     parser.add_argument(
         '--dsp-modules',
@@ -93,7 +90,7 @@ def main():
     lvgl = args.lvgl.resolve()
     lvgl_pin = next(p['revision'] for p in projects if p['name'] == 'lvgl')
     verify_revision(lvgl, lvgl_pin)
-    codec2 = args.codec2.resolve()
+    codec2 = (args.codec2 or workspace / 'modules/lib/codec2-mod').resolve()
     codec2_pin = next(p['revision'] for p in projects if p['name'] == 'codec2')
     verify_revision(codec2, codec2_pin)
     # Register only the project integration module, never vendor LVGL glue.

@@ -1,5 +1,4 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-#include "../../../modules/protocols/codec2/allocator.h"
 #include "../../m17/vectors/golden.hpp"
 #include "../../m17_demodulation/vectors/golden.hpp"
 #include <errno.h>
@@ -16,7 +15,6 @@ using namespace ht;
 
 namespace ht {
 namespace m17 {
-extern k_mutex codec_lock;
 }
 } // namespace ht
 
@@ -320,9 +318,6 @@ static void generated_receive(const char *destination, bool late, bool invalid, 
             zassert_true(encoder.stream(payload, i == 7, frame));
             append();
         }
-        k_mutex_lock(&m17::codec_lock, K_FOREVER);
-        ht_codec2_test_fail_after(-1);
-        k_mutex_unlock(&m17::codec_lock);
     }
     m17::end_marker(frame);
     append();
@@ -332,9 +327,7 @@ static void generated_receive(const char *destination, bool late, bool invalid, 
     // Changing the producer draft cannot change an already prepared RX job.
     copied.can = (copied.can + 1) % 16;
     copied.rx_can_check = !copied.rx_can_check;
-    k_mutex_lock(&m17::codec_lock, K_FOREVER);
-    const unsigned constructor_allocations = ht_codec2_test_attempts();
-    k_mutex_unlock(&m17::codec_lock);
+    const unsigned initializations = m17::voice_statistics().initializations;
     k_mutex_lock(&io_mutex, K_FOREVER);
     rx_samples = generated_rx;
     rx_count = count;
@@ -367,15 +360,11 @@ static void generated_receive(const char *destination, bool late, bool invalid, 
         zassert_equal(accepted_call, audible);
     }
     if (!audible) {
-        k_mutex_lock(&m17::codec_lock, K_FOREVER);
-        zassert_equal(ht_codec2_test_attempts(), constructor_allocations);
-        k_mutex_unlock(&m17::codec_lock);
+        zassert_equal(m17::voice_statistics().initializations, initializations);
     }
     if (restart) {
-        k_mutex_lock(&m17::codec_lock, K_FOREVER);
-        // Initial preparation + one fresh predictor for each received stream.
-        zassert_equal(ht_codec2_test_attempts(), 3 * constructor_allocations);
-        k_mutex_unlock(&m17::codec_lock);
+        // Preparation was captured above; each received stream resets predictors.
+        zassert_equal(m17::voice_statistics().initializations, initializations + 2);
     }
     k_mutex_lock(&io_mutex, K_FOREVER);
     zassert_equal(speaker_nonzero > 0, audible);

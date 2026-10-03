@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "../vectors/golden.hpp"
-#include "allocator.h"
 #include <errno.h>
 #include <ht/voice.hpp>
 #include <string.h>
@@ -14,8 +13,8 @@ extern k_mutex codec_lock;
 }
 } // namespace ht
 
-static K_SEM_DEFINE(heap_locked, 0, 1);
-static K_SEM_DEFINE(heap_unlock, 0, 1);
+static K_SEM_DEFINE(codec_locked, 0, 1);
+static K_SEM_DEFINE(codec_unlock, 0, 1);
 static k_thread lock_thread;
 K_THREAD_STACK_DEFINE(lock_stack, 1024);
 
@@ -30,11 +29,7 @@ static Speech speech(unsigned pair) {
 }
 
 static void before(void *) {
-    ht_codec2_test_fail_after(-1);
-}
-
-static void after(void *) {
-    zassert_equal(ht_codec2_test_heap_used(), 0, "Codec heap leaked");
+    voice_statistics_reset();
 }
 
 ZTEST(codec2, test_closed_calls_clear_outputs) {
@@ -56,7 +51,6 @@ ZTEST(codec2, test_closed_calls_clear_outputs) {
 ZTEST(codec2, test_reference_encode_and_input_ownership) {
     VoiceCodec codec;
     zassert_ok(codec.open());
-    const unsigned allocations = ht_codec2_test_attempts();
     for (unsigned pair = 0; pair < 4; ++pair) {
         const Speech input = speech(pair);
         const Speech saved = input;
@@ -65,10 +59,11 @@ ZTEST(codec2, test_reference_encode_and_input_ownership) {
         zassert_mem_equal(encoded.bytes, encoded_speech[pair], sizeof(encoded.bytes));
         zassert_mem_equal(input.samples, saved.samples, sizeof(input.samples));
     }
-    zassert_equal(ht_codec2_test_attempts(), allocations, "Encode allocated heap");
-    const size_t used = ht_codec2_test_heap_used();
-    zassert_true(used > 0 && used < 32768);
-    printk("Codec2 live heap: %zu bytes\n", used);
+    const auto stats = voice_statistics();
+    zassert_equal(stats.encode.frames, 8);
+    zassert_equal(stats.decode.frames, 0);
+    zassert_true(stats.state_bytes > 0 && stats.state_bytes < 40000);
+    printk("Codec2-mod fixed state: %zu bytes\n", stats.state_bytes);
     // Reopening discards predictor history and reproduces the first payload.
     zassert_ok(codec.open());
     Payload reset;
@@ -86,7 +81,6 @@ ZTEST(codec2, test_roundtrip_framing_and_output_bounds) {
     zassert_true(make_voice_link("OE3ANC", 6, link));
     zassert_true(encoder.start(link, frame));
     zassert_true(decoder.decode(frame).link_updated);
-    const unsigned allocations = ht_codec2_test_attempts();
     int64_t energy = 0;
     for (unsigned pair = 0; pair < 32; ++pair) {
         Payload encoded;
@@ -112,87 +106,66 @@ ZTEST(codec2, test_roundtrip_framing_and_output_bounds) {
             energy += int64_t(sample) * sample;
     }
     zassert_true(energy > 0); // Codec2 is lossy; equality with source PCM is not expected.
-    zassert_equal(ht_codec2_test_attempts(), allocations, "Frame processing allocated heap");
+    const auto stats = voice_statistics();
+    zassert_equal(stats.encode.frames, 64);
+    zassert_equal(stats.decode.frames, 64);
+    zassert_true(stats.encode.maximum_us <= stats.encode.total_us);
+    zassert_true(stats.decode.over_budget <= stats.decode.frames);
     size_t unused = 0;
     zassert_ok(k_thread_stack_space_get(k_current_get(), &unused));
     printk("Codec2 native test stack unused: %zu bytes\n", unused);
     zassert_true(unused >= 1024, "Codec test stack is nearly exhausted");
 }
 
-ZTEST(codec2, test_every_constructor_allocation_failure_is_clean) {
-    VoiceCodec codec;
-    zassert_ok(codec.open());
-    const unsigned allocations = ht_codec2_test_attempts();
-    codec.close();
-    zassert_true(allocations >= 10);
-    for (unsigned fail = 0; fail < allocations; ++fail) {
-        ht_codec2_test_fail_after(fail);
-        zassert_equal(codec.open(), -ENOMEM, "Allocation %u", fail);
-        zassert_equal(ht_codec2_test_heap_used(), 0, "Allocation %u leaked", fail);
-        Payload output;
-        zassert_equal(codec.encode(speech(0), output), -ENODEV);
-        ht_codec2_test_fail_after(-1);
-        zassert_ok(codec.open());
-        zassert_true(ht_codec2_test_heap_used() > 0);
-        codec.close();
-    }
-}
-
-ZTEST(codec2, test_bounded_heap_and_repeated_lifecycle) {
+ZTEST(codec2, test_single_fixed_state_and_repeated_lifecycle) {
     VoiceCodec codec;
     VoiceCodec second;
     zassert_ok(codec.open());
-    const size_t first_used = ht_codec2_test_heap_used();
-    zassert_equal(second.open(), -ENOMEM); // The reserved heap fits one full state.
-    zassert_equal(ht_codec2_test_heap_used(), first_used);
+    zassert_equal(second.open(), -EBUSY);
+    second.close(); // A rejected instance cannot release the active owner.
     Payload first;
     zassert_ok(codec.encode(speech(0), first));
+    zassert_mem_equal(first.bytes, encoded_speech[0], sizeof(first.bytes));
     codec.close();
     zassert_ok(second.open());
     second.close();
     for (unsigned i = 0; i < 16; ++i) {
         zassert_ok(codec.open());
-        zassert_equal(ht_codec2_test_heap_used(), first_used);
+        zassert_ok(codec.encode(speech(0), first));
+        zassert_mem_equal(first.bytes, encoded_speech[0], sizeof(first.bytes));
         codec.close();
-        zassert_equal(ht_codec2_test_heap_used(), 0);
     }
+    zassert_equal(voice_statistics().initializations, 18);
 }
 
 static void hold_codec_lock(void *, void *, void *) {
     k_mutex_lock(&codec_lock, K_FOREVER);
-    k_sem_give(&heap_locked);
-    k_sem_take(&heap_unlock, K_FOREVER);
+    k_sem_give(&codec_locked);
+    k_sem_take(&codec_unlock, K_FOREVER);
     k_mutex_unlock(&codec_lock);
 }
 
-ZTEST(codec2, test_heap_measurement_tracks_peak_and_does_not_wait_for_codec) {
-    VoiceHeapUsage empty;
-    zassert_ok(voice_heap_usage(empty));
-    zassert_equal(empty.used_bytes, 0);
-    zassert_true(empty.free_bytes > 30000);
+ZTEST(codec2, test_statistics_reset_and_snapshot_do_not_wait_for_codec) {
     VoiceCodec codec;
     zassert_ok(codec.open());
-    VoiceHeapUsage active;
-    zassert_ok(voice_heap_usage(active));
-    zassert_equal(active.used_bytes, ht_codec2_test_heap_used());
-    zassert_true(active.used_bytes > 30000);
-    zassert_true(active.peak_bytes >= active.used_bytes);
-    codec.close();
-    VoiceHeapUsage closed;
-    zassert_ok(voice_heap_usage(closed));
-    zassert_equal(closed.used_bytes, 0);
-    zassert_equal(closed.free_bytes, empty.free_bytes);
-    zassert_equal(closed.peak_bytes, active.peak_bytes);
+    Payload payload;
+    zassert_ok(codec.encode(speech(0), payload));
+    const auto saved = voice_statistics();
+    zassert_equal(saved.encode.frames, 2);
     k_thread_create(&lock_thread, lock_stack, K_THREAD_STACK_SIZEOF(lock_stack), hold_codec_lock,
                     nullptr, nullptr, nullptr, 8, 0, K_NO_WAIT);
-    zassert_ok(k_sem_take(&heap_locked, K_MSEC(100)));
-    VoiceHeapUsage busy = active;
-    zassert_equal(voice_heap_usage(busy), -EAGAIN);
-    zassert_equal(busy.used_bytes, 0);
-    zassert_equal(busy.peak_bytes, 0);
-    zassert_equal(busy.free_bytes, 0);
-    k_sem_give(&heap_unlock);
+    zassert_ok(k_sem_take(&codec_locked, K_MSEC(100)));
+    zassert_equal(voice_statistics().encode.frames, saved.encode.frames);
+    voice_statistics_reset();
+    const auto cleared = voice_statistics();
+    zassert_equal(cleared.encode.frames, 0);
+    zassert_equal(cleared.encode.total_us, 0);
+    zassert_equal(cleared.decode.maximum_us, 0);
+    zassert_equal(cleared.state_bytes, saved.state_bytes);
+    k_sem_give(&codec_unlock);
     zassert_ok(k_thread_join(&lock_thread, K_MSEC(100)));
+    zassert_ok(codec.encode(speech(1), payload));
+    zassert_equal(voice_statistics().encode.frames, 2);
 }
 
-ZTEST_SUITE(codec2, nullptr, nullptr, before, after, nullptr);
+ZTEST_SUITE(codec2, nullptr, nullptr, before, nullptr, nullptr);

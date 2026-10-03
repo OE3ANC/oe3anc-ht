@@ -333,4 +333,52 @@ ZTEST(m17, test_independent_directed_can15_coded_lsf_and_late_entry) {
     zassert_false(accept_voice_link(decoded.link, local, settings, source));
 }
 
+ZTEST(m17, test_receive_quality_distance_loss_wrap_and_freshness) {
+    Decoder decoder;
+    Frame incoming = frame(stream_0);
+    flip_coded_bit(incoming, 96 + 10); // Stream FEC, outside the 96-bit LICH.
+    const auto decoded = decoder.decode(incoming);
+    zassert_true(decoded.payload_valid);
+    zassert_equal(decoded.errors, 1);
+    ReceiveStatistics quality;
+    quality.locked = true;
+    quality.observe(decoded, 100);
+    zassert_equal(quality.ber_permyriad(), 36); // 1/272 = 0.36%, rounded down.
+    zassert_true(quality.fresh(599));
+    zassert_false(quality.fresh(600));
+    zassert_false(quality.fresh(99));
+    DecodedFrame next = decoded;
+    next.number = 3;
+    quality.observe(next, 140);
+    zassert_equal(quality.lost, 2);
+    quality.observe(next, 180); // Duplicate cannot add inferred loss.
+    zassert_equal(quality.lost, 2);
+    next.payload_valid = false;
+    next.errors = 15;
+    quality.observe(next, 220);
+    zassert_equal(quality.rejected, 1);
+    next.payload_valid = true;
+    next.number = 5;
+    quality.observe(next, 260);
+    zassert_equal(quality.lost, 3); // Rejected/undetected frames are part of the gap.
+    next.kind = FrameKind::LinkSetup;
+    quality.observe(next, 300);
+    zassert_equal(quality.frames, 0);
+    zassert_false(quality.sampled);
+    next.kind = FrameKind::Stream;
+    next.number = 32767;
+    quality.observe(next, 340);
+    next.number = 0;
+    quality.observe(next, 380);
+    zassert_equal(quality.lost, 0);
+    next.number = 32766; // Old/out-of-order frame does not move the loss baseline.
+    quality.observe(next, 400);
+    next.number = 1;
+    quality.observe(next, 420);
+    zassert_equal(quality.lost, 0);
+    next.kind = FrameKind::End;
+    quality.observe(next, 460);
+    zassert_false(quality.fresh(461));
+}
+
 ZTEST_SUITE(m17, nullptr, nullptr, nullptr, nullptr, nullptr);

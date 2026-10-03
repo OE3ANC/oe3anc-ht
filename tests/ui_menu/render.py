@@ -79,6 +79,8 @@ def main():
         "status-fault",
         "status-inactive",
         "status-after-appearance",
+        "codec2-empty",
+        "codec2-live",
     )
     themes = ("Midnight", "Nord", "Solarized Dark", "Darcula")
     contrasts = ("Normal", "High", "Maximum")

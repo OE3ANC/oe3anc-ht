@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include <ht/ui.hpp>
 #include <ht/backend.hpp>
+#ifdef CONFIG_HT_CODEC2
+#include <ht/voice.hpp>
+#endif
 #ifdef CONFIG_HT_BATTERY
 #include <ht/battery.hpp>
 #endif
@@ -87,6 +90,19 @@ static void tone(char (&text)[32], const char *name, const Tone &tone) {
     }
 }
 
+#ifdef CONFIG_HT_CODEC2
+static void timing(char (&text)[32], const char *name, const m17::VoiceTiming &stats) {
+    if (!stats.frames) {
+        snprintf(text, sizeof(text), "%s --/-- ms", name);
+        return;
+    }
+    const uint32_t average = stats.total_us / stats.frames / 100;
+    const uint32_t maximum = stats.maximum_us / 100;
+    snprintf(text, sizeof(text), "%s %u.%u/%u.%u ms", name, average / 10, average % 10,
+             maximum / 10, maximum % 10);
+}
+#endif
+
 void UiModel::status(UiStatus &view) const {
     view = {};
     if (screen_ == UiScreen::CompanionExit) {
@@ -102,7 +118,7 @@ void UiModel::status(UiStatus &view) const {
     const auto &config = state_.config;
     switch (status_page_) {
     case 0: {
-        strcpy(view.title, "RADIO / 1 OF 5");
+        snprintf(view.title, sizeof(view.title), "RADIO / 1 OF %u", status_page_count);
         snprintf(view.detail, sizeof(view.detail), "%s / %s / %s",
                  state_.selection.operating == Operating::Memory ? "Memory" : "VFO",
                  config.mode == Mode::Fm ? "FM" : "M17",
@@ -123,7 +139,7 @@ void UiModel::status(UiStatus &view) const {
         break;
     }
     case 1:
-        strcpy(view.title, "MODE / 2 OF 5");
+        snprintf(view.title, sizeof(view.title), "MODE / 2 OF %u", status_page_count);
         snprintf(view.detail, sizeof(view.detail), "%s / limit %s",
                  config.mode == Mode::Fm ? "FM" : "M17",
                  config.transmit_limit_s ? "enabled" : "off");
@@ -147,7 +163,7 @@ void UiModel::status(UiStatus &view) const {
         }
         break;
     case 2:
-        strcpy(view.title, "ACTIVITY / 3 OF 5");
+        snprintf(view.title, sizeof(view.title), "ACTIVITY / 3 OF %u", status_page_count);
         strcpy(view.detail, "Live controller snapshot");
         snprintf(view.rows[0], 32, "RSSI %d dBm / relative", state_.rssi_dbm);
         snprintf(view.rows[1], 32, "RX %s", state_.rx_active ? "active" : "idle");
@@ -158,7 +174,7 @@ void UiModel::status(UiStatus &view) const {
         snprintf(view.rows[3], 32, "Monitor %s", state_.monitor_active ? "held" : "off");
         break;
     case 3: {
-        strcpy(view.title, "BATTERY / 4 OF 5");
+        snprintf(view.title, sizeof(view.title), "BATTERY / 4 OF %u", status_page_count);
 #ifdef CONFIG_HT_BATTERY
         const auto caps = battery_capabilities();
         const auto snapshot = battery_snapshot();
@@ -206,8 +222,8 @@ void UiModel::status(UiStatus &view) const {
 #endif
         break;
     }
-    default:
-        strcpy(view.title, "STORAGE / 5 OF 5");
+    case 4: {
+        snprintf(view.title, sizeof(view.title), "STORAGE / 5 OF %u", status_page_count);
 #ifdef CONFIG_HT_SETTINGS
         const auto storage = settings_status();
         strcpy(view.detail,
@@ -237,6 +253,19 @@ void UiModel::status(UiStatus &view) const {
         }
 #else
         strcpy(view.detail, "Persistence unavailable");
+#endif
+        break;
+    }
+    default:
+#ifdef CONFIG_HT_CODEC2
+        strcpy(view.title, "CODEC2 / 6 OF 6");
+        const auto codec = m17::voice_statistics();
+        snprintf(view.detail, sizeof(view.detail), "mod/3200/%zuB/heap0", codec.state_bytes);
+        timing(view.rows[0], "Enc avg/max", codec.encode);
+        timing(view.rows[1], "Dec avg/max", codec.decode);
+        snprintf(view.rows[2], 32, "Frames E%u D%u", codec.encode.frames, codec.decode.frames);
+        snprintf(view.rows[3], 32, ">20ms E%u D%u", codec.encode.over_budget,
+                 codec.decode.over_budget);
 #endif
         break;
     }

@@ -311,6 +311,9 @@ BackendStatus backend_status() {
         }
         if (!status.error) {
             const auto digital = m17_status();
+            if (configuration.mode == Mode::M17) {
+                status.m17_quality = digital.quality;
+            }
             const bool open = configuration.mode == Mode::M17
                                   ? digital.rx_active
                                   : (squelch.update(status.rssi_dbm, tone) || monitor);

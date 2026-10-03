@@ -4,6 +4,7 @@
 #include <ht/emulator.hpp>
 #include <ht/settings.hpp>
 #include <ht/ui.hpp>
+#include <ht/voice.hpp>
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -312,6 +313,42 @@ ZTEST(ui_menu, test_radio_controls_helpers_pending_and_apply) {
     key(UiKey::Back);
 }
 
+ZTEST(ui_menu, test_codec_statistics_page_reset_and_navigation) {
+    load();
+    m17::voice_statistics_reset();
+    status(5);
+    UiStatus page;
+    model.status(page);
+    zassert_equal(strcmp(page.title, "CODEC2 / 6 OF 6"), 0);
+    zassert_equal(strcmp(page.rows[0], "Enc avg/max --/-- ms"), 0);
+    zassert_not_null(strstr(page.detail, "heap0"));
+    render("codec2-empty");
+    {
+        m17::VoiceCodec codec;
+        zassert_ok(codec.open());
+        m17::Speech silence;
+        m17::Payload payload;
+        zassert_ok(codec.encode(silence, payload));
+        zassert_ok(codec.decode(payload, silence));
+    }
+    model.status(page);
+    zassert_equal(strcmp(page.rows[2], "Frames E2 D2"), 0);
+    render("codec2-live");
+    UiPresentation view;
+    ui_capture_presentation(model, view);
+    zassert_equal(strcmp(view.actions[0], "OK Reset"), 0);
+    const auto revision = settings_status().revision;
+    key(UiKey::Enter);
+    model.status(page);
+    zassert_equal(strcmp(page.rows[2], "Frames E0 D0"), 0);
+    zassert_equal(settings_status().revision, revision);
+    key(UiKey::Down);
+    model.status(page);
+    zassert_equal(strcmp(page.title, "RADIO / 1 OF 6"), 0);
+    key(UiKey::Up);
+    zassert_true(model.codec_statistics_page());
+}
+
 ZTEST(ui_menu, test_status_exact_config_modes_activity_and_no_mutation) {
     load(true);
     const auto state = radio_snapshot();
@@ -412,14 +449,14 @@ ZTEST(ui_menu, test_storage_dirty_error_clean_and_read_only_reporting) {
     zassert_equal(strcmp(view.rows[0], "Storage pending / dirty"), 0);
     render("storage-pending");
     fail_durable = true;
-    settings_service(radio_snapshot(), 1100);
+    settings_service(radio_snapshot(), 10000);
     model.status(view);
     zassert_not_null(strstr(view.detail, "Save error"));
     zassert_equal(view.color, UiStatusColor::Red);
     zassert_equal(strcmp(view.rows[0], "Storage pending / dirty"), 0);
     render("storage-error");
     fail_durable = false;
-    settings_service(radio_snapshot(), 2200);
+    settings_service(radio_snapshot(), 11000);
     model.status(view);
     zassert_equal(strcmp(view.rows[0], "Storage clean"), 0);
     render("storage-clean");

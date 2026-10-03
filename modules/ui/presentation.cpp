@@ -55,7 +55,7 @@ void ui_capture_presentation(const UiModel &model, UiPresentation &view) {
         model.menu_actions(actions);
     } else if (screen == UiScreen::Status || screen == UiScreen::CompanionExit) {
         const bool exiting = screen == UiScreen::CompanionExit;
-        actions[0] = exiting ? "OK Done" : "";
+        actions[0] = exiting ? "OK Done" : model.codec_statistics_page() ? "OK Reset" : "";
         actions[1] = exiting ? "BACK Cancel" : "BACK Menu";
         actions[2] = exiting ? "" : "P1 Page";
     } else if (screen == UiScreen::Appearance) {
