@@ -70,6 +70,7 @@ const names = [
     '[data-backup-file]',
     '[data-flash-update]',
     '[data-flash-restore]',
+    '[data-settings-reset]',
     '[data-restore-status]',
     '[data-bundle-status]',
     '[data-backup-status]',
@@ -531,3 +532,60 @@ console.log(
 console.log(
     'PASS: bounded calibration inspection, exact region/hash provenance, separately verified full raw download, offline cache and failed reread clears stale data'
 );
+
+// Reset needs no firmware/backup file and must always verify, even if checkbox state is altered.
+let resets = 0;
+for (const action of ['cancel', 'confirm', 'changed', 'partial']) {
+    connected();
+    tools.bundle = null;
+    tools.backup = null;
+    tools.connection.resetSettings = async options => {
+        assert.equal(options.acknowledged, true);
+        assert.equal(options.verifyAfterWrite, true);
+        assert.equal(options.applicationOnly, false);
+        resets++;
+        if (action === 'partial') {
+            throw Object.assign(new Error('Lost reset response'), { flashMayHaveChanged: true });
+        }
+    };
+    tools.update();
+    assert.equal(get('data-settings-reset').disabled, false);
+    const before = resets;
+    const reset = tools.write(false, true);
+    await waitForPreview();
+    assert.equal(get('data-settings-reset').disabled, true);
+    assert.equal(tools.flashSelection.hidden, true);
+    assert.equal(tools.verifyAfterWrite.checked, true);
+    assert.equal(tools.verifyAfterWrite.disabled, true);
+    assert.equal(tools.confirm.disabled, true);
+    assert.match(get('data-flash-preview').textContent, /Deletes all saved settings, channels and banks/);
+    assert.match(get('data-flash-preview').textContent, /\[0x308000, 0x348000\)/);
+    assert.match(get('data-flash-preview').textContent, /factory calibration.*preserved/);
+    tools.confirm.listeners.get('click')();
+    assert.equal(resets, before);
+    if (action === 'cancel') {
+        tools.dialog.close('cancel');
+    } else {
+        tools.verifyAfterWrite.checked = false;
+        tools.acknowledgement.checked = true;
+        tools.acknowledgement.change();
+        if (action === 'changed') {
+            tools.connection.info = { ...info };
+        }
+        tools.confirm.click();
+    }
+    await reset;
+    assert.equal(resets, before + (['confirm', 'partial'].includes(action) ? 1 : 0));
+    assert.equal(tools.verifyAfterWrite.disabled, false);
+    assert.equal(tools.busy, false);
+    if (action === 'confirm') {
+        assert.match(tools.status.textContent, /reset completed and verified/);
+        assert.match(tools.status.textContent, /reboot the radio/);
+    }
+    if (action === 'partial') {
+        assert.match(tools.status.textContent, /Settings reset may be incomplete/);
+        assert.match(tools.status.textContent, /repeat the settings reset/);
+        assert.doesNotMatch(tools.status.textContent, /radio may not boot/);
+    }
+}
+console.log('PASS: file-independent settings reset preview, required verification, acknowledgement, cancellation, identity and partial-reset recovery');

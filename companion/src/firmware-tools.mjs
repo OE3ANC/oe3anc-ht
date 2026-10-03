@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-import { CskBootloader, FACTORY_OFFSET } from './bootloader.mjs';
+import { CskBootloader, FACTORY_OFFSET, SETTINGS_OFFSET, SETTINGS_SIZE } from './bootloader.mjs';
 import { createFlashBackup, parseFlashBackup, MAX_BACKUP_BYTES } from './flash-backup.mjs';
 import { sha256, parseFirmwareBundle, MAX_BUNDLE_BYTES, ERASE_SIZE } from './firmware-bundle.mjs';
 import { decodeCalibration, showCalibration, JOURNAL_SIZE } from './calibration.mjs';
@@ -85,6 +85,9 @@ export class FirmwareTools {
                 void this.read(true, true);
             }
         });
+        root.querySelector('[data-settings-reset]').addEventListener('click', () => {
+            void this.write(false, true);
+        });
         root.querySelector('[data-boot-cancel]').addEventListener('click', () => {
             this.abort?.abort(new DOMException('Cancelled', 'AbortError'));
             if (this.dialog.open) {
@@ -142,7 +145,7 @@ export class FirmwareTools {
         this.root.querySelector('[data-boot-connect]').disabled =
             !supported || this.ownsPort || !this.available();
         this.root.querySelector('[data-boot-close]').disabled = this.busy || !this.connection.port;
-        for (const name of ['data-flash-backup', 'data-factory-read']) {
+        for (const name of ['data-flash-backup', 'data-factory-read', 'data-settings-reset']) {
             this.root.querySelector(`[${name}]`).disabled = this.busy || !this.connection.ready;
         }
         this.root.querySelector('[data-factory-download]').disabled =
@@ -343,12 +346,12 @@ export class FirmwareTools {
         }
     }
 
-    async write(restoring) {
+    async write(restoring, resetting = false) {
         const selected = restoring ? this.backup : this.bundle;
         if (
             this.busy ||
             !this.connection.ready ||
-            !selected ||
+            (!resetting && !selected) ||
             (restoring && restoreError(selected, this.connection.info))
         ) {
             return;
@@ -356,9 +359,11 @@ export class FirmwareTools {
         const info = this.connection.info;
         this.start();
         try {
-            const parsed = await (restoring
-                ? parseFlashBackup(selected.text)
-                : parseFirmwareBundle(selected.text));
+            const parsed = resetting
+                ? null
+                : await (restoring
+                      ? parseFlashBackup(selected.text)
+                      : parseFirmwareBundle(selected.text));
             if (this.abort.signal.aborted) {
                 throw this.abort.signal.reason;
             }
@@ -369,15 +374,24 @@ export class FirmwareTools {
                 throw new Error(restoreError(parsed, info));
             }
             this.flashTarget.value = 'pair';
-            this.flashSelection.hidden = restoring;
+            this.flashSelection.hidden = restoring || resetting;
+            this.verifyAfterWrite.disabled = resetting;
             const showPreview = () => {
-                const applicationOnly = !restoring && this.flashTarget.value === 'application';
+                const applicationOnly =
+                    !restoring && !resetting && this.flashTarget.value === 'application';
                 const lines = [
-                    `File: ${selected.name}`,
+                    resetting ? 'Operation: reset settings and codeplug' : `File: ${selected.name}`,
                     `Target: C62 · ${info.flashSize.toLocaleString()} bytes`,
                     `Flash JEDEC: ${address(info.flashId)} · radio UUID: ${info.chipId ?? 'unavailable'}`
                 ];
-                if (restoring) {
+                if (resetting) {
+                    lines.push(
+                        'Deletes all saved settings, channels and banks. Keep a complete backup first.',
+                        `Reset extent: [${address(SETTINGS_OFFSET)}, ${address(SETTINGS_OFFSET + SETTINGS_SIZE)}) · ${SETTINGS_SIZE.toLocaleString()} bytes`,
+                        'Firmware, DSP, factory calibration and all bytes outside this extent are preserved.',
+                        'Verification is required. Reboot afterward to initialize writable defaults.'
+                    );
+                } else if (restoring) {
                     lines.push(
                         'Replaces ALL flash: firmware, DSP, settings, factory calibration and unknown bytes.',
                         `Write and erase: [0x000000, 0x400000) · 4,194,304 bytes`,
@@ -410,16 +424,20 @@ export class FirmwareTools {
                     'Keep power and cable connected until the operation finishes. Cancellation after writing begins may leave incomplete flash.'
                 );
                 this.root.querySelector('[data-flash-preview]').textContent = lines.join('\n');
-                this.root.querySelector('[data-flash-review-title]').textContent = restoring
-                    ? 'Restore complete same-radio backup'
-                    : applicationOnly
-                      ? 'Flash application only'
-                      : 'Flash matching application/DSP pair';
-                this.confirm.textContent = restoring
-                    ? 'Restore all flash'
-                    : applicationOnly
-                      ? 'Flash application'
-                      : 'Flash matched pair';
+                this.root.querySelector('[data-flash-review-title]').textContent = resetting
+                    ? 'Reset settings and codeplug'
+                    : restoring
+                      ? 'Restore complete same-radio backup'
+                      : applicationOnly
+                        ? 'Flash application only'
+                        : 'Flash matching application/DSP pair';
+                this.confirm.textContent = resetting
+                    ? 'Reset settings'
+                    : restoring
+                      ? 'Restore all flash'
+                      : applicationOnly
+                        ? 'Flash application'
+                        : 'Flash matched pair';
             };
             this.flashTarget.onchange = () => {
                 this.acknowledgement.checked = false;
@@ -446,8 +464,9 @@ export class FirmwareTools {
             if (!this.connection.ready || this.connection.info !== info) {
                 throw new Error('Bootloader changed; reconnect and review again');
             }
-            const verifyAfterWrite = this.verifyAfterWrite.checked;
-            const applicationOnly = !restoring && this.flashTarget.value === 'application';
+            const verifyAfterWrite = resetting || this.verifyAfterWrite.checked;
+            const applicationOnly =
+                !restoring && !resetting && this.flashTarget.value === 'application';
             const options = {
                 acknowledged: true,
                 verifyAfterWrite,
@@ -458,11 +477,15 @@ export class FirmwareTools {
             this.message(
                 `Revalidating source and radio identity; keep power and cable connected through programming${verifyAfterWrite ? ' and verification' : ''}…`
             );
-            const result = await (restoring
-                ? this.connection.restoreBackup(selected.text, options)
-                : this.connection.updateFirmware(selected.text, options));
+            const result = await (resetting
+                ? this.connection.resetSettings(options)
+                : restoring
+                  ? this.connection.restoreBackup(selected.text, options)
+                  : this.connection.updateFirmware(selected.text, options));
             this.message(
-                `${restoring ? 'Complete flash restore' : applicationOnly ? 'Application-only update' : 'Application/DSP update'} completed${verifyAfterWrite ? ' and every written byte verified' : '; readback verification skipped'}. ${restoring ? 'Backup SHA-256' : 'Release'}: ${result}. Unplug before rebooting; connect the freshly booted application with its matching companion.`
+                resetting
+                    ? 'Settings reset completed and verified. Disconnect, unplug and reboot the radio to initialize writable defaults. Then read the radio again before uploading a codeplug.'
+                    : `${restoring ? 'Complete flash restore' : applicationOnly ? 'Application-only update' : 'Application/DSP update'} completed${verifyAfterWrite ? ' and every written byte verified' : '; readback verification skipped'}. ${restoring ? 'Backup SHA-256' : 'Release'}: ${result}. Unplug before rebooting; connect the freshly booted application with its matching companion.`
             );
         } catch (error) {
             if (this.dialog.open) {
@@ -470,14 +493,17 @@ export class FirmwareTools {
             }
             await this.connection.close();
             this.message(
-                error.flashMayHaveChanged
-                    ? `${error.message}. Flash may be incomplete and the radio may not boot. Keep your backup; re-enter bootloader mode, reconnect and repeat the complete paired update or this same-radio restore.`
-                    : `${error.name === 'AbortError' ? 'Operation cancelled' : error.message}. No flash write was started; reconnect to retry.`,
+                resetting && error.flashMayHaveChanged
+                    ? `${error.message}. Settings reset may be incomplete. Re-enter bootloader mode, reconnect and repeat the settings reset before using saved settings.`
+                    : error.flashMayHaveChanged
+                      ? `${error.message}. Flash may be incomplete and the radio may not boot. Keep your backup; re-enter bootloader mode, reconnect and repeat the complete paired update or this same-radio restore.`
+                      : `${error.name === 'AbortError' ? 'Operation cancelled' : error.message}. No flash write was started; reconnect to retry.`,
                 true
             );
         } finally {
             this.resolveReview = null;
             this.flashTarget.onchange = null;
+            this.verifyAfterWrite.disabled = false;
             this.finish();
         }
     }

@@ -12,6 +12,9 @@ import { md5 } from './md5.mjs';
 export const HELPER_SHA256 = 'f3aad327667b3e419bf4c1c90c1a0206a6d608a2d3633dbf6b54af8dc1796e65';
 export const HELPER_SIZE = 38724;
 export const FACTORY_OFFSET = 0x3b0000;
+// Match the C62 NVS extent, not the entire storage partition (which includes factory data).
+export const SETTINGS_OFFSET = 0x308000;
+export const SETTINGS_SIZE = 0x40000;
 const SYNC = 8;
 const MAX_RESPONSE = 74;
 export class BootloaderStatusError extends Error {}
@@ -433,6 +436,10 @@ export class CskBootloader {
         return this.#write(text, true, options);
     }
 
+    async resetSettings(options = {}) {
+        return this.#write(null, false, options, true);
+    }
+
     async #freshDevice(signal, restoring) {
         const expected = this.info;
         if (!this.ready || expected?.target !== 'c62' || expected.flashSize !== FLASH_SIZE) {
@@ -467,10 +474,14 @@ export class CskBootloader {
             applicationOnly = false,
             signal,
             progress = () => {}
-        }
+        },
+        resetting = false
     ) {
         if (acknowledged !== true) {
             throw new Error('Explicit risk acknowledgement is required before flash erase/write');
+        }
+        if (resetting && (!verifyAfterWrite || applicationOnly)) {
+            throw new Error('Settings reset requires verification and cannot select firmware');
         }
         if (typeof verifyAfterWrite !== 'boolean') {
             throw new Error('Post-flash readback choice must be boolean');
@@ -488,7 +499,18 @@ export class CskBootloader {
         try {
             let images;
             let result;
-            if (restoring) {
+            if (resetting) {
+                const bytes = new Uint8Array(SETTINGS_SIZE).fill(0xff);
+                images = [
+                    {
+                        offset: SETTINGS_OFFSET,
+                        bytes,
+                        sha256: await sha256(bytes),
+                        role: 'settings'
+                    }
+                ];
+                result = 'Settings reset';
+            } else if (restoring) {
                 const { parseFlashBackup } = await import('./flash-backup.mjs');
                 const backup = await parseFlashBackup(text);
                 if (

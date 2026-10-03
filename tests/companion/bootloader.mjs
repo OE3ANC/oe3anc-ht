@@ -6,7 +6,9 @@ import {
     CskBootloader,
     SlipDecoder,
     slipEncode,
-    HELPER_SHA256
+    HELPER_SHA256,
+    SETTINGS_OFFSET,
+    SETTINGS_SIZE
 } from '../../companion/src/bootloader.mjs';
 import { md5 } from '../../companion/src/md5.mjs';
 import { DSP_SHA256 } from '../../companion/src/firmware-bundle.mjs';
@@ -646,3 +648,72 @@ console.log(
 console.log(
     'PASS: pinned CSK6 sequence, split SLIP, read bounds/integrity, missing ID, cancellation/cleanup and complete 4 MiB backup round trip'
 );
+
+// Reset only the established NVS extent. Compare all 4 MiB, including every reserved byte.
+assert.equal(SETTINGS_OFFSET, 0x308000);
+assert.equal(SETTINGS_SIZE, 0x40000);
+const resetPort = new Port({ allowWrites: true });
+await connection.connect(resetPort, helper);
+const beforeReset = resetPort.commands.length;
+await assert.rejects(connection.resetSettings(), /acknowledgement/);
+await assert.rejects(connection.resetSettings({ acknowledged: 1 }), /acknowledgement/);
+await assert.rejects(
+    connection.resetSettings({ ...writeOptions, verifyAfterWrite: false }),
+    /requires verification/
+);
+await assert.rejects(
+    connection.resetSettings({ ...writeOptions, applicationOnly: true }),
+    /cannot select firmware/
+);
+assert.equal(resetPort.commands.length, beforeReset);
+const resetExpected = resetPort.flash.slice();
+resetExpected.fill(255, 0x308000, 0x348000);
+let concurrentReset;
+await connection.resetSettings({
+    ...writeOptions,
+    progress: () => {
+        if (!concurrentReset) {
+            concurrentReset = assert.rejects(connection.resetSettings(writeOptions), /busy or closed/);
+        }
+    }
+});
+await concurrentReset;
+assert.deepEqual(resetPort.flash, resetExpected);
+const begins = writeOps(resetPort).filter(raw => raw[1] === 2);
+assert.equal(begins.length, 1);
+assert.equal(hex(begins[0]), '000210000000000000000400400000000010000000803000');
+assert.equal(writeOps(resetPort).filter(raw => raw[1] === 3).length, 64);
+assert.equal(resetPort.commands.filter(raw => raw[1] === 0x0e).length, 4096);
+await connection.close();
+for (const option of ['changedId', 'cancelBefore', 'cancelDuring', 'corruptProgram']) {
+    const target = new Port({ allowWrites: true, corruptProgram: option === 'corruptProgram' });
+    await connection.connect(target, helper);
+    const initial = target.flash.slice();
+    target.options.changedId = option === 'changedId';
+    const cancellation = new AbortController();
+    if (option === 'cancelBefore') {
+        cancellation.abort('cancel reset');
+    }
+    const mayChange = ['cancelDuring', 'corruptProgram'].includes(option);
+    await assert.rejects(
+        connection.resetSettings({
+            ...writeOptions,
+            signal: cancellation.signal,
+            progress: value => {
+                if (option === 'cancelDuring' && value.stage === 'write') {
+                    cancellation.abort('cancel reset');
+                }
+            }
+        }),
+        error => error.flashMayHaveChanged === mayChange
+    );
+    if (!mayChange) {
+        assert.equal(writeOps(target).length, 0);
+        assert.deepEqual(target.flash, initial);
+    }
+    assert.deepEqual(target.flash.subarray(0, 0x308000), initial.subarray(0, 0x308000));
+    assert.deepEqual(target.flash.subarray(0x348000), initial.subarray(0x348000));
+    assert.equal(target.closed, 1);
+    assert.equal(connection.ready, false);
+}
+console.log('PASS: acknowledged, verified settings reset preserves every byte outside NVS; identity, busy, cancellation and verification failure guards');

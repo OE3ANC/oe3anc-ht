@@ -68,6 +68,9 @@
         <button type="button" data-flash-update disabled>Review firmware update</button>
       </div>
       <p data-bundle-status class="hint">No firmware bundle selected.</p>
+      <h3>Reset settings and codeplug</h3>
+      <p>Use this to recover a read-only store from unsupported development settings (C62 load error -134). Deletes saved settings, channels and banks in 0x308000–0x347FFF. Firmware, DSP and factory calibration are preserved. Keep a complete backup first; review and acknowledge the reset, then reboot the radio.</p>
+      <button type="button" data-settings-reset disabled>Review settings reset</button>
       <h3>Restore full backup</h3>
       <p>Separate recovery operation for this same radio only. Replaces all firmware, settings, calibration and unknown flash bytes.</p>
       <div class="actions">

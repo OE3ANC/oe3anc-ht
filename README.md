@@ -43,6 +43,13 @@ radio, support [M17](https://m17project.org/) and OpenRTX.
    **Connect** in the matching web companion. Use the codeplug editor to program
    channels or the live display and virtual keypad to control the radio.
 
+If the radio reports **Storage is read-only** with **Load error -134** after using
+an earlier development firmware, retain a complete flash backup and use
+**Firmware tools → Review settings reset**. This deletes saved settings, channels
+and banks, preserves firmware and factory calibration, and verifies the reset.
+Disconnect, unplug and reboot, then read the radio again before uploading a codeplug.
+Normal firmware updates preserve settings and do not clear this error.
+
 ## Features
 
 ### Firmware
