@@ -1,0 +1,8 @@
+tests:
+  ht.m17.demodulation:
+    platform_allow: native_sim_64
+    integration_platforms:
+      - native_sim_64
+    tags:
+      - m17
+      - demodulation
