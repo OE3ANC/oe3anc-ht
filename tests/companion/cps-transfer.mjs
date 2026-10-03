@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { C, crc32 } from '../../companion/src/protocol.mjs';
 import { CpsTransfer } from '../../companion/src/cps-transfer.mjs';
+import { ConnectedCps } from '../../companion/src/connected-cps.mjs';
 import { encodeCodeplug, decodeCodeplug } from '../../companion/src/codeplug-wire.mjs';
 import { canonical } from '../../companion/src/codeplug.mjs';
 const fixtures = JSON.parse(
@@ -24,6 +25,7 @@ class Radio {
         this.info = { capabilities: C.CAP_CPS };
         this.sequence = 0;
         this.commits = 0;
+        this.reads = 0;
         this.cancelled = 0;
         this.revision = 1;
         this.failChunk = false;
@@ -36,6 +38,8 @@ class Radio {
     async request(type, payload = new Uint8Array()) {
         const id = ++this.sequence;
         if (type === C.MSG_CPS_READ) {
+            this.reads++;
+            await this.onRead?.();
             this.bytes = encodeCodeplug(this.document);
             this.token = id;
             this.readRevision = this.revision;
@@ -45,6 +49,7 @@ class Radio {
             put(reply, 5, this.revision);
             put(reply, 17, this.bytes.length);
             put(reply, 21, crc32(this.bytes));
+            reply[29] = this.protected ? 2 : 0;
             return { payload: reply };
         }
         if (get(payload, 0) !== this.token) {
@@ -170,6 +175,95 @@ const corrupt = new CpsTransfer(corruptRadio);
 corruptRadio.badRead = true;
 await assert.rejects(corrupt.read(), /CRC mismatch/);
 assert.equal(corrupt.baseline, null);
+
+function connectedEditor(radio = new Radio()) {
+    const nodes = new Map();
+    const root = {
+        querySelector(selector) {
+            if (!nodes.has(selector)) {
+                nodes.set(selector, {
+                    addEventListener() {},
+                    classList: { toggle() {} }
+                });
+            }
+            return nodes.get(selector);
+        }
+    };
+    const editor = {
+        document: structuredClone(radio.document),
+        importSequence: 0,
+        dialog: root,
+        confirmations: [],
+        confirm(text, accept, showReview) {
+            assert.equal(showReview, true);
+            this.confirmations.push({ text, accept });
+        }
+    };
+    editor.document.global.ui.theme = 'nord';
+    return { radio, editor, cps: new ConnectedCps(root, editor, radio) };
+}
+
+const connected = connectedEditor();
+const imported = canonical(connected.editor.document);
+assert.equal(connected.cps.writeButton.disabled, false);
+const reviewing = connected.cps.review();
+assert.equal(connected.cps.writeButton.disabled, true);
+await connected.cps.review(); // A second click cannot start another read.
+await reviewing;
+assert.equal(connected.radio.reads, 1);
+assert.equal(connected.radio.commits, 0);
+assert.equal(canonical(connected.editor.document), imported);
+assert.equal(
+    connected.editor.dialog.querySelector('#cps-before').value,
+    canonical(connected.radio.document)
+);
+assert.equal(connected.editor.dialog.querySelector('#cps-after').value, imported);
+assert.equal(connected.editor.confirmations.length, 1);
+assert.equal(connected.cps.writeButton.disabled, false);
+await connected.cps.review(); // Cancelling a review permits reuse of its completed baseline.
+assert.equal(connected.radio.reads, 1);
+await connected.editor.confirmations[1].accept();
+assert.equal(connected.radio.commits, 1);
+assert.equal(canonical(connected.radio.document), imported);
+assert.equal(canonical(connected.editor.document), imported);
+
+for (const failure of ['crc', 'cancel', 'protected', 'session', 'draft', 'dialog', 'import']) {
+    const item = connectedEditor();
+    const savedDraft = canonical(item.editor.document);
+    if (failure === 'crc') {
+        item.radio.badRead = true;
+    } else if (failure === 'protected') {
+        item.radio.protected = true;
+    } else {
+        item.radio.onRead = () => {
+            if (failure === 'cancel') {
+                item.cps.transfer.cancel();
+            } else if (failure === 'session') {
+                item.radio.session++;
+            } else if (failure === 'dialog') {
+                item.editor.dialog.open = true;
+            } else if (failure === 'import') {
+                item.editor.importSequence++;
+            } else {
+                item.editor.dirtyForm = true;
+            }
+        };
+    }
+    await item.cps.review();
+    assert.equal(item.editor.confirmations.length, 0, failure);
+    assert.equal(item.radio.commits, 0, failure);
+    assert.equal(canonical(item.editor.document), savedDraft, failure);
+    assert.equal(item.cps.writeButton.disabled, false, failure);
+    assert.match(item.cps.status.textContent, /Your local draft is retained/, failure);
+}
+
+connected.radio.session = 0n;
+connected.cps.update();
+assert.equal(connected.cps.writeButton.disabled, true);
+connected.radio.session = 43n;
+connected.radio.info.capabilities = 0;
+connected.cps.update();
+assert.equal(connected.cps.writeButton.disabled, true);
 console.log(
-    'CPS client full transfer, stale draft, cancellation, save retry and uncertain commit checks passed'
+    'CPS transfer and connected review: automatic read, retained imports, cancellation and stale guards passed'
 );

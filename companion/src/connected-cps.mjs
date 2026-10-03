@@ -28,11 +28,7 @@ export class ConnectedCps {
             this.transfer.invalidate();
         }
         this.readButton.disabled = !connected || this.transfer.busy;
-        this.writeButton.disabled =
-            !connected ||
-            this.transfer.busy ||
-            !this.transfer.baseline ||
-            this.transfer.baseline.protected;
+        this.writeButton.disabled = !connected || this.transfer.busy;
         this.cancelButton.disabled = !this.transfer.busy;
     }
 
@@ -82,19 +78,39 @@ export class ConnectedCps {
         }
     }
 
-    review() {
+    async review() {
+        if (this.transfer.busy) {
+            return;
+        }
         try {
             if (this.editor.dirtyForm && !this.editor.apply()) {
                 return;
             }
-            const baseline = this.transfer.baseline;
-            if (!baseline || baseline.session !== this.connection.session) {
-                throw new Error('Read the radio before writing.');
-            }
+            const draft = this.editor.document;
+            const importSequence = this.editor.importSequence;
             const replacement = structuredClone(validate(this.editor.document));
             const errors = targetErrors(replacement, this.connection.info.target);
             if (errors.length) {
                 throw new Error(errors.join(' '));
+            }
+            let baseline = this.transfer.baseline;
+            if (!baseline || baseline.session !== this.connection.session) {
+                this.message('Reading the radio for comparison. Your local draft is retained.');
+                const pending = this.transfer.read();
+                this.update();
+                baseline = await pending;
+            }
+            if (!this.connection.session || baseline.session !== this.connection.session) {
+                throw new Error('The radio connection changed; review again.');
+            }
+            if (this.editor.document !== draft || this.editor.dirtyForm) {
+                throw new Error('Your local draft changed during the read; review again.');
+            }
+            if (this.editor.dialog.open || this.editor.importSequence !== importSequence) {
+                throw new Error('Another codeplug action started; finish it and review again.');
+            }
+            if (baseline.protected) {
+                throw new Error('Radio settings are protected and cannot be replaced.');
             }
             for (const key of Object.keys(replacement.allocation)) {
                 replacement.allocation[key] = Math.max(
@@ -134,12 +150,14 @@ export class ConnectedCps {
                         this.message('The radio read changed; review again.', true);
                         return;
                     }
-                    this.write(replacement);
+                    return this.write(replacement);
                 },
                 true
             );
         } catch (error) {
             this.message(error.message + ' Your local draft is retained.', true);
+        } finally {
+            this.update();
         }
     }
 
