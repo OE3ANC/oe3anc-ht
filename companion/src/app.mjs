@@ -6,12 +6,22 @@ import { CpsEditor } from './cps.mjs';
 import { ConnectedCps } from './connected-cps.mjs';
 import { LiveUi } from './live-ui.mjs';
 import { FirmwareTools } from './firmware-tools.mjs';
+import { releaseTag, githubReleaseUrl } from './release-links.mjs';
+
 const editor = new CpsEditor(document.querySelector('#cps'));
 const connect = document.querySelector('#connect');
 const disconnect = document.querySelector('#disconnect');
 const status = document.querySelector('#status');
 const matching = document.querySelector('#matching');
+const matchingRelease = document.querySelector('#matching-release');
 document.querySelector('#release').textContent = `Companion ${release.label}`;
+
+for (const link of document.querySelectorAll('[data-release-link]')) {
+    const url = githubReleaseUrl(release.identity);
+    link.href = url ?? 'https://github.com/OE3ANC/oe3anc-ht/releases';
+    link.textContent = url ? `Download ${release.label} firmware ↗` : 'Browse firmware releases ↗';
+}
+
 let connecting = false;
 
 function updatePortButtons() {
@@ -50,18 +60,20 @@ connect.addEventListener('click', async () => {
     connecting = true;
     updatePortButtons();
     matching.hidden = true;
+    matchingRelease.hidden = true;
     status.textContent = 'Connecting…';
     try {
         const port = await navigator.serial.requestPort();
         await connection.connect(port);
     } catch (error) {
         state({ connected: false, error });
-        const tag = error.requiredRelease?.match(
-            /^(v[0-9]+\.[0-9]+\.[0-9]+(?:-rc\.[0-9]+)?)@[a-f0-9]{40}$/
-        )?.[1];
+        const tag = releaseTag(error.requiredRelease);
         if (tag) {
             matching.href = `${site.basePath}${tag}/`;
             matching.hidden = false;
+            matchingRelease.href = githubReleaseUrl(error.requiredRelease);
+            matchingRelease.textContent = `Open ${tag} firmware release ↗`;
+            matchingRelease.hidden = false;
         }
     } finally {
         connecting = false;

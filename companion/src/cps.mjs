@@ -427,9 +427,12 @@ export class CpsEditor {
     }
 
     globalEditor(form) {
-        form.append(element('h3', 'Global settings'));
-        const grid = element('div', '', { class: 'cps-grid' });
-        form.append(grid);
+        form.append(element('h3', 'Radio settings'));
+        const radio = element('fieldset');
+        radio.append(element('legend', 'Identity and operation'));
+        let grid = element('div', '', { class: 'cps-grid' });
+        radio.append(grid);
+        form.append(radio);
         const settings = structuredClone(this.document.global);
         const readers = [];
         const add = (label, path, choices, attributes) => {
@@ -463,6 +466,11 @@ export class CpsEditor {
             'vfo_step_hz',
             VFO_STEPS_HZ.map(hz => [hz, `${hz / 1000} kHz`])
         );
+        const display = element('fieldset');
+        display.append(element('legend', 'Display and backlight'));
+        grid = element('div', '', { class: 'cps-grid' });
+        display.append(grid);
+        form.append(display);
         add('Theme', 'ui.theme', ['midnight', 'nord', 'solarized-dark', 'darcula']);
         add('Contrast', 'ui.contrast', ['normal', 'high', 'maximum']);
         add('Animations', 'ui.animations');

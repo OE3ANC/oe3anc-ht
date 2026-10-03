@@ -323,7 +323,7 @@ export class VirtualKeypad {
             );
         }
         this.status.textContent = available
-            ? 'Radio keypad ready. Focus here for arrow keys, Enter, Escape, digits, * and #. Hold ★ for keypad lock. Keys do not auto-repeat.'
-            : 'Keypad needs a fresh live display, an active tab and a matching session. The unplug/Done confirmation is local only.';
+            ? 'Keypad ready. Use arrow keys, Enter, Escape, digits, * and # when focused here. Hold ★ to lock the keypad. Keys do not auto-repeat.'
+            : 'Connect the matching firmware and keep live view running to enable the keypad. Controls pause when this tab is inactive.';
     }
 }

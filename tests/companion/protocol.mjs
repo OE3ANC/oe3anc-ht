@@ -10,6 +10,8 @@ import {
     helloPayload,
     helloReply
 } from '../../companion/src/protocol.mjs';
+import { releaseTag, githubReleaseUrl } from '../../companion/src/release-links.mjs';
+
 const fixtures = JSON.parse(
     readFileSync(new URL('../../protocol/companion/fixtures.json', import.meta.url))
 );
@@ -61,3 +63,21 @@ assert.throws(() => helloPayload('invalid space', 1n));
 assert.throws(() => helloReply({ type: C.MSG_HELLO, payload: new Uint8Array(11) }));
 assert.equal(decode(Uint8Array.of(255)), null);
 console.log('JavaScript companion conformance passed');
+
+for (const tag of ['v1.1.0', 'v1.2.0-rc.1']) {
+    const identity = tag + '@' + 'a'.repeat(40);
+    assert.equal(releaseTag(identity), tag);
+    assert.equal(githubReleaseUrl(identity), `https://github.com/OE3ANC/oe3anc-ht/releases/tag/${tag}`);
+}
+for (const identity of [
+    undefined,
+    'dev-' + 'a'.repeat(32),
+    'v1.1.0',
+    'v1.1.0@' + 'a'.repeat(39),
+    'v1.1.0@' + 'a'.repeat(40) + '/evil',
+    'v1.1.0@' + 'a'.repeat(40) + '\n'
+]) {
+    assert.equal(releaseTag(identity), null);
+    assert.equal(githubReleaseUrl(identity), null);
+}
+console.log('Validated firmware release links reject development and malformed identities');

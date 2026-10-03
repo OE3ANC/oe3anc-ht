@@ -55,7 +55,7 @@ export class LiveUi {
             this.stale(
                 available
                     ? 'Live view paused.'
-                    : 'Connect matching firmware for the live radio display.'
+                    : 'Connect the matching firmware to use the live display.'
             );
             return;
         }
@@ -65,7 +65,7 @@ export class LiveUi {
         this.transfer = new UiTransfer(c);
         this.session = c.session;
         const generation = ++this.generation;
-        this.stale('Loading the shared radio display…');
+        this.stale('Loading the radio display…');
         this.loading ??= this.renderer.start();
         this.loading
             .then(() => {
@@ -128,7 +128,7 @@ export class LiveUi {
 
     animate(now = performance.now()) {
         if (this.active && now - this.freshAt >= C.UI_STALE_MS) {
-            this.stale('Live display expired; waiting for a fresh snapshot.');
+            this.stale('Waiting for an updated radio display; keypad paused.');
         }
         if (!this.active) {
             this.animation = null;
