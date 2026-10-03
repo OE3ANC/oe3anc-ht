@@ -1,0 +1,9 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+description: C62 charger and switched battery ADC inputs
+compatible: "ht,c62-battery"
+include: base.yaml
+properties:
+  io-channels:
+    required: true
+  io-channel-names:
+    required: true

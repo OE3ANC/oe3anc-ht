@@ -1,0 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+description: C62 companion UART pin ownership
+compatible: "ht,c62-companion"
+include: [base.yaml, pinctrl-device.yaml]

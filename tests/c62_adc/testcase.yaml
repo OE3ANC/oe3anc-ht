@@ -1,0 +1,6 @@
+tests:
+  ht.c62_adc:
+    tags: adc
+    platform_allow: native_sim_64
+    integration_platforms:
+      - native_sim_64

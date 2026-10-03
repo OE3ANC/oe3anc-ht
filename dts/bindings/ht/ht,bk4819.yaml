@@ -1,0 +1,13 @@
+description: C62 BK4819 three-wire transceiver control
+compatible: "ht,bk4819"
+include: base.yaml
+properties:
+  clock-gpios:
+    type: phandle-array
+    required: true
+  data-gpios:
+    type: phandle-array
+    required: true
+  select-gpios:
+    type: phandle-array
+    required: true
