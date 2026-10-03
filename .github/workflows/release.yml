@@ -1,0 +1,60 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+name: Firmware release
+on:
+  push:
+    tags: ['v*']
+permissions:
+  contents: read
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 60
+    outputs:
+      artifact-id: ${{ steps.packages.outputs.artifact-id }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: ./.github/actions/build
+        with:
+          tag: ${{ github.ref_name }}
+      - name: Package the verified pair
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: .deps/ci/venv/bin/python tools/release_packages.py --tag "$RELEASE_TAG"
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
+        id: packages
+        with:
+          name: release-pair-${{ github.run_id }}-${{ github.run_attempt }}
+          path: build/release/*
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 0
+  draft:
+    needs: build
+    runs-on: ubuntu-22.04
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53
+        with:
+          artifact-ids: ${{ needs.build.outputs.artifact-id }}
+          path: build/release
+      - name: Complete the draft without replacing existing packages
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.ref_name }}
+          RELEASE_COMMIT: ${{ github.sha }}
+          RELEASE_REPOSITORY: ${{ github.repository }}
+        run: python3 tools/publish_release.py --tag "$RELEASE_TAG" --commit "$RELEASE_COMMIT" --repository "$RELEASE_REPOSITORY"

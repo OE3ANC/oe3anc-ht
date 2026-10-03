@@ -1,0 +1,8 @@
+{
+  "zephyr_sdk": "0.16.1",
+  "sdk_archives": {
+    "zephyr-sdk-0.16.1_linux-x86_64_minimal.tar.xz": "46449fdb0a69f83ec707dbc55a8d23ea44860f0a2bca9097442fc3f2f16b96c7",
+    "toolchain_linux-x86_64_arm-zephyr-eabi.tar.xz": "1ce3971307b967fbd89e1a03d3f81d7954d8e80802e48de6a17eea4b8839b810"
+  },
+  "node": "22.16.0"
+}

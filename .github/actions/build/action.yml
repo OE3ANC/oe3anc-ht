@@ -1,0 +1,40 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+name: Build and check
+description: Bootstrap public pinned dependencies and run the required software gates
+inputs:
+  tag:
+    description: Version tag for release builds; empty for ordinary CI
+    default: ''
+runs:
+  using: composite
+  steps:
+    - name: Validate source identity
+      shell: bash
+      env:
+        RELEASE_TAG: ${{ inputs.tag }}
+      run: |
+        python3 - <<'PY'
+        import os, sys
+        sys.path.insert(0, 'tools')
+        import companion_release
+        companion_release.metadata(os.environ['RELEASE_TAG'] or None)
+        PY
+        echo "SOURCE_DATE_EPOCH=$(git show -s --format=%ct HEAD)" >> "$GITHUB_ENV"
+    - name: Install build prerequisites
+      shell: bash
+      run: |
+        sudo apt-get update -qq
+        sudo apt-get install -y git curl wget file ca-certificates python3-venv cmake ninja-build build-essential gperf device-tree-compiler libsdl2-dev patch xz-utils
+        python3 -m venv .deps/ci/venv
+        .deps/ci/venv/bin/python -m pip install --disable-pip-version-check -r config/ci-requirements.txt
+    - name: Bootstrap pinned public dependencies
+      shell: bash
+      run: .deps/ci/venv/bin/python tools/bootstrap_ci.py
+    - name: Required builds and regression gates
+      shell: bash
+      env:
+        RELEASE_TAG: ${{ inputs.tag }}
+      run: |
+        tag_args=()
+        if [[ -n "$RELEASE_TAG" ]]; then tag_args=(--tag "$RELEASE_TAG"); fi
+        .deps/ci/venv/bin/python tools/check_ci.py "${tag_args[@]}"
