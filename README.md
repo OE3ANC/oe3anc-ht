@@ -24,7 +24,7 @@ broken devices, data loss or any other damage or harm.
 
 For actual use, I recommend the better-designed and more stable
 [OpenRTX](https://openrtx.org/). If you want to contribute to or support open-source
-radio, support [M17](https://m17project.org/) and OpenRTX.
+radio, support [M17](https://m17project.org/) and [OpenRTX](https://openrtx.org/).
 
 ## Quick-start
 
@@ -54,7 +54,7 @@ Normal firmware updates preserve settings and do not clear this error.
 
 ### Firmware
 
-- FM with independent RX/TX CTCSS or DCS, and M17 Codec2 voice with callsign
+- FM with independent RX/TX CTCSS or DCS, and [M17](https://m17project.org/) voice with callsign
   addressing and CAN filtering.
 - VFO and Memory operation, separate RX/TX frequencies, 256 channels and 16
   ordered banks. Edit them on the radio or share a JSON codeplug.
