@@ -1,0 +1,3 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+mainmenu "OE3ANC HT"
+source "Kconfig.zephyr"

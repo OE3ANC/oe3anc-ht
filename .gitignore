@@ -1,0 +1,9 @@
+/build*/
+/.deps/
+/.cache/
+/.west/
+__pycache__/
+*.pyc
+/ht-settings/
+
+/companion/dist/

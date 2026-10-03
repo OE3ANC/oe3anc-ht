@@ -1,0 +1,173 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+config HT_CSK_SPI
+    bool "C62 SPI driver with error cancellation"
+    depends on BOARD_C62
+    select SPI
+    select DMA
+    default y
+
+config HT_CSK_GPIO
+    bool "CSK GPIO driver with atomic shared-port updates"
+    depends on BOARD_C62
+    select GPIO
+    default y
+
+config HT_CSK_ADC
+    bool "C62 ADC driver with bounded polling and pinmux recovery"
+    depends on BOARD_C62
+    select ADC
+    default y
+
+config HT_BK4819
+    bool "BK4819 transceiver driver"
+    depends on BOARD_C62 || ZTEST
+    default y if BOARD_C62
+
+config HT_BATTERY
+    bool "Cached battery and power-switch telemetry"
+    depends on CPP && (HT_CSK_ADC || HT_EMULATOR)
+    default y if !ZTEST
+
+config HT_AUDIO
+    bool "Bounded audio transport"
+    depends on BOARD_C62 || ZTEST
+    default y if BOARD_C62
+
+config HT_POWER
+    bool "Battery switch startup gate and inactive outputs"
+    depends on HT_BATTERY && HT_RADIO
+    depends on HT_EMULATOR || (BOARD_C62 && HT_C62_RADIO && HT_C62_UI && HT_UI)
+    default y if !ZTEST
+
+config HT_LVGL
+    bool "LVGL core for the HT UI"
+    default y
+
+config HT_EMULATOR
+    bool "Simulated radio peripherals"
+    depends on BOARD_NATIVE_SIM
+    default y
+
+config HT_RADIO
+    bool "Radio controller"
+    depends on HT_EMULATOR || HT_C62_RADIO
+    default y
+
+config HT_C62_RADIO
+    bool "C62 radio backend"
+    depends on BOARD_C62 || ZTEST
+    select HT_BK4819
+    select HT_AUDIO
+    select HT_FM
+    select HT_M17_MODE
+    default y if BOARD_C62
+
+config HT_FM
+    bool "FM mode"
+    default y if HT_RADIO
+
+config HT_M17_PROTOCOL
+    bool "M17 voice framing and channel coding"
+    depends on CPP
+    default y
+
+config HT_CODEC2
+    bool "Codec2 3200 voice"
+    depends on HT_M17_PROTOCOL
+    select SYS_HEAP_RUNTIME_STATS if ZTEST
+    default y
+
+config HT_M17_MODULATOR
+    bool "M17 48 kHz transmit modulation"
+    depends on HT_M17_PROTOCOL
+    default y
+
+config HT_M17_DEMODULATOR
+    bool "M17 24 kHz receive demodulation"
+    depends on HT_M17_PROTOCOL
+    default y
+
+config HT_M17_MODE
+    bool "M17 voice processing worker"
+    depends on HT_AUDIO && CPP
+    select HT_M17_PROTOCOL
+    select HT_CODEC2
+    select HT_M17_MODULATOR
+    select HT_M17_DEMODULATOR
+
+
+config HT_SETTINGS
+    bool "Persistent radio settings"
+    depends on HT_RADIO && CPP
+    select HT_CHANNELS
+    select CRC
+    default y if BOARD_C62 || HT_EMULATOR
+
+config HT_CHANNELS
+    bool "Bounded channel and bank codeplug"
+    depends on HT_RADIO && CPP
+    select CRC
+    default y if HT_SETTINGS
+
+config HT_CODEPLUG_STORAGE
+    bool
+    depends on HT_SETTINGS && HT_CHANNELS
+    default y
+
+config HT_SHUTDOWN_SAVE_BUDGET_MS
+    int "Pending-save budget after confirmed radio shutdown (ms)"
+    depends on HT_CODEPLUG_STORAGE
+    range 50 5000
+    default 1000
+    help
+      Cooperative deadline between synchronous storage calls, not a hard bound
+      on an already-running flash erase/write or host fsync. RF stops first.
+      Tune using measured full-codeplug and flash-GC timing on the target.
+
+config HT_SETTINGS_NVS
+    bool "Zephyr NVS settings backend"
+    depends on HT_SETTINGS && (BOARD_C62 || ZTEST)
+    select FLASH
+    select FLASH_PAGE_LAYOUT
+    select FLASH_MAP
+    select NVS
+    default y if BOARD_C62
+
+config HT_UI
+    bool "Basic handheld UI"
+    depends on HT_LVGL && HT_RADIO && (HT_EMULATOR || HT_C62_UI)
+    default y
+
+config HT_C62_UI
+    bool "C62 display and physical controls"
+    depends on BOARD_C62 || ZTEST
+    default y if BOARD_C62
+
+config HT_RESOURCE_DIAGNOSTICS
+    bool "Periodic heap, stack and audio measurements"
+    depends on HT_RADIO && HT_UI && HT_CODEC2
+    select SYS_HEAP_RUNTIME_STATS
+    select THREAD_NAME
+    select THREAD_ANALYZER if !ARCH_POSIX
+    select PRINTK
+    select LOG
+    select UART_CONSOLE if BOARD_C62
+    select LOG_BACKEND_UART if BOARD_C62
+    help
+      Development-only UART/log reports every 15 seconds. Enable with
+      config/resources.conf; measurements still need a hardware acceptance run.
+
+config HT_COMPANION
+    bool "Runtime UART companion mode"
+    depends on HT_RADIO && (HT_EMULATOR || (HT_C62_UI && HT_UI) || ZTEST)
+    depends on !UART_ASYNC_API
+    depends on !BOARD_C62 || (!UART_CONSOLE && !LOG_BACKEND_UART && !PRINTK && !SHELL)
+    select UART_INTERRUPT_DRIVEN if BOARD_C62
+    select RING_BUFFER if BOARD_C62
+    help
+      Temporary menu toggle. C62 UART2 RX replaces physical PTT; normal mode
+      requires a fresh PTT release before transmitting. Default C62 firmware
+      reserves UART2 for protocol bytes. Emulator models ownership
+      only. The paired application protocol provides sessions, codeplug/UI
+      transfers, virtual keys and a separately leased controller-owned PTT
+      source. ZTEST also permits the C62 RF fixture without a display backend.

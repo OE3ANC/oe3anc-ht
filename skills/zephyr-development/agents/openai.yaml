@@ -1,0 +1,4 @@
+interface:
+  display_name: "Zephyr Development"
+  short_description: "Build and debug Zephyr boards and applications"
+  default_prompt: "Use $zephyr-development to implement or debug this Zephyr change."

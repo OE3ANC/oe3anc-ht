@@ -1,0 +1,4 @@
+interface:
+  display_name: "C/C++ Code Review"
+  short_description: "Review C/C++ correctness, ownership, and concurrency"
+  default_prompt: "Use $c-cpp-review to review this C/C++ change for actionable bugs."

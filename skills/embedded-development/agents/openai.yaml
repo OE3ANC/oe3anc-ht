@@ -1,0 +1,4 @@
+interface:
+  display_name: "Embedded Development"
+  short_description: "Integrate MCU drivers, DMA, DSP, and real-time I/O"
+  default_prompt: "Use $embedded-development to implement and validate this embedded change."

@@ -1,0 +1,4 @@
+.deps/
+build/
+companion/dist/
+companion/src/contract.mjs

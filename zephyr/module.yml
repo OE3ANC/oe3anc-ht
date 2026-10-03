@@ -1,0 +1,4 @@
+name: ht
+build:
+  cmake: modules
+  kconfig: modules/Kconfig

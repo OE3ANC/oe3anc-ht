@@ -1,0 +1,46 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+manifest:
+  self:
+    path: oe3anc-ht
+  projects:
+  - name: zephyr
+    url: https://github.com/OE3ANC/zephyr_downstream
+    revision: b8fcc47cc045871d5127a78a77b3f30feb65e8cd
+    path: zephyr
+    west-commands: scripts/west-commands.yml
+  - name: csk
+    url: https://github.com/OE3ANC/csk
+    revision: f097b7f9dfe4aba9fae08af787230e023ee21aa0
+    path: csk
+  - name: csk6_cm33
+    url: https://github.com/OE3ANC/csk6_cm33
+    revision: 9444f3dc2abec4d49e5daa6112a798ee43999222
+    path: modules/hal/listenai/csk6_cm33
+  - name: cmsis
+    url: https://github.com/zephyrproject-rtos/cmsis
+    revision: 74981bf893e8b10931464b9945e2143d99a3f0a3
+    path: modules/hal/cmsis
+  - name: lvgl
+    url: https://github.com/OE3ANC/lvgl
+    revision: 702997cb1d61aece05fda62c140defd52dd3c36f
+    path: modules/lib/gui/lvgl
+  - name: codec2
+    url: https://github.com/drowe67/codec2-dev
+    revision: a298f3789d7ef9e829049ebe14da8845d97ba8c1
+    path: modules/lib/codec2
+  - name: af
+    url: https://github.com/OE3ANC/openrtx-c62-modules-af
+    revision: c94c49ffb883b6d15b284b84d0eb13394ac07422
+    path: modules/lib/af
+  - name: freertos_shims
+    url: https://github.com/OE3ANC/openrtx-c62-modules-freertos_shims
+    revision: 62e3c7e459c6ad859b2c86a8733ad8dab058806a
+    path: modules/lib/freertos_shims
+  - name: lsf
+    url: https://github.com/OE3ANC/openrtx-c62-modules-lsf
+    revision: 1aafb369f7ac5a25f4ea08e004713380eec7c50d
+    path: modules/lib/lsf
+  - name: urpc
+    url: https://github.com/OE3ANC/openrtx-c62-modules-urpc
+    revision: 0e450f3ba1cad8f6b677f917f7f158d3122ddbe3
+    path: modules/lib/urpc
