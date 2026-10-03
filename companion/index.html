@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark light">
+  <title>OE3ANC HT companion</title>
+  <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+  <main>
+    <header><p class="eyebrow">OE3ANC HT</p><h1>Radio companion</h1><p id="release"></p></header>
+    <section aria-labelledby="connection-title">
+      <h2 id="connection-title">Connect your radio</h2>
+      <p>Enable Companion mode on the radio before connecting the cable.</p>
+      <div class="actions"><button id="connect">Connect</button><button id="disconnect" disabled>Disconnect</button></div>
+      <p id="status" role="status" aria-live="polite">Disconnected</p>
+      <a id="matching" hidden>Open the matching companion</a>
+      <p class="hint">Unplug the cable before confirming Done on the radio or rebooting it.</p>
+    </section>
+    <section id="live-ui" class="stale" aria-labelledby="live-ui-title">
+      <h2 id="live-ui-title">Live radio display</h2>
+      <p>The radio owns navigation and edits. This display renders its current UI data with the shared LVGL renderer.</p>
+      <canvas width="160" height="128" aria-label="Radio display"></canvas>
+      <div class="actions"><button type="button" disabled>Pause live view</button></div>
+      <p role="status" aria-live="polite">Connect matching firmware for the live radio display.</p>
+      <div id="radio-keypad" tabindex="0" aria-label="Virtual radio keypad">
+        <div class="keypad-grid">
+          <button type="button" data-key="4" disabled>OK</button>
+          <button type="button" data-key="0" disabled>▲</button>
+          <button type="button" data-key="5" disabled>Back</button>
+          <button type="button" data-key="2" disabled>P1 ◀</button>
+          <button type="button" data-key="1" disabled>▼</button>
+          <button type="button" data-key="3" disabled>P2 ▶</button>
+          <button type="button" data-key="9" disabled>1</button>
+          <button type="button" data-key="10" disabled>2</button>
+          <button type="button" data-key="11" disabled>3</button>
+          <button type="button" data-key="12" disabled>4</button>
+          <button type="button" data-key="13" disabled>5</button>
+          <button type="button" data-key="14" disabled>6</button>
+          <button type="button" data-key="15" disabled>7</button>
+          <button type="button" data-key="16" disabled>8</button>
+          <button type="button" data-key="17" disabled>9</button>
+          <button type="button" data-key="6" disabled>★</button>
+          <button type="button" data-key="8" disabled>0</button>
+          <button type="button" data-key="7" disabled>#</button>
+        </div>
+        <p role="status" aria-live="polite"></p>
+      </div>
+    </section>
+    <section id="firmware-tools" aria-labelledby="firmware-title">
+      <h2 id="firmware-title">Firmware tools · CSK6 bootloader</h2>
+      <p class="error">Use this software at your own risk. Flashing or restoring firmware may brick your device, making it unusable, and may cause data loss. The project authors and contributors accept no responsibility for damage or loss resulting from use of this software.</p>
+      <p>Disconnect the live companion first. Use your established C62 manual bootloader/reset procedure with the programming cable, then connect here. Release physical PTT before serial communication; it shares the RX pin. Automatic DTR/RTS reset is not enabled. This connection loads a helper into RAM and does not erase or write flash.</p>
+      <p class="hint">These tools work independently of the application firmware version. Keep the radio powered and the cable connected until the operation finishes. Dump and retain a complete backup before updating. Cancelled or failed reads do not produce a successful backup. Unplug before rebooting into normal operation.</p>
+      <div class="actions">
+        <button type="button" data-boot-connect>Connect bootloader</button>
+        <button type="button" data-boot-close disabled>Disconnect bootloader</button>
+        <button type="button" data-flash-backup disabled>Dump complete flash</button>
+        <button type="button" data-factory-read disabled>Read calibration tables</button>
+        <button type="button" data-factory-download disabled>Download raw factory region</button>
+        <button type="button" data-boot-cancel disabled>Cancel operation</button>
+      </div>
+      <h3>Update firmware</h3>
+      <p>Select one release bundle containing its matching application/DSP pair. Normal updates preserve settings and factory calibration. Files are validated locally.</p>
+      <div class="actions">
+        <label class="file-button">Select firmware bundle<input data-bundle-file type="file" accept=".json,application/json"></label>
+        <button type="button" data-flash-update disabled>Review firmware update</button>
+      </div>
+      <p data-bundle-status class="hint">No firmware bundle selected.</p>
+      <h3>Restore full backup</h3>
+      <p>Separate recovery operation for this same radio only. Replaces all firmware, settings, calibration and unknown flash bytes.</p>
+      <div class="actions">
+        <label class="file-button">Select complete backup<input data-backup-file type="file" accept=".json,application/json"></label>
+        <button type="button" data-flash-restore disabled>Review full restore</button>
+      </div>
+      <p data-backup-status class="hint">No complete backup selected.</p>
+      <p data-restore-status class="hint"></p>
+      <progress max="1" value="0" aria-label="Bootloader operation progress"></progress>
+      <p data-firmware-status role="status" aria-live="polite">Disconnected. Select a file for local validation or connect the bootloader to read the radio.</p>
+      <p class="hint">Calibration inspection reads and verifies the 64 KiB journal at 0x3B0000–0x3C0000. Historical entries and undecoded record bytes remain available. Download raw factory region separately reads and verifies 0x3B0000 to the end of flash for a complete local copy. No values are applied to the radio.</p>
+      <div data-calibration></div>
+      <p><a href="./bootloader/README.md">RAM helper provenance</a> · <a href="./bootloader/LICENSE">Helper license</a></p>
+      <dialog data-flash-review aria-labelledby="flash-review-title">
+        <h3 id="flash-review-title" data-flash-review-title tabindex="-1" autofocus>Review flash operation</h3>
+        <p class="error">Use this software at your own risk. Flashing or restoring firmware may brick your device, making it unusable, and may cause data loss. The project authors and contributors accept no responsibility for damage or loss resulting from use of this software.</p>
+        <pre data-flash-preview></pre>
+        <div data-flash-selection>
+          <label>Firmware to flash <select data-flash-target><option value="pair">Application + DSP</option><option value="application">Application only</option></select></label>
+          <p class="hint">Application only requires the radio's existing DSP to match the selected bundle.</p>
+        </div>
+        <label class="flash-ack"><input data-flash-verify type="checkbox" checked> Read flash back after writing (recommended)</label>
+        <p class="hint">Checks written bytes against the selected file. Turning this off skips readback verification.</p>
+        <label class="flash-ack"><input data-flash-ack type="checkbox"> I understand and accept the risk of bricking the device or losing data, and acknowledge the replacements shown above.</label>
+        <div class="actions"><button type="button" data-flash-dismiss>Cancel</button><button type="button" data-flash-confirm disabled>Write flash</button></div>
+      </dialog>
+    </section>
+    <section id="cps" aria-labelledby="cps-title">
+      <h2 id="cps-title">Codeplug editor</h2>
+      <p>Create and edit codeplugs locally, then export a JSON file. A radio connection is optional.</p>
+      <div class="actions">
+        <button id="cps-new" type="button">New codeplug</button>
+        <label class="file-button">Import JSON<input id="cps-import" type="file" accept=".json,application/json"></label>
+        <button id="cps-export" type="button">Export JSON</button>
+      </div>
+      <p id="cps-summary"></p>
+      <div class="actions">
+        <button id="cps-read" type="button" disabled>Read radio</button>
+        <button id="cps-write" type="button" disabled>Review and write radio</button>
+        <button id="cps-cancel" type="button" disabled>Cancel transfer</button>
+      </div>
+      <p id="cps-radio-status" role="status" aria-live="polite">Connect the exact matching firmware to read or replace its codeplug. Offline editing remains available.</p>
+      <nav class="actions cps-tabs" aria-label="Codeplug sections">
+        <button type="button" data-cps-panel="global">Global settings</button>
+        <button type="button" data-cps-panel="vfo">VFO</button>
+        <button type="button" data-cps-panel="channels">Channels</button>
+        <button type="button" data-cps-panel="banks">Banks</button>
+        <button type="button" data-cps-panel="selection">Startup selection</button>
+      </nav>
+      <div id="cps-content"></div>
+      <details id="cps-preview">
+        <summary>Review applied codeplug JSON</summary>
+        <p>Apply edited fields to update this preview. Export JSON downloads these values.</p>
+        <label class="cps-field">Applied codeplug JSON<textarea id="cps-json" rows="12" readonly spellcheck="false"></textarea></label>
+      </details>
+      <p id="cps-status" role="status" aria-live="polite">Editing local codeplug.</p>
+      <dialog id="cps-confirm" aria-labelledby="cps-confirm-title">
+        <h3 id="cps-confirm-title">Confirm codeplug edit</h3><p></p>
+        <details id="cps-write-review" hidden>
+          <summary>Review complete before/after codeplugs</summary>
+          <label class="cps-field">Current radio codeplug<textarea id="cps-before" rows="8" readonly spellcheck="false"></textarea></label>
+          <label class="cps-field">Replacement codeplug<textarea id="cps-after" rows="8" readonly spellcheck="false"></textarea></label>
+        </details>
+        <form method="dialog" class="actions">
+          <button value="cancel" autofocus>Cancel</button><button value="replace">Continue</button>
+        </form>
+      </dialog>
+    </section>
+  </main>
+  <script type="module" src="./src/app.mjs"></script>
+</body>
+</html>

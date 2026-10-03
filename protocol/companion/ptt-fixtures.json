@@ -1,0 +1,56 @@
+[
+  {
+    "name": "press",
+    "type": 48,
+    "payload": "",
+    "status": 0
+  },
+  {
+    "name": "keep",
+    "type": 49,
+    "payload": "02000000",
+    "status": 0
+  },
+  {
+    "name": "release",
+    "type": 50,
+    "payload": "",
+    "status": 0
+  },
+  {
+    "name": "press-extra",
+    "type": 48,
+    "payload": "00",
+    "status": 1
+  },
+  {
+    "name": "keep-short",
+    "type": 49,
+    "payload": "020000",
+    "status": 1
+  },
+  {
+    "name": "keep-zero",
+    "type": 49,
+    "payload": "00000000",
+    "status": 1
+  },
+  {
+    "name": "keep-extra",
+    "type": 49,
+    "payload": "0200000000",
+    "status": 1
+  },
+  {
+    "name": "release-extra",
+    "type": 50,
+    "payload": "00",
+    "status": 1
+  },
+  {
+    "name": "unknown",
+    "type": 51,
+    "payload": "",
+    "status": 4
+  }
+]

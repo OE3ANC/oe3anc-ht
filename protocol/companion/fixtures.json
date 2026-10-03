@@ -1,0 +1,548 @@
+[
+  {
+    "name": "hello",
+    "frame": {
+      "major": 1,
+      "minor": 0,
+      "type": 1,
+      "flags": 0,
+      "request": 1,
+      "session": "0",
+      "payload": "086465762d746573742a00000000000000"
+    },
+    "wire": "0004485401020102110201010101010101010101010b086465762d746573742a01010101010105ebd69d7900"
+  },
+  {
+    "name": "hello-reply",
+    "frame": {
+      "major": 1,
+      "minor": 0,
+      "type": 1,
+      "flags": 1,
+      "request": 1,
+      "session": "42",
+      "payload": "00086465762d746573740363363200000000c000e803"
+    },
+    "wire": "00044854010401011602010101022a010101010101010e086465762d746573740363363201010102c007e803a3f35d8c00"
+  },
+  {
+    "name": "ping",
+    "frame": {
+      "major": 1,
+      "minor": 0,
+      "type": 2,
+      "flags": 0,
+      "request": 2,
+      "session": "42",
+      "payload": ""
+    },
+    "wire": "00044854010202010102020101022a010101010101056a44abfc00"
+  },
+  {
+    "name": "close",
+    "frame": {
+      "major": 1,
+      "minor": 0,
+      "type": 3,
+      "flags": 0,
+      "request": 4294967295,
+      "session": "18446744073709551615",
+      "payload": ""
+    },
+    "wire": "00044854010203010111ffffffffffffffffffffffff1f0c021600"
+  },
+  {
+    "name": "maximum",
+    "frame": {
+      "major": 1,
+      "minor": 0,
+      "type": 99,
+      "flags": 0,
+      "request": 4294967295,
+      "session": "18446744073709551615",
+      "payload": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebf"
+    },
+    "wire": "0004485401026302c00dffffffffffffffffffffffffc40102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfbd75854b00"
+  },
+  {
+    "name": "cps-read",
+    "frame": {
+      "major": 1,
+      "minor": 0,
+      "type": 16,
+      "flags": 0,
+      "request": 9,
+      "session": "42",
+      "payload": ""
+    },
+    "wire": "00044854010210010102090101022a0101010101010599fbbeec00"
+  },
+  {
+    "name": "cps-write-chunk",
+    "frame": {
+      "major": 1,
+      "minor": 0,
+      "type": 19,
+      "flags": 0,
+      "request": 12,
+      "session": "42",
+      "payload": "0a0000000000000048544442"
+    },
+    "wire": "00044854010213020c020c0101022a010101010101020a0101010101010948544442e0a4d92a00"
+  },
+  {
+    "name": "ui-poll",
+    "frame": {
+      "major": 1,
+      "minor": 0,
+      "type": 32,
+      "flags": 0,
+      "request": 6,
+      "session": "42",
+      "payload": "00000000"
+    },
+    "wire": "00044854010220020402060101022a0101010101010101010105748b1ff400"
+  },
+  {
+    "name": "ui-chunk",
+    "frame": {
+      "major": 1,
+      "minor": 0,
+      "type": 33,
+      "flags": 0,
+      "request": 6,
+      "session": "42",
+      "payload": "050000000000b4"
+    },
+    "wire": "00044854010221020702060101022a01010101010102050101010106b41a659f8700"
+  },
+  {
+    "name": "key-0",
+    "frame": {
+      "major": 1,
+      "minor": 0,
+      "type": 34,
+      "flags": 0,
+      "request": 100,
+      "session": "42",
+      "payload": "0001"
+    },
+    "wire": "00044854010222020202640101022a010101010101010601aa81847600"
+  },
+  {
+    "name": "key-1",
+    "frame": {
+      "major": 1,
+      "minor": 0,
+      "type": 34,
+      "flags": 0,
+      "request": 101,
+      "session": "42",
+      "payload": "0101"
+    },
+    "wire": "00044854010222020202650101022a0101010101010701019d5190f200"
+  },
+  {
+    "name": "key-2",
+    "frame": {
+      "major": 1,
+      "minor": 0,
+      "type": 34,
+      "flags": 0,
+      "request": 102,
+      "session": "42",
+      "payload": "0201"
+    },
+    "wire": "00044854010222020202660101022a0101010101010702018527dca500"
+  },
+  {
+    "name": "key-3",
+    "frame": {
+      "major": 1,
+      "minor": 0,
+      "type": 34,
+      "flags": 0,
+      "request": 103,
+      "session": "42",
+      "payload": "0301"
+    },
+    "wire": "00044854010222020202670101022a010101010101070301b2f7c82100"
+  },
+  {
+    "name": "key-4",
+    "frame": {
+      "major": 1,
+      "minor": 0,
+      "type": 34,
+      "flags": 0,
+      "request": 104,
+      "session": "42",
+      "payload": "0401"
+    },
+    "wire": "00044854010222020202680101022a01010101010107040183d51d3800"
+  },
+  {
+    "name": "key-5",
+    "frame": {
+      "major": 1,
+      "minor": 0,
+      "type": 34,
+      "flags": 0,
+      "request": 105,
+      "session": "42",
+      "payload": "0501"
+    },
+    "wire": "00044854010222020202690101022a010101010101070501b40509bc00"
+  },
+  {
+    "name": "key-6",
+    "frame": {
+      "major": 1,
+      "minor": 0,
+      "type": 34,
+      "flags": 0,
+      "request": 106,
+      "session": "42",
+      "payload": "0601"
+    },
+    "wire": "000448540102220202026a0101022a010101010101070601ac7345eb00"
+  },
+  {
+    "name": "key-7",
+    "frame": {
+      "major": 1,
+      "minor": 0,
+      "type": 34,
+      "flags": 0,
+      "request": 107,
+      "session": "42",
+      "payload": "0701"
+    },
+    "wire": "000448540102220202026b0101022a0101010101010707019ba3516f00"
+  },
+  {
+    "name": "key-8",
+    "frame": {
+      "major": 1,
+      "minor": 0,
+      "type": 34,
+      "flags": 0,
+      "request": 108,
+      "session": "42",
+      "payload": "0801"
+    },
+    "wire": "000448540102220202026c0101022a0101010101010708019415048d00"
+  },
+  {
+    "name": "key-9",
+    "frame": {
+      "major": 1,
+      "minor": 0,
+      "type": 34,
+      "flags": 0,
+      "request": 109,
+      "session": "42",
+      "payload": "0901"
+    },
+    "wire": "000448540102220202026d0101022a010101010101070901a3c5100900"
+  },
+  {
+    "name": "key-10",
+    "frame": {
+      "major": 1,
+      "minor": 0,
+      "type": 34,
+      "flags": 0,
+      "request": 110,
+      "session": "42",
+      "payload": "0a01"
+    },
+    "wire": "000448540102220202026e0101022a010101010101070a01bbb35c5e00"
+  },
+  {
+    "name": "key-11",
+    "frame": {
+      "major": 1,
+      "minor": 0,
+      "type": 34,
+      "flags": 0,
+      "request": 111,
+      "session": "42",
+      "payload": "0b01"
+    },
+    "wire": "000448540102220202026f0101022a010101010101070b018c6348da00"
+  },
+  {
+    "name": "key-12",
+    "frame": {
+      "major": 1,
+      "minor": 0,
+      "type": 34,
+      "flags": 0,
+      "request": 112,
+      "session": "42",
+      "payload": "0c01"
+    },
+    "wire": "00044854010222020202700101022a010101010101070c01d17d2fa500"
+  },
+  {
+    "name": "key-13",
+    "frame": {
+      "major": 1,
+      "minor": 0,
+      "type": 34,
+      "flags": 0,
+      "request": 113,
+      "session": "42",
+      "payload": "0d01"
+    },
+    "wire": "00044854010222020202710101022a010101010101070d01e6ad3b2100"
+  },
+  {
+    "name": "key-14",
+    "frame": {
+      "major": 1,
+      "minor": 0,
+      "type": 34,
+      "flags": 0,
+      "request": 114,
+      "session": "42",
+      "payload": "0e01"
+    },
+    "wire": "00044854010222020202720101022a010101010101070e01fedb777600"
+  },
+  {
+    "name": "key-15",
+    "frame": {
+      "major": 1,
+      "minor": 0,
+      "type": 34,
+      "flags": 0,
+      "request": 115,
+      "session": "42",
+      "payload": "0f01"
+    },
+    "wire": "00044854010222020202730101022a010101010101070f01c90b63f200"
+  },
+  {
+    "name": "key-16",
+    "frame": {
+      "major": 1,
+      "minor": 0,
+      "type": 34,
+      "flags": 0,
+      "request": 116,
+      "session": "42",
+      "payload": "1001"
+    },
+    "wire": "00044854010222020202740101022a01010101010107100197aff45a00"
+  },
+  {
+    "name": "key-17",
+    "frame": {
+      "major": 1,
+      "minor": 0,
+      "type": 34,
+      "flags": 0,
+      "request": 117,
+      "session": "42",
+      "payload": "1101"
+    },
+    "wire": "00044854010222020202750101022a010101010101071101a07fe0de00"
+  },
+  {
+    "name": "key-release",
+    "frame": {
+      "major": 1,
+      "minor": 0,
+      "type": 34,
+      "flags": 0,
+      "request": 118,
+      "session": "42",
+      "payload": "0600"
+    },
+    "wire": "00044854010222020202760101022a0101010101010206057bee05d000"
+  },
+  {
+    "name": "clear",
+    "frame": {
+      "major": 1,
+      "minor": 0,
+      "type": 35,
+      "flags": 0,
+      "request": 119,
+      "session": "42",
+      "payload": ""
+    },
+    "wire": "00044854010223010102770101022a01010101010105625815f900"
+  },
+  {
+    "name": "keep-star",
+    "frame": {
+      "major": 1,
+      "minor": 0,
+      "type": 36,
+      "flags": 0,
+      "request": 120,
+      "session": "42",
+      "payload": "40000000"
+    },
+    "wire": "00044854010224020402780101022a0101010101010240010105a27d02de00"
+  },
+  {
+    "name": "key-short",
+    "frame": {
+      "major": 1,
+      "minor": 0,
+      "type": 34,
+      "flags": 0,
+      "request": 121,
+      "session": "42",
+      "payload": "06"
+    },
+    "wire": "00044854010222020102790101022a01010101010106068f439f5c00"
+  },
+  {
+    "name": "key-long",
+    "frame": {
+      "major": 1,
+      "minor": 0,
+      "type": 34,
+      "flags": 0,
+      "request": 122,
+      "session": "42",
+      "payload": "060100"
+    },
+    "wire": "000448540102220203027a0101022a0101010101010306010531114dce00"
+  },
+  {
+    "name": "key-unknown",
+    "frame": {
+      "major": 1,
+      "minor": 0,
+      "type": 34,
+      "flags": 0,
+      "request": 123,
+      "session": "42",
+      "payload": "1201"
+    },
+    "wire": "000448540102220202027b0101022a010101010101071201e379563e00"
+  },
+  {
+    "name": "key-bad-level",
+    "frame": {
+      "major": 1,
+      "minor": 0,
+      "type": 34,
+      "flags": 0,
+      "request": 124,
+      "session": "42",
+      "payload": "0602"
+    },
+    "wire": "000448540102220202027c0101022a010101010101070602cc553cec00"
+  },
+  {
+    "name": "clear-nonempty",
+    "frame": {
+      "major": 1,
+      "minor": 0,
+      "type": 35,
+      "flags": 0,
+      "request": 125,
+      "session": "42",
+      "payload": "00"
+    },
+    "wire": "000448540102230201027d0101022a01010101010101056f47e3f200"
+  },
+  {
+    "name": "keep-short",
+    "frame": {
+      "major": 1,
+      "minor": 0,
+      "type": 36,
+      "flags": 0,
+      "request": 126,
+      "session": "42",
+      "payload": "40"
+    },
+    "wire": "000448540102240201027e0101022a01010101010106407a16671900"
+  },
+  {
+    "name": "keep-zero",
+    "frame": {
+      "major": 1,
+      "minor": 0,
+      "type": 36,
+      "flags": 0,
+      "request": 127,
+      "session": "42",
+      "payload": "00000000"
+    },
+    "wire": "000448540102240204027f0101022a0101010101010101010105eaddefb800"
+  },
+  {
+    "name": "keep-unknown",
+    "frame": {
+      "major": 1,
+      "minor": 0,
+      "type": 36,
+      "flags": 0,
+      "request": 128,
+      "session": "42",
+      "payload": "00000400"
+    },
+    "wire": "00044854010224020402800101022a01010101010101010204053921f2d100"
+  },
+  {
+    "name": "ptt-press",
+    "frame": {
+      "major": 1,
+      "minor": 0,
+      "type": 48,
+      "flags": 0,
+      "request": 2,
+      "session": "42",
+      "payload": ""
+    },
+    "wire": "00044854010230010102020101022a01010101010105ea24138a00"
+  },
+  {
+    "name": "ptt-press-reply",
+    "frame": {
+      "major": 1,
+      "minor": 0,
+      "type": 48,
+      "flags": 1,
+      "request": 2,
+      "session": "42",
+      "payload": "0002000000"
+    },
+    "wire": "00044854010430010502020101022a0101010101010102020101059503fea500"
+  },
+  {
+    "name": "ptt-keep",
+    "frame": {
+      "major": 1,
+      "minor": 0,
+      "type": 49,
+      "flags": 0,
+      "request": 3,
+      "session": "42",
+      "payload": "02000000"
+    },
+    "wire": "00044854010231020402030101022a01010101010102020101058a0eeea100"
+  },
+  {
+    "name": "ptt-release",
+    "frame": {
+      "major": 1,
+      "minor": 0,
+      "type": 50,
+      "flags": 0,
+      "request": 3,
+      "session": "42",
+      "payload": ""
+    },
+    "wire": "00044854010232010102030101022a01010101010105e64d169600"
+  }
+]

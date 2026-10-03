@@ -1,0 +1,176 @@
+[
+  {
+    "name": "key-0",
+    "type": 34,
+    "payload": "0001",
+    "status": 0
+  },
+  {
+    "name": "key-1",
+    "type": 34,
+    "payload": "0101",
+    "status": 0
+  },
+  {
+    "name": "key-2",
+    "type": 34,
+    "payload": "0201",
+    "status": 0
+  },
+  {
+    "name": "key-3",
+    "type": 34,
+    "payload": "0301",
+    "status": 0
+  },
+  {
+    "name": "key-4",
+    "type": 34,
+    "payload": "0401",
+    "status": 0
+  },
+  {
+    "name": "key-5",
+    "type": 34,
+    "payload": "0501",
+    "status": 0
+  },
+  {
+    "name": "key-6",
+    "type": 34,
+    "payload": "0601",
+    "status": 0
+  },
+  {
+    "name": "key-7",
+    "type": 34,
+    "payload": "0701",
+    "status": 0
+  },
+  {
+    "name": "key-8",
+    "type": 34,
+    "payload": "0801",
+    "status": 0
+  },
+  {
+    "name": "key-9",
+    "type": 34,
+    "payload": "0901",
+    "status": 0
+  },
+  {
+    "name": "key-10",
+    "type": 34,
+    "payload": "0a01",
+    "status": 0
+  },
+  {
+    "name": "key-11",
+    "type": 34,
+    "payload": "0b01",
+    "status": 0
+  },
+  {
+    "name": "key-12",
+    "type": 34,
+    "payload": "0c01",
+    "status": 0
+  },
+  {
+    "name": "key-13",
+    "type": 34,
+    "payload": "0d01",
+    "status": 0
+  },
+  {
+    "name": "key-14",
+    "type": 34,
+    "payload": "0e01",
+    "status": 0
+  },
+  {
+    "name": "key-15",
+    "type": 34,
+    "payload": "0f01",
+    "status": 0
+  },
+  {
+    "name": "key-16",
+    "type": 34,
+    "payload": "1001",
+    "status": 0
+  },
+  {
+    "name": "key-17",
+    "type": 34,
+    "payload": "1101",
+    "status": 0
+  },
+  {
+    "name": "key-release",
+    "type": 34,
+    "payload": "0600",
+    "status": 0
+  },
+  {
+    "name": "clear",
+    "type": 35,
+    "payload": "",
+    "status": 0
+  },
+  {
+    "name": "keep-star",
+    "type": 36,
+    "payload": "40000000",
+    "status": 0
+  },
+  {
+    "name": "key-short",
+    "type": 34,
+    "payload": "06",
+    "status": 1
+  },
+  {
+    "name": "key-long",
+    "type": 34,
+    "payload": "060100",
+    "status": 1
+  },
+  {
+    "name": "key-unknown",
+    "type": 34,
+    "payload": "1201",
+    "status": 1
+  },
+  {
+    "name": "key-bad-level",
+    "type": 34,
+    "payload": "0602",
+    "status": 1
+  },
+  {
+    "name": "clear-nonempty",
+    "type": 35,
+    "payload": "00",
+    "status": 1
+  },
+  {
+    "name": "keep-short",
+    "type": 36,
+    "payload": "40",
+    "status": 1
+  },
+  {
+    "name": "keep-zero",
+    "type": 36,
+    "payload": "00000000",
+    "status": 1
+  },
+  {
+    "name": "keep-unknown",
+    "type": 36,
+    "payload": "00000400",
+    "status": 1
+  }
+]
