@@ -5,7 +5,7 @@ desktop emulator.
 
 <img src="assets/c62.png" alt="C62 reverse-engineering illustration" width="600">
 
-[Web companion](https://companion.oe3anc.at/) ·
+[Web companion](https://ht.oe3anc.at/) ·
 [Releases](https://github.com/OE3ANC/oe3anc-ht/releases)
 
 ## Project status and disclaimer
