@@ -1,0 +1,6 @@
+tests:
+  ht.ui_backlight_service:
+    tags: ui backlight integration
+    platform_allow: native_sim_64
+    integration_platforms:
+      - native_sim_64

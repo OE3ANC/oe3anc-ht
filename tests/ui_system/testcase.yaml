@@ -1,0 +1,6 @@
+tests:
+  ht.ui_system:
+    tags: ui battery power fault
+    platform_allow: native_sim_64
+    integration_platforms:
+      - native_sim_64

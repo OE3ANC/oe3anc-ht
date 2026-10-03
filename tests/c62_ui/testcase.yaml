@@ -1,0 +1,6 @@
+tests:
+  ht.c62_ui:
+    tags: ui
+    platform_allow: native_sim_64
+    integration_platforms:
+      - native_sim_64

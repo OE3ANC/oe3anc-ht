@@ -1,0 +1,6 @@
+tests:
+  ht.ui_home:
+    tags: ui battery timeout settings
+    platform_allow: native_sim_64
+    integration_platforms:
+      - native_sim_64
