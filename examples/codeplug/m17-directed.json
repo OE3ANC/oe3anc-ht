@@ -1,0 +1,79 @@
+{
+  "format": "oe3anc-ht-codeplug",
+  "schema_version": 1,
+  "allocation": {
+    "channel_id_high_water": 17,
+    "bank_id_high_water": 2
+  },
+  "global": {
+    "local_callsign": "OE3ANC",
+    "gain": 0,
+    "transmit_limit_s": 180,
+    "ui": {
+      "theme": "midnight",
+      "contrast": "normal",
+      "animations": true,
+      "backlight": {
+        "brightness_percent": 100,
+        "idle_s": 15,
+        "dim_percent": 10
+      }
+    },
+    "vfo_step_hz": 12500
+  },
+  "vfo": {
+    "mode": "fm",
+    "rx_frequency_hz": 433500000,
+    "tx_frequency_hz": 433500000,
+    "tx_inhibit": false,
+    "power_mw": 1000,
+    "bandwidth": "wide",
+    "squelch": 4,
+    "fm": {
+      "rx_tone": {
+        "kind": "none"
+      },
+      "tx_tone": {
+        "kind": "none"
+      }
+    }
+  },
+  "selection": {
+    "operating": "memory",
+    "bank_id": 2,
+    "channel_id": 17
+  },
+  "channels": [
+    {
+      "id": 17,
+      "number": 1,
+      "name": "LOCAL M17",
+      "configuration": {
+        "mode": "m17",
+        "rx_frequency_hz": 433475000,
+        "tx_frequency_hz": 433475000,
+        "tx_inhibit": false,
+        "power_mw": 1000,
+        "bandwidth": "wide",
+        "squelch": 4,
+        "m17": {
+          "destination": {
+            "kind": "station",
+            "callsign": "OE1TEST"
+          },
+          "can": 3,
+          "rx_can_check": true
+        }
+      }
+    }
+  ],
+  "banks": [
+    {
+      "id": 2,
+      "name": "Local",
+      "channel_ids": [
+        17
+      ]
+    }
+  ]
+}

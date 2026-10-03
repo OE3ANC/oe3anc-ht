@@ -1,0 +1,11 @@
+tests:
+  ht.codeplug_profile:
+    platform_allow:
+      - native_sim_64
+    tags:
+      - ht
+      - settings
+      - storage
+    # The host test supplies a unique fixture directory and enables the probe;
+    # an ordinary Twister run skips rather than reading a real default profile.
+    harness: ztest

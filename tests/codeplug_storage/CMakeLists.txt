@@ -1,0 +1,10 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+cmake_minimum_required(VERSION 3.20.0)
+find_package(Zephyr REQUIRED HINTS $ENV{ZEPHYR_BASE})
+project(ht_codeplug_storage_tests LANGUAGES C CXX)
+target_sources(app PRIVATE src/main.cpp)
+if(CONFIG_HT_SETTINGS_NVS)
+  zephyr_ld_options(-Wl,--wrap=nvs_write)
+else()
+  zephyr_ld_options(-Wl,--wrap=write -Wl,--wrap=fsync -Wl,--wrap=rename)
+endif()

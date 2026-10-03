@@ -1,0 +1,11 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+zephyr_library_named(ht_settings)
+zephyr_library_sources(service.cpp codeplug_store.cpp)
+zephyr_library_compile_options(-fstack-usage)
+if(CONFIG_HT_SETTINGS_NVS)
+  zephyr_library_sources(${ZEPHYR_HT_MODULE_DIR}/backends/c62/storage.cpp)
+elseif(CONFIG_HT_EMULATOR)
+  zephyr_library_sources(${ZEPHYR_HT_MODULE_DIR}/backends/linux/storage.cpp)
+else()
+  message(FATAL_ERROR "Select a settings storage backend")
+endif()

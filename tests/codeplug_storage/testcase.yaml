@@ -1,0 +1,17 @@
+tests:
+  ht.codeplug_storage.linux:
+    platform_allow: native_sim_64
+    integration_platforms:
+      - native_sim_64
+    tags:
+      - settings
+      - channels
+  ht.codeplug_storage.nvs:
+    platform_allow: native_sim_64
+    integration_platforms:
+      - native_sim_64
+    extra_configs:
+      - CONFIG_HT_SETTINGS_NVS=y
+    tags:
+      - settings
+      - nvs

@@ -1,0 +1,48 @@
+{
+  "format": "oe3anc-ht-codeplug",
+  "schema_version": 1,
+  "allocation": {
+    "channel_id_high_water": 0,
+    "bank_id_high_water": 0
+  },
+  "global": {
+    "local_callsign": "",
+    "gain": 0,
+    "transmit_limit_s": 180,
+    "ui": {
+      "theme": "midnight",
+      "contrast": "normal",
+      "animations": true,
+      "backlight": {
+        "brightness_percent": 100,
+        "idle_s": 15,
+        "dim_percent": 10
+      }
+    },
+    "vfo_step_hz": 12500
+  },
+  "vfo": {
+    "mode": "fm",
+    "rx_frequency_hz": 433500000,
+    "tx_frequency_hz": 433500000,
+    "tx_inhibit": false,
+    "power_mw": 1000,
+    "bandwidth": "wide",
+    "squelch": 4,
+    "fm": {
+      "rx_tone": {
+        "kind": "none"
+      },
+      "tx_tone": {
+        "kind": "none"
+      }
+    }
+  },
+  "selection": {
+    "operating": "vfo",
+    "bank_id": null,
+    "channel_id": null
+  },
+  "channels": [],
+  "banks": []
+}

@@ -1,0 +1,17 @@
+tests:
+  ht.settings.linux:
+    platform_allow: native_sim_64
+    integration_platforms:
+      - native_sim_64
+    tags:
+      - settings
+      - channels
+  ht.settings.nvs:
+    platform_allow: native_sim_64
+    integration_platforms:
+      - native_sim_64
+    extra_configs:
+      - CONFIG_HT_SETTINGS_NVS=y
+    tags:
+      - settings
+      - nvs

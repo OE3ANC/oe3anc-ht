@@ -1,0 +1,558 @@
+{
+  "type": "object",
+  "properties": {
+    "format": {
+      "const": "oe3anc-ht-codeplug"
+    },
+    "schema_version": {
+      "const": 1
+    },
+    "allocation": {
+      "type": "object",
+      "properties": {
+        "channel_id_high_water": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        },
+        "bank_id_high_water": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        }
+      },
+      "required": [
+        "channel_id_high_water",
+        "bank_id_high_water"
+      ],
+      "additionalProperties": false
+    },
+    "global": {
+      "type": "object",
+      "properties": {
+        "local_callsign": {
+          "anyOf": [
+            {
+              "const": ""
+            },
+            {
+              "$ref": "#/$defs/callsign"
+            }
+          ]
+        },
+        "gain": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 15,
+          "description": "Portable gain range; hardware import/application must additionally check backend gain capability."
+        },
+        "transmit_limit_s": {
+          "enum": [
+            0,
+            60,
+            120,
+            180
+          ]
+        },
+        "ui": {
+          "type": "object",
+          "properties": {
+            "theme": {
+              "enum": [
+                "midnight",
+                "nord",
+                "solarized-dark",
+                "darcula"
+              ]
+            },
+            "contrast": {
+              "enum": [
+                "normal",
+                "high",
+                "maximum"
+              ]
+            },
+            "animations": {
+              "type": "boolean"
+            },
+            "backlight": {
+              "type": "object",
+              "properties": {
+                "brightness_percent": {
+                  "enum": [
+                    25,
+                    50,
+                    75,
+                    100
+                  ]
+                },
+                "idle_s": {
+                  "enum": [
+                    0,
+                    15,
+                    30,
+                    60
+                  ]
+                },
+                "dim_percent": {
+                  "enum": [
+                    10,
+                    20,
+                    30
+                  ]
+                }
+              },
+              "required": [
+                "brightness_percent",
+                "idle_s",
+                "dim_percent"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "theme",
+            "contrast",
+            "animations",
+            "backlight"
+          ],
+          "additionalProperties": false
+        },
+        "vfo_step_hz": {
+          "type": "integer",
+          "enum": [
+            1000,
+            2500,
+            5000,
+            6250,
+            10000,
+            12500,
+            20000,
+            25000,
+            50000,
+            100000
+          ]
+        }
+      },
+      "required": [
+        "local_callsign",
+        "gain",
+        "transmit_limit_s",
+        "ui",
+        "vfo_step_hz"
+      ],
+      "additionalProperties": false
+    },
+    "vfo": {
+      "$ref": "#/$defs/configuration"
+    },
+    "selection": {
+      "type": "object",
+      "properties": {
+        "operating": {
+          "enum": [
+            "vfo",
+            "memory"
+          ]
+        },
+        "bank_id": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 4294967295
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "channel_id": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 4294967295
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "operating",
+        "bank_id",
+        "channel_id"
+      ],
+      "additionalProperties": false
+    },
+    "channels": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 4294967295
+          },
+          "number": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 256
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 24,
+            "pattern": "^[ -~]{1,24}(?![\\s\\S])"
+          },
+          "configuration": {
+            "$ref": "#/$defs/configuration"
+          }
+        },
+        "required": [
+          "id",
+          "number",
+          "name",
+          "configuration"
+        ],
+        "additionalProperties": false
+      },
+      "maxItems": 256
+    },
+    "banks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 4294967295
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 24,
+            "pattern": "^[ -~]{1,24}(?![\\s\\S])"
+          },
+          "channel_ids": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 4294967295
+            },
+            "maxItems": 256,
+            "uniqueItems": true
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "channel_ids"
+        ],
+        "additionalProperties": false
+      },
+      "maxItems": 16
+    }
+  },
+  "required": [
+    "format",
+    "schema_version",
+    "allocation",
+    "global",
+    "vfo",
+    "selection",
+    "channels",
+    "banks"
+  ],
+  "additionalProperties": false,
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:oe3anc-ht:codeplug:1",
+  "title": "OE3ANC HT codeplug \u2014 JSON schema version 1",
+  "$comment": "Referential integrity, unique channel IDs/numbers, high-water counters and selected-bank membership require tools/codeplug.py in addition to JSON Schema. Hardware must revalidate target capabilities before application.",
+  "$defs": {
+    "tone": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "none"
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "ctcss"
+            },
+            "tenths_hz": {
+              "type": "integer",
+              "minimum": 670,
+              "maximum": 2541
+            }
+          },
+          "required": [
+            "kind",
+            "tenths_hz"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "dcs"
+            },
+            "code": {
+              "type": "string",
+              "minLength": 3,
+              "maxLength": 3,
+              "pattern": "^[0-7]{3}$"
+            },
+            "polarity": {
+              "enum": [
+                "normal",
+                "inverted"
+              ]
+            }
+          },
+          "required": [
+            "kind",
+            "code",
+            "polarity"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "callsign": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 9,
+      "pattern": "^[A-Z0-9./-]{1,9}(?![\\s\\S])",
+      "not": {
+        "enum": [
+          "ALL",
+          "INVALID"
+        ]
+      }
+    },
+    "configuration": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "mode": {
+              "const": "fm"
+            },
+            "rx_frequency_hz": {
+              "type": "integer",
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 136000000,
+                  "maximum": 174000000
+                },
+                {
+                  "type": "integer",
+                  "minimum": 400000000,
+                  "maximum": 480000000
+                }
+              ]
+            },
+            "tx_frequency_hz": {
+              "type": "integer",
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 136000000,
+                  "maximum": 174000000
+                },
+                {
+                  "type": "integer",
+                  "minimum": 400000000,
+                  "maximum": 480000000
+                }
+              ]
+            },
+            "tx_inhibit": {
+              "type": "boolean"
+            },
+            "power_mw": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 5000
+            },
+            "bandwidth": {
+              "enum": [
+                "narrow",
+                "wide"
+              ]
+            },
+            "squelch": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 15
+            },
+            "fm": {
+              "type": "object",
+              "properties": {
+                "rx_tone": {
+                  "$ref": "#/$defs/tone"
+                },
+                "tx_tone": {
+                  "$ref": "#/$defs/tone"
+                }
+              },
+              "required": [
+                "rx_tone",
+                "tx_tone"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "mode",
+            "rx_frequency_hz",
+            "tx_frequency_hz",
+            "tx_inhibit",
+            "power_mw",
+            "bandwidth",
+            "squelch",
+            "fm"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "mode": {
+              "const": "m17"
+            },
+            "rx_frequency_hz": {
+              "type": "integer",
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 136000000,
+                  "maximum": 174000000
+                },
+                {
+                  "type": "integer",
+                  "minimum": 400000000,
+                  "maximum": 480000000
+                }
+              ]
+            },
+            "tx_frequency_hz": {
+              "type": "integer",
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 136000000,
+                  "maximum": 174000000
+                },
+                {
+                  "type": "integer",
+                  "minimum": 400000000,
+                  "maximum": 480000000
+                }
+              ]
+            },
+            "tx_inhibit": {
+              "type": "boolean"
+            },
+            "power_mw": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 5000
+            },
+            "bandwidth": {
+              "enum": [
+                "narrow",
+                "wide"
+              ]
+            },
+            "squelch": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 15
+            },
+            "m17": {
+              "type": "object",
+              "properties": {
+                "destination": {
+                  "oneOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "const": "broadcast"
+                        }
+                      },
+                      "required": [
+                        "kind"
+                      ],
+                      "additionalProperties": false
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "const": "station"
+                        },
+                        "callsign": {
+                          "$ref": "#/$defs/callsign"
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "callsign"
+                      ],
+                      "additionalProperties": false
+                    }
+                  ]
+                },
+                "can": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 15
+                },
+                "rx_can_check": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "destination",
+                "can",
+                "rx_can_check"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "mode",
+            "rx_frequency_hz",
+            "tx_frequency_hz",
+            "tx_inhibit",
+            "power_mw",
+            "bandwidth",
+            "squelch",
+            "m17"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    }
+  }
+}
