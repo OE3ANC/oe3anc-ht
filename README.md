@@ -99,8 +99,8 @@ contributors, and the authors of the BK4819 driver and C62 integration we copied
 adapted as well as to ListenAI for their help with the DSP firmware. Their work
 made this project possible. Imported code retains its original attribution and licenses.
 
-Thanks also to David Rowe and the Codec2 contributors, and the M17 Project
-contributors maintaining [Codec2-mod](https://github.com/M17-Project/Codec2-mod).
+Thanks also to David Rowe and the Codec2 contributors for Codec2, and Wojciech Kaczmarski SP5WWP and 
+Silvano Seva IU2KWO for their work and ideas in [Codec2-mod](https://github.com/M17-Project/Codec2-mod).
 
 We encourage amateur-radio manufacturers to publish tools, documentation and
 schematics so the open-source community can develop innovative firmware and
