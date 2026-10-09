@@ -248,7 +248,7 @@ ZTEST(ui_menu, test_workflow_order_wrap_capabilities_and_physical_actions) {
     zassert_equal(model.screen(), UiScreen::Menu);
     zassert_equal(radio_snapshot().configuration_revision, revision);
     const auto count = page.count;
-    zassert_equal(count, 21); // No gain; companion toggle included.
+    zassert_equal(count, 23); // No generic gain; two FM RX test controls included.
     for (unsigned i = 0; i < count; ++i) {
         key(UiKey::Down);
     }
@@ -262,7 +262,7 @@ ZTEST(ui_menu, test_workflow_order_wrap_capabilities_and_physical_actions) {
     load(false, Mode::M17);
     key(UiKey::Enter);
     model.menu_page(page);
-    zassert_equal(page.count, count - 5);
+    zassert_equal(page.count, count - 7);
     for (unsigned i = 0; i < page.count; ++i) {
         UiListPage digital;
         model.menu_page(digital);
@@ -272,6 +272,51 @@ ZTEST(ui_menu, test_workflow_order_wrap_capabilities_and_physical_actions) {
         zassert_is_null(strstr(name, "tone:"));
         key(UiKey::Down);
     }
+}
+
+ZTEST(ui_menu, test_fm_rx_menu_controls_are_bounded_temporary_and_preserve_memory) {
+    load(true);
+    const auto initial = radio_snapshot();
+    const auto saved = settings_status();
+    find("FM weak BW");
+    UiListPage page;
+    model.menu_page(page);
+    zassert_equal(strcmp(page.rows[page.cursor % 4].name, "FM weak BW: 3.40k"), 0);
+    zassert_equal(strcmp(page.detail, "FM RX test / until reboot"), 0);
+    key(UiKey::Right);
+    tick();
+    zassert_equal(radio_snapshot().fm_rx_controls.weak_filter, 1);
+    model.menu_page(page);
+    zassert_equal(strcmp(page.rows[page.cursor % 4].name, "FM weak BW: 4.00k"), 0);
+    render("fm-rx-controls");
+    for (unsigned i = 0; i < 10; ++i) {
+        key(UiKey::Right);
+        tick();
+    }
+    zassert_equal(radio_snapshot().fm_rx_controls.weak_filter, 7);
+    for (unsigned i = 0; i < 10; ++i) {
+        key(UiKey::Left);
+        tick();
+    }
+    zassert_equal(radio_snapshot().fm_rx_controls.weak_filter, 0);
+    find("FM AF DAC");
+    key(UiKey::Enter);
+    tick();
+    zassert_equal(radio_snapshot().fm_rx_controls.af_dac_gain, 2);
+    radio_ptt(true);
+    radio_service();
+    key(UiKey::Right); // Producer PTT guards even a stale UI snapshot.
+    zassert_equal(model.error(), -EBUSY);
+    tick();
+    zassert_equal(radio_snapshot().fm_rx_controls.af_dac_gain, 2);
+    radio_ptt(false);
+    tick();
+    zassert_true(same_selection(radio_snapshot().selection, initial.selection));
+    zassert_true(same_operating(radio_snapshot().config, initial.config));
+    zassert_equal(settings_status().revision, saved.revision);
+    zassert_false(settings_status().pending);
+    zassert_ok(radio_start(initial.config, initial.selection));
+    zassert_equal(radio_snapshot().fm_rx_controls.af_dac_gain, 1);
 }
 
 ZTEST(ui_menu, test_radio_controls_helpers_pending_and_apply) {

@@ -108,8 +108,11 @@ static bk4819_tone driver_tone(const Tone &tone) {
     return {kind, tone.value, tone.inverted};
 }
 
-int backend_configure(const RadioConfig &config) {
+int backend_configure(const RadioConfig &config, const FmRxControls &controls) {
     int error = validate_config(config);
+    if (!error && !valid_fm_rx_controls(controls)) {
+        error = -EINVAL;
+    }
     if (error) {
         return error; // Validation cannot disturb the current path.
     }
@@ -123,7 +126,8 @@ int backend_configure(const RadioConfig &config) {
     const bk4819_config radio{config.rx_frequency_hz,      config.tx_frequency_hz,
                               config.tx_inhibit,           driver_tone(config.rx_tone),
                               driver_tone(config.tx_tone), config.bandwidth == Bandwidth::Wide,
-                              config.mode == Mode::M17};
+                              config.mode == Mode::M17,    controls.weak_filter,
+                              controls.af_dac_gain};
     error = bk4819_configure(&radio);
     configured = error == 0;
     if (!error) {

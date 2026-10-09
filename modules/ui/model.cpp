@@ -249,6 +249,24 @@ void UiModel::menu(int direction) {
     command.config = state_.config;
     auto &config = command.config;
     switch (selected_) {
+    case FmWeakFilterItem:
+    case FmAfDacGainItem: {
+        command.kind = CommandKind::FmRxControls;
+        command.fm_rx_controls = state_.fm_rx_controls;
+        auto &value = selected_ == FmWeakFilterItem ? command.fm_rx_controls.weak_filter
+                                                    : command.fm_rx_controls.af_dac_gain;
+        const int maximum = selected_ == FmWeakFilterItem ? 7 : 15;
+        const int next = int(value) + direction;
+        if (next < 0 || next > maximum) {
+            return;
+        }
+        value = next;
+        command.expected_generation = state_.generation;
+        command.expected_revision = state_.configuration_revision;
+        command.selection = state_.selection;
+        submit(command);
+        return;
+    }
     case CompanionItem:
         if (state_.companion_mode) {
             screen_ = UiScreen::CompanionExit;

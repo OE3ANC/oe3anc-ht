@@ -136,23 +136,24 @@ int RadioController::start(const RadioConfig &config, bool power_active,
         set_power(false);
         return 0;
     }
-    return configure(config);
+    return configure(config, state_.fm_rx_controls);
 }
 
-int RadioController::configure(const RadioConfig &config) {
+int RadioController::configure(const RadioConfig &config, const FmRxControls &controls) {
     const int validation = validate_config(config);
     if (validation) {
         return validation;
     }
     state_.monitor_active = false;
     backend_stop();
-    const int error = backend_configure(config);
+    const int error = backend_configure(config, controls);
     if (error) {
         return fail(error);
     }
     const int result = receive();
     if (result == 0) {
         state_.config = config;
+        state_.fm_rx_controls = controls;
         ++state_.configuration_revision;
     }
     return result;
@@ -168,7 +169,9 @@ int RadioController::execute(const RadioCommand &command) {
         switch (command.kind) {
         case CommandKind::Configure: {
             const bool changed = !same_operating(state_.config, command.config);
-            error = state_.phase == RadioPhase::Receiving ? configure(command.config) : -EBUSY;
+            error = state_.phase == RadioPhase::Receiving
+                        ? configure(command.config, state_.fm_rx_controls)
+                        : -EBUSY;
             if (!error && changed) {
                 state_.selection.operating = Operating::Vfo;
             }
@@ -183,8 +186,9 @@ int RadioController::execute(const RadioCommand &command) {
                 error = -EINVAL;
             } else {
                 error = state_.phase != RadioPhase::Receiving ? -EBUSY
-                        : command.kind == CommandKind::Recall ? configure(command.config)
-                                                              : 0;
+                        : command.kind == CommandKind::Recall
+                            ? configure(command.config, state_.fm_rx_controls)
+                            : 0;
                 if (!error) {
                     state_.selection = command.selection;
                     if (command.kind == CommandKind::Edit) {
@@ -207,9 +211,25 @@ int RadioController::execute(const RadioCommand &command) {
                     : state_.phase != RadioPhase::Receiving                            ? -EBUSY
                     : config.gain == state_.config.gain && config.squelch == state_.config.squelch
                         ? 0
-                        : configure(config);
+                        : configure(config, state_.fm_rx_controls);
             break;
         }
+        case CommandKind::FmRxControls:
+            if (command.expected_generation != state_.generation ||
+                command.expected_revision != state_.configuration_revision ||
+                !same_selection(command.selection, state_.selection)) {
+                error = -ESTALE;
+            } else if (!valid_fm_rx_controls(command.fm_rx_controls)) {
+                error = -EINVAL;
+            } else if (state_.phase != RadioPhase::Receiving || ptt_ || radio_ptt_requested()) {
+                error = -EBUSY;
+            } else if (state_.config.mode != Mode::Fm || !backend_capabilities().registers) {
+                error = -ENOTSUP;
+            } else if (state_.fm_rx_controls.weak_filter != command.fm_rx_controls.weak_filter ||
+                       state_.fm_rx_controls.af_dac_gain != command.fm_rx_controls.af_dac_gain) {
+                error = configure(state_.config, command.fm_rx_controls);
+            }
+            break;
         case CommandKind::TransmitLimit:
             if (command.expected_generation != state_.generation ||
                 command.expected_revision != state_.configuration_revision ||
@@ -267,7 +287,7 @@ int RadioController::execute(const RadioCommand &command) {
                 if (error) {
                     fail(error);
                 } else {
-                    error = configure(state_.config);
+                    error = configure(state_.config, state_.fm_rx_controls);
                 }
             }
             break;
@@ -431,7 +451,7 @@ void RadioController::set_power(bool active) {
     } else if (!radio_power_requested()) {
         set_power(false);
     } else {
-        configure(state_.config);
+        configure(state_.config, state_.fm_rx_controls);
     }
 }
 

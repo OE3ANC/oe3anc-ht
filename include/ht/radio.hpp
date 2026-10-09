@@ -46,6 +46,16 @@ struct Bk4819RxStatus {
     bool valid = false; // Only meaningful while Receiving; emulator leaves unavailable.
 };
 
+// Temporary FM bench controls, separate from codeplug/settings data.
+struct FmRxControls {
+    uint8_t weak_filter = 0; // REG_43[11:9], 0..7; wide mode doubles the bandwidth.
+    uint8_t af_dac_gain = 1; // REG_48[3:0], 0..15; current firmware default is 1.
+};
+
+inline bool valid_fm_rx_controls(const FmRxControls &controls) {
+    return controls.weak_filter <= 7 && controls.af_dac_gain <= 15;
+}
+
 struct RadioState {
     uint32_t generation = 0;             // Changes on restart or inactive/active transition.
     uint32_t configuration_revision = 0; // Successful configure or owner edit authorization.
@@ -65,6 +75,7 @@ struct RadioState {
     bool companion_mode = false; // Temporary UART ownership; physical PTT disabled.
     int16_t rssi_dbm = -127;
     Bk4819RxStatus rx_registers;
+    FmRxControls fm_rx_controls;
     char received_callsign[10] = {};
     m17::ReceiveStatistics m17_quality;
     int fault = 0;
@@ -87,7 +98,8 @@ enum class CommandKind : uint8_t {
     ReadRegister,
     WriteRegister,
     TransmitLimit, // Global limit only; guarded, without RF/audio reconfiguration.
-    CompanionMode
+    CompanionMode,
+    FmRxControls // Temporary RX-only fields; guarded by lifecycle/revision/selection.
 };
 
 struct RadioCommand {
@@ -101,6 +113,7 @@ struct RadioCommand {
     uint16_t register_value = 0;
     bool companion_enabled = false;
     bool companion_disconnected = false; // Local exit confirmation, not an idle-line guess.
+    FmRxControls fm_rx_controls;
 };
 
 int validate_config(const RadioConfig &config);
@@ -133,7 +146,7 @@ class RadioController {
     bool monitor_pressed_ = false;
     int64_t tx_deadline_ms_ = 0;
     void apply_ptt(bool pressed, bool remote);
-    int configure(const RadioConfig &config);
+    int configure(const RadioConfig &config, const FmRxControls &controls);
     int receive();
     int fail(int error);
     void expire_transmit();

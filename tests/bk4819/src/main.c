@@ -68,8 +68,55 @@ static void before(void *unused) {
 }
 
 static struct bk4819_config fm(uint32_t frequency) {
-    return (struct bk4819_config){
-        .rx_frequency_hz = frequency, .tx_frequency_hz = frequency, .wide = true};
+    return (struct bk4819_config){.rx_frequency_hz = frequency,
+                                  .tx_frequency_hz = frequency,
+                                  .wide = true,
+                                  .fm_af_dac_gain = 1};
+}
+
+ZTEST(bk4819, test_fm_rx_controls_preserve_unrelated_fields_and_m17_profile) {
+    struct bk4819_config config = fm(145500000);
+    registers[0x43] = 0xc1cf;
+    registers[0x48] = 0xb3c1;
+    config.fm_weak_filter = 7;
+    config.fm_af_dac_gain = 15;
+    zassert_ok(bk4819_configure(&config));
+    zassert_equal(registers[0x43], (0xc1cf & ~0x0e30) | 0x0e20);
+    zassert_equal(registers[0x48], 0xb3cf);
+    zassert_ok(bk4819_receive());
+    zassert_ok(bk4819_transmit());
+    zassert_ok(bk4819_receive());
+    zassert_equal(registers[0x43] & 0x0e00, 0x0e00);
+    zassert_equal(registers[0x48], 0xb3cf);
+    const uint16_t filter = registers[0x43];
+    config.m17 = true;
+    zassert_ok(bk4819_configure(&config));
+    zassert_ok(bk4819_receive());
+    zassert_equal(registers[0x43] & 0x7ffc, 0x7808);
+    zassert_equal(registers[0x48], 0xb7f1); // FM DAC override cannot change M17 level.
+    config.m17 = false;
+    zassert_ok(bk4819_configure(&config));
+    zassert_equal(registers[0x43], filter);
+    zassert_equal(registers[0x48], 0xb3cf);
+    config.fm_weak_filter = 0;
+    config.fm_af_dac_gain = 0;
+    config.wide = false;
+    zassert_ok(bk4819_configure(&config));
+    zassert_equal(registers[0x43], 0xc1cf & ~0x0e30);
+    zassert_equal(registers[0x48], 0xb3c0);
+    zassert_ok(bk4819_receive());
+    writes = 0;
+    config.fm_weak_filter = 8;
+    zassert_equal(bk4819_configure(&config), -EINVAL);
+    config.fm_weak_filter = 0;
+    config.fm_af_dac_gain = 16;
+    zassert_equal(bk4819_configure(&config), -EINVAL);
+    zassert_equal(writes, 0);
+    config.fm_af_dac_gain = 1;
+    fail_address = 0x48;
+    zassert_equal(bk4819_configure(&config), -EIO);
+    zassert_equal(registers[0x33], 0);
+    zassert_equal(bk4819_receive(), -ENODEV);
 }
 
 ZTEST(bk4819, test_bias_startup_and_configuration_required_before_tx) {

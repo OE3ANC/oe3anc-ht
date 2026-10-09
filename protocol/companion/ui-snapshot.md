@@ -119,3 +119,8 @@ protocol versions remain unchanged. BK4819 RX register pages also use the existi
 Status strings, including sample age and unavailable/paused explanations. The
 browser renders these radio-owned observations without reading or writing
 registers. Shared fixtures cover these presentations.
+
+Temporary FM RX test controls appear as ordinary Menu rows and use the existing
+virtual keys. Firmware owns range validation, FM/RX-only application and the
+reboot-scoped values; the companion never applies register writes independently.
+No screen IDs, payload fields, limits or codeplug formats change.

@@ -195,7 +195,8 @@ int bk4819_configure(const struct bk4819_config *config) {
         !supported_frequency(config->tx_frequency_hz)) {
         return -EINVAL;
     }
-    if (!valid_tone(&config->rx_tone) || !valid_tone(&config->tx_tone)) {
+    if (!valid_tone(&config->rx_tone) || !valid_tone(&config->tx_tone) ||
+        config->fm_weak_filter > 7 || config->fm_af_dac_gain > 15) {
         return -EINVAL;
     }
     configured = false;
@@ -218,7 +219,14 @@ int bk4819_configure(const struct bk4819_config *config) {
         }
     }
     if (!error) {
-        error = config->m17 ? apply_digital(false) : update(0x43, 0x0030, config->wide ? 0x20 : 0);
+        error = config->m17 ? apply_digital(false)
+                            : update(0x43, 0x0e30,
+                                     (config->fm_weak_filter << 9) | (config->wide ? 0x20 : 0));
+    }
+    if (!error) {
+        // DAC gain is RX audio only. Keep the tested M17 baseband level even
+        // when switching from FM with an experimental audio gain selected.
+        error = update(0x48, 0x000f, config->m17 ? 1 : config->fm_af_dac_gain);
     }
     if (!error) {
         configuration = *config;

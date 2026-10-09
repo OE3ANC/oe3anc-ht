@@ -45,7 +45,10 @@ int backend_init() {
     return 0;
 }
 
-int backend_configure(const RadioConfig &config) {
+int backend_configure(const RadioConfig &config, const FmRxControls &controls) {
+    if (!valid_fm_rx_controls(controls)) {
+        return -EINVAL;
+    }
     const int validation = validate_config(config);
     if (validation) {
         return validation;

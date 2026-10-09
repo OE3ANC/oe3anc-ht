@@ -77,6 +77,15 @@ Normal firmware updates preserve settings and do not clear this error.
   default SQL 4 opens above −109 dBm on the uncalibrated RSSI scale. Compare
   readings with no signal and with a known weak signal on each band. Register
   observations do not establish measured RF sensitivity.
+- **FM weak BW** and **FM AF DAC** in the menu are temporary FM RX test controls.
+  Use P1/P2 to decrease/increase, or OK to increase. Weak BW adjusts only
+  `43[11:9]` through the eight filter settings and displays the effective kHz
+  value (doubled for 25 kHz channels). AF DAC adjusts only `48[3:0]`, 0–15,
+  approximately 2 dB per step; this is audio output gain, not RF gain. The
+  defaults are filter index 0 and DAC gain 1. Changes briefly restart reception,
+  preserve the selected channel and survive retuning/PTT. They apply only to
+  FM, retain the original M17 levels, and reset on reboot. They are not saved
+  in the codeplug. Adjustments are rejected during TX.
 - M17 Home shows `BER~` (latest stream Viterbi distance divided by 272 received
   coded bits), `L` (inferred sequence-gap loss) and `B` (rejected stream frames).
   This is an error estimate, excluding sync/LICH bits, and does not measure true

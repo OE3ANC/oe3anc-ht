@@ -23,6 +23,8 @@ struct bk4819_config {
     struct bk4819_tone tx_tone;
     bool wide;
     bool m17;
+    uint8_t fm_weak_filter; /* REG_43[11:9], 0..7. Ignored in M17. */
+    uint8_t fm_af_dac_gain; /* REG_48[3:0], 0..15. Use 1 for the baseline. */
 };
 
 /* One controller-owned transceiver. No borrowed configuration is retained.

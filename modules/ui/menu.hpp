@@ -27,6 +27,8 @@ enum MenuItem {
     BacklightItem,
     StatusItem,
     CompanionItem,
+    FmWeakFilterItem,
+    FmAfDacGainItem,
     MenuCount
 };
 
@@ -34,5 +36,5 @@ unsigned menu_item_at(unsigned position);
 unsigned menu_move(unsigned current, Mode mode, int direction);
 bool menu_available(unsigned item, Mode mode);
 bool menu_inline(unsigned item);
-void menu_label(unsigned item, const RadioConfig &configuration, uint32_t step, char (&value)[28]);
+void menu_label(unsigned item, const RadioState &state, uint32_t step, char (&value)[28]);
 } // namespace ht

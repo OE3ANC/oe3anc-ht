@@ -10,11 +10,11 @@ namespace ht {
 unsigned menu_item_at(unsigned position) {
 #ifdef CONFIG_HT_CODEPLUG_STORAGE
     static const MenuItem order[] = {
-        ChannelsItem,      SaveVfoItem,    EditChannelItem, BanksItem,         AppearanceItem,
-        OperatingItem,     FrequencyItem,  VfoStepItem,     QuickControlsItem, BacklightItem,
-        TransmitLimitItem, CallsignItem,   StatusItem,      ModeItem,          BandwidthItem,
-        SquelchItem,       PowerItem,      RxToneItem,      TxToneItem,        GainItem,
-        CompanionItem,     DiagnosticsItem};
+        ChannelsItem,      SaveVfoItem,     EditChannelItem, BanksItem,         AppearanceItem,
+        OperatingItem,     FrequencyItem,   VfoStepItem,     QuickControlsItem, BacklightItem,
+        TransmitLimitItem, CallsignItem,    StatusItem,      ModeItem,          BandwidthItem,
+        SquelchItem,       PowerItem,       RxToneItem,      TxToneItem,        GainItem,
+        FmWeakFilterItem,  FmAfDacGainItem, CompanionItem,   DiagnosticsItem};
     static_assert(sizeof(order) / sizeof(order[0]) == MenuCount,
                   "Every menu identity needs one position");
     return order[position];
@@ -35,6 +35,9 @@ unsigned menu_move(unsigned current, Mode mode, int direction) {
 }
 
 bool menu_available(unsigned item, Mode mode) {
+    if (item == FmWeakFilterItem || item == FmAfDacGainItem) {
+        return mode == Mode::Fm && backend_capabilities().registers;
+    }
     if (item == CompanionItem) {
         return IS_ENABLED(CONFIG_HT_COMPANION);
     }
@@ -59,16 +62,28 @@ bool menu_available(unsigned item, Mode mode) {
 }
 
 bool menu_inline(unsigned item) {
-    return item == CompanionItem || item == ModeItem || item == BandwidthItem ||
-           item == PowerItem || item == RxToneItem || item == TxToneItem
+    return item == FmWeakFilterItem || item == FmAfDacGainItem || item == CompanionItem ||
+           item == ModeItem || item == BandwidthItem || item == PowerItem || item == RxToneItem ||
+           item == TxToneItem
 #ifndef CONFIG_HT_CODEPLUG_STORAGE
            || item == SquelchItem || item == GainItem
 #endif
         ;
 }
 
-void menu_label(unsigned item, const RadioConfig &config, uint32_t step, char (&value)[28]) {
+void menu_label(unsigned item, const RadioState &state, uint32_t step, char (&value)[28]) {
+    const auto &config = state.config;
     switch (item) {
+    case FmWeakFilterItem: {
+        static constexpr uint16_t bandwidth_hz[] = {1700, 2000, 2500, 3000, 3750, 4000, 4250, 4500};
+        const unsigned hz = bandwidth_hz[state.fm_rx_controls.weak_filter] *
+                            (config.bandwidth == Bandwidth::Wide ? 2 : 1);
+        snprintf(value, sizeof(value), "FM weak BW: %u.%02uk", hz / 1000, hz % 1000 / 10);
+        break;
+    }
+    case FmAfDacGainItem:
+        snprintf(value, sizeof(value), "FM AF DAC: %u", state.fm_rx_controls.af_dac_gain);
+        break;
     case ModeItem:
         snprintf(value, sizeof(value), "Mode: %s", config.mode == Mode::Fm ? "FM" : "M17");
         break;
@@ -153,7 +168,9 @@ void UiModel::menu_page(UiListPage &page) const {
     page = {};
     strcpy(page.title, "MENU");
     strcpy(page.detail, state_.phase == RadioPhase::Transmitting ? "TX / read-only actions"
-                                                                 : "Choose an action");
+                        : selected_ == FmWeakFilterItem || selected_ == FmAfDacGainItem
+                            ? "FM RX test / until reboot"
+                            : "Choose an action");
     for (unsigned position = 0; position < MenuCount; ++position) {
         const unsigned item = menu_item_at(position);
         if (menu_available(item, state_.config.mode)) {
@@ -178,7 +195,7 @@ void UiModel::menu_page(UiListPage &page) const {
                 snprintf(value, sizeof(value), "Companion: %s",
                          state_.companion_mode ? "on" : "off");
             } else {
-                menu_label(item, state_.config, vfo_step_hz_, value);
+                menu_label(item, state_, vfo_step_hz_, value);
             }
             snprintf(row.name, sizeof(row.name), "%.24s", value);
         }

@@ -218,6 +218,14 @@ def fixtures():
               '43:4068  47:6140', '48:B3C1  37:1F0F'],
     )
     valid.append(dict(name='rx-registers', document=extra))
+    extra = example(2)
+    extra['list'].update(
+        detail='FM RX test / until reboot', cursor=19, count=23,
+        rows=[dict(name=name, prefix='', suffix='') for name in
+              ['Power: 1000 mW', 'RX tone: off', 'TX tone: off', 'FM weak BW: 4.00k']],
+    )
+    extra['actions'] = ['OK Change', 'BACK Home', 'P1 Prev', 'P2 Next']
+    valid.append(dict(name='fm-rx-controls', document=extra))
     extra = example(6)
     extra['list'].update(title='T' * 24, detail='D' * 31, cursor=255, count=256)
     extra['list']['rows'] = [dict(name='N' * 24, prefix='P' * 4, suffix='S' * 4) for _ in range(4)]

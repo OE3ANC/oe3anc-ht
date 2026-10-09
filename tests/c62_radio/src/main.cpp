@@ -281,6 +281,51 @@ ZTEST(c62_radio, test_rx_register_snapshot_is_read_only_bounded_and_refreshed_af
     zassert_equal(register_reads[0x13], reads_before_diagnostics);
 }
 
+ZTEST(c62_radio, test_fm_rx_controls_guard_changes_and_survive_retune_and_modes) {
+    RadioCommand command;
+    command.kind = CommandKind::FmRxControls;
+    command.expected_generation = controller.state().generation;
+    command.expected_revision = controller.state().configuration_revision;
+    command.selection = controller.state().selection;
+    command.fm_rx_controls = {7, 15};
+    zassert_ok(controller.execute(command));
+    zassert_equal(registers[0x43] & 0x0e00, 0x0e00);
+    zassert_equal(registers[0x48] & 0xf, 15);
+    zassert_equal(controller.execute(command), -ESTALE);
+    command.expected_revision = controller.state().configuration_revision;
+    command.fm_rx_controls.weak_filter = 8;
+    zassert_equal(controller.execute(command), -EINVAL);
+    command.fm_rx_controls = {};
+    set_ptt(true);
+    zassert_equal(controller.execute(command), -EBUSY);
+    set_ptt(false);
+    zassert_equal(registers[0x48] & 0xf, 15);
+    auto config = controller.state().config;
+    config.rx_frequency_hz = 145500000;
+    configure(config);
+    zassert_equal(registers[0x43] & 0x0e00, 0x0e00);
+    zassert_equal(registers[0x48] & 0xf, 15);
+    config.mode = Mode::M17;
+    configure(config);
+    zassert_equal(registers[0x48] & 0xf, 1);
+    command.expected_revision = controller.state().configuration_revision;
+    zassert_equal(controller.execute(command), -ENOTSUP);
+    config.mode = Mode::Fm;
+    configure(config);
+    zassert_equal(registers[0x48] & 0xf, 15);
+    command.expected_revision = controller.state().configuration_revision;
+    zassert_ok(controller.execute(command)); // Defaults can be restored without rebooting.
+    zassert_equal(registers[0x43] & 0x0e00, 0);
+    zassert_equal(registers[0x48] & 0xf, 1);
+    command.expected_revision = controller.state().configuration_revision;
+    command.fm_rx_controls = {2, 8};
+    zassert_ok(controller.execute(command));
+    zassert_ok(controller.start({}));
+    zassert_equal(controller.state().fm_rx_controls.weak_filter, 0);
+    zassert_equal(controller.state().fm_rx_controls.af_dac_gain, 1);
+    zassert_equal(registers[0x48] & 0xf, 1);
+}
+
 ZTEST(c62_radio, test_receive_audio_follows_reference_squelch_hysteresis) {
     stopped();
     zassert_equal(controller.state().phase, RadioPhase::Receiving);

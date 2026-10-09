@@ -84,6 +84,7 @@ def main():
         "rx-path",
         "rx-gain",
         "rx-squelch",
+        "fm-rx-controls",
     )
     themes = ("Midnight", "Nord", "Solarized Dark", "Darcula")
     contrasts = ("Normal", "High", "Maximum")

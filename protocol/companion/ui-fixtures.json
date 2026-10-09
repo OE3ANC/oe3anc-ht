@@ -1260,6 +1260,59 @@
       "wire": "011b030000020302010000000200000003000000084f4b204170706c790b4241434b2043616e63656c085031204669656c64001052582050415448202f2037204f4620390d52582061676520323030206d731033303a42464631202033333a303034301033383a30344630202033393a303044451034333a34303638202034373a363134301034383a42334331202033373a3146304600"
     },
     {
+      "name": "fm-rx-controls",
+      "document": {
+        "screen": 2,
+        "theme": 2,
+        "contrast": 2,
+        "flags": 512,
+        "formCursor": 2,
+        "listReturn": 2,
+        "interruptions": 1,
+        "pttSequence": 2,
+        "monitorSequence": 3,
+        "actions": [
+          "OK Change",
+          "BACK Home",
+          "P1 Prev",
+          "P2 Next"
+        ],
+        "list": {
+          "title": "MENU",
+          "detail": "FM RX test / until reboot",
+          "rows": [
+            {
+              "name": "Power: 1000 mW",
+              "prefix": "",
+              "suffix": ""
+            },
+            {
+              "name": "RX tone: off",
+              "prefix": "",
+              "suffix": ""
+            },
+            {
+              "name": "TX tone: off",
+              "prefix": "",
+              "suffix": ""
+            },
+            {
+              "name": "FM weak BW: 4.00k",
+              "prefix": "",
+              "suffix": ""
+            }
+          ],
+          "cursor": 19,
+          "count": 23,
+          "ready": 1
+        },
+        "lines": {
+          "6": ""
+        }
+      },
+      "wire": "0102020200020202010000000200000003000000094f4b204368616e6765094241434b20486f6d650750312050726576075032204e657874044d454e5519464d2052582074657374202f20756e74696c207265626f6f740e506f7765723a2031303030206d5700000c525820746f6e653a206f666600000c545820746f6e653a206f6666000011464d207765616b2042573a20342e30306b0000001300170001"
+    },
+    {
       "name": "maximum-list",
       "document": {
         "screen": 6,
