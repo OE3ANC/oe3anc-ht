@@ -76,7 +76,11 @@ class UiModel {
     void status(UiStatus &view) const;
 
     bool codec_statistics_page() const {
+#ifdef CONFIG_HT_CODEC2
         return screen_ == UiScreen::Status && status_page_ == 5;
+#else
+        return false;
+#endif
     }
     bool system_state(UiStatus &view) const; // Fills only for fault/inactive priority.
     void diagnostic_page(UiListPage &page) const;
@@ -154,10 +158,11 @@ class UiModel {
 
   private:
 #ifdef CONFIG_HT_CODEC2
-    static constexpr uint8_t status_page_count = 6;
+    static constexpr uint8_t rx_status_first_page = 6;
 #else
-    static constexpr uint8_t status_page_count = 5;
+    static constexpr uint8_t rx_status_first_page = 5;
 #endif
+    static constexpr uint8_t status_page_count = rx_status_first_page + 3;
     RadioState state_;
     uint32_t motion_interruptions_ = 0;
     uint8_t signal_bars_ = 0;

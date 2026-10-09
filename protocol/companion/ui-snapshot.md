@@ -115,4 +115,7 @@ browser rendering does not control radio backlight.
 Codec2-mod timing/memory statistics use the existing Status strings. M17 reception
 quality uses the Home context string, with storage/radio explanations taking
 priority. These are rendered text, not new numeric protocol fields; schema and
-protocol versions remain unchanged. Shared fixtures cover both presentations.
+protocol versions remain unchanged. BK4819 RX register pages also use the existing
+Status strings, including sample age and unavailable/paused explanations. The
+browser renders these radio-owned observations without reading or writing
+registers. Shared fixtures cover these presentations.

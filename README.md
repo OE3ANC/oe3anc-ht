@@ -65,6 +65,18 @@ Normal firmware updates preserve settings and do not clear this error.
   including preemption. The page reports frame counts, processing above 20 ms,
   fixed state reservation and zero codec heap usage. **OK Reset** clears counters;
   it does not reset the live codec predictors. Emulator timings are simulated.
+- **Status → RX Path / RX Gain / RX Squelch** shows read-only BK4819 register
+  values in hexadecimal and the sample age. The radio samples every 250 ms in
+  RX without stopping reception; values are unavailable in the emulator and
+  hidden outside RX. RX Path covers power (`30`, `37`), LNA GPIOs (`33`), tuning
+  (`38`, `39`), filters (`43`) and audio (`47`, `48`). RX Gain covers the gain
+  table (`10`–`14`) and AGC (`49`, `7B`, `7E`). RX Squelch covers status (`0C`),
+  glitches (`63`), noise (`65`), RSSI (`67`) and hardware thresholds (`4D`–`4F`,
+  `78`). Read errors follow the existing latched radio-fault shutdown path.
+  For FM sensitivity checks, hold Monitor to bypass software RSSI/tone gating:
+  default SQL 4 opens above −109 dBm on the uncalibrated RSSI scale. Compare
+  readings with no signal and with a known weak signal on each band. Register
+  observations do not establish measured RF sensitivity.
 - M17 Home shows `BER~` (latest stream Viterbi distance divided by 272 received
   coded bits), `L` (inferred sequence-gap loss) and `B` (rejected stream frames).
   This is an error estimate, excluding sync/LICH bits, and does not measure true

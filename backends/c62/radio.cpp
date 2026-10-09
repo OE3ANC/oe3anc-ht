@@ -28,6 +28,7 @@ static bool audible;
 static bool digital_activity;
 static bool monitor;
 static int peripheral_error;
+static Bk4819RxStatus rx_registers;
 
 const RadioCapabilities &backend_capabilities() {
     return capabilities;
@@ -55,6 +56,7 @@ void backend_stop() {
     audio_cancel();
     m17_cancel();
     receiving = transmitting = audible = digital_activity = false;
+    rx_registers = {};
     monitor = false;
 }
 
@@ -329,6 +331,27 @@ BackendStatus backend_status() {
             status.rx_active = !status.error && open;
             if (status.rx_active && configuration.mode == Mode::M17)
                 memcpy(status.callsign, digital.callsign, sizeof(status.callsign));
+        }
+    }
+    if (!status.error && receiving) {
+        // Keep GPIO bus traffic out of the 10 ms hot path between samples.
+        // The radio owner reads a fixed safe set; UI never accesses the bus.
+        if (!rx_registers.valid || k_uptime_get() - rx_registers.sample_ms >= 250) {
+            Bk4819RxStatus sample;
+            for (unsigned i = 0; i < sizeof(bk4819_rx_addresses); ++i) {
+                status.error = bk4819_read(bk4819_rx_addresses[i], &sample.values[i]);
+                if (status.error) {
+                    break;
+                }
+            }
+            if (!status.error) {
+                sample.sample_ms = k_uptime_get();
+                sample.valid = true;
+                rx_registers = sample;
+            }
+        }
+        if (!status.error) {
+            status.rx_registers = rx_registers;
         }
     }
     finish(status.error);

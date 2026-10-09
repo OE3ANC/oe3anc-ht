@@ -69,6 +69,7 @@ int RadioController::fail(int error) {
     state_.phase = state_.power_active ? RadioPhase::Fault : RadioPhase::Inactive;
     state_.fault = error < 0 ? error : -EIO;
     state_.rx_active = false;
+    state_.rx_registers = {};
     memset(state_.received_callsign, 0, sizeof(state_.received_callsign));
     return state_.fault;
 }
@@ -90,6 +91,7 @@ int RadioController::receive() {
     }
     state_.phase = RadioPhase::Receiving;
     state_.rx_active = false;
+    state_.rx_registers = {};
     state_.m17_quality = {};
     memset(state_.received_callsign, 0, sizeof(state_.received_callsign));
     return 0;
@@ -506,6 +508,7 @@ void RadioController::poll() {
         state_.tx_warning = remaining_ms <= 10000;
     }
     state_.rssi_dbm = status.rssi_dbm;
+    state_.rx_registers = status.rx_registers;
     state_.rx_active = state_.phase == RadioPhase::Receiving && status.rx_active;
     state_.m17_quality = state_.phase == RadioPhase::Receiving && state_.config.mode == Mode::M17
                              ? status.m17_quality

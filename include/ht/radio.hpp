@@ -32,6 +32,20 @@ struct RadioConfig {
     M17Settings m17;
 };
 
+// Read-only BK4819 RX observations, grouped into eight-register status pages.
+// Never read interrupt/FIFO registers here: status must not consume events.
+constexpr uint8_t bk4819_rx_addresses[] = {
+    0x30, 0x33, 0x38, 0x39, 0x43, 0x47, 0x48, 0x37, // RX path, tuning, filters/audio.
+    0x10, 0x11, 0x12, 0x13, 0x14, 0x49, 0x7b, 0x7e, // RF gain table and AGC.
+    0x0c, 0x63, 0x65, 0x67, 0x4d, 0x4e, 0x4f, 0x78, // Signal and hardware squelch.
+};
+
+struct Bk4819RxStatus {
+    uint16_t values[sizeof(bk4819_rx_addresses)] = {};
+    int64_t sample_ms = 0;
+    bool valid = false; // Only meaningful while Receiving; emulator leaves unavailable.
+};
+
 struct RadioState {
     uint32_t generation = 0;             // Changes on restart or inactive/active transition.
     uint32_t configuration_revision = 0; // Successful configure or owner edit authorization.
@@ -50,6 +64,7 @@ struct RadioState {
     bool monitor_active = false; // Transient FM RX override, never a setting.
     bool companion_mode = false; // Temporary UART ownership; physical PTT disabled.
     int16_t rssi_dbm = -127;
+    Bk4819RxStatus rx_registers;
     char received_callsign[10] = {};
     m17::ReceiveStatistics m17_quality;
     int fault = 0;

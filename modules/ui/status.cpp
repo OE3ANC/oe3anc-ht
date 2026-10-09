@@ -116,6 +116,32 @@ void UiModel::status(UiStatus &view) const {
         return;
     }
     const auto &config = state_.config;
+    if (status_page_ >= rx_status_first_page) {
+        const unsigned page = status_page_ - rx_status_first_page;
+        const char *names[] = {"RX PATH", "RX GAIN", "RX SQUELCH"};
+        snprintf(view.title, sizeof(view.title), "%s / %u OF %u", names[page], status_page_ + 1,
+                 status_page_count);
+        if (state_.phase != RadioPhase::Receiving) {
+            strcpy(view.detail, "Available while receiving");
+            return;
+        }
+        const auto &sample = state_.rx_registers;
+        if (!sample.valid) {
+            strcpy(view.detail, "RX registers unavailable");
+            return;
+        }
+        const int64_t now = k_uptime_get();
+        const int64_t age = now >= sample.sample_ms ? now - sample.sample_ms : 0;
+        snprintf(view.detail, sizeof(view.detail), "RX age %lld ms", static_cast<long long>(age));
+        view.color = age > 1000 ? UiStatusColor::Amber : UiStatusColor::Muted;
+        for (unsigned row = 0; row < 4; ++row) {
+            const unsigned i = page * 8 + row * 2;
+            snprintf(view.rows[row], sizeof(view.rows[row]), "%02X:%04X  %02X:%04X",
+                     bk4819_rx_addresses[i], sample.values[i], bk4819_rx_addresses[i + 1],
+                     sample.values[i + 1]);
+        }
+        return;
+    }
     switch (status_page_) {
     case 0: {
         snprintf(view.title, sizeof(view.title), "RADIO / 1 OF %u", status_page_count);
@@ -258,7 +284,7 @@ void UiModel::status(UiStatus &view) const {
     }
     default:
 #ifdef CONFIG_HT_CODEC2
-        strcpy(view.title, "CODEC2 / 6 OF 6");
+        snprintf(view.title, sizeof(view.title), "CODEC2 / 6 OF %u", status_page_count);
         const auto codec = m17::voice_statistics();
         snprintf(view.detail, sizeof(view.detail), "mod/3200/%zuB/heap0", codec.state_bytes);
         timing(view.rows[0], "Enc avg/max", codec.encode);

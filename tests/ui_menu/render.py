@@ -81,6 +81,9 @@ def main():
         "status-after-appearance",
         "codec2-empty",
         "codec2-live",
+        "rx-path",
+        "rx-gain",
+        "rx-squelch",
     )
     themes = ("Midnight", "Nord", "Solarized Dark", "Darcula")
     contrasts = ("Normal", "High", "Maximum")

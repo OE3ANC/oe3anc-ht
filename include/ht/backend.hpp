@@ -25,6 +25,7 @@ struct BackendStatus {
     int16_t rssi_dbm = -127;
     char callsign[10] = {};
     m17::ReceiveStatistics m17_quality;
+    Bk4819RxStatus rx_registers;
     int error = 0;
 };
 

@@ -4,3 +4,11 @@ tests:
     platform_allow: native_sim_64
     integration_platforms:
       - native_sim_64
+  ht.ui_menu.no_codec:
+    tags: ui
+    platform_allow: native_sim_64
+    integration_platforms:
+      - native_sim_64
+    extra_configs:
+      - CONFIG_HT_M17_MODE=n
+      - CONFIG_HT_CODEC2=n

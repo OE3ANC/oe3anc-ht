@@ -205,12 +205,19 @@ def fixtures():
     valid.append(dict(name='m17-quality', document=extra))
     extra = example(27)
     extra['status'].update(
-        title='CODEC2 / 6 OF 6', detail='mod/3200/36600B/heap0',
+        title='CODEC2 / 6 OF 9', detail='mod/3200/36600B/heap0',
         rows=['Enc avg/max 4.3/8.1 ms', 'Dec avg/max 9.6/12.1 ms',
               'Frames E100 D200', '>20ms E0 D1'],
     )
     extra['actions'] = ['OK Reset', 'BACK Menu', 'P1 Page', '']
     valid.append(dict(name='codec2-statistics', document=extra))
+    extra = example(27)
+    extra['status'].update(
+        title='RX PATH / 7 OF 9', detail='RX age 200 ms',
+        rows=['30:BFF1  33:0040', '38:04F0  39:00DE',
+              '43:4068  47:6140', '48:B3C1  37:1F0F'],
+    )
+    valid.append(dict(name='rx-registers', document=extra))
     extra = example(6)
     extra['list'].update(title='T' * 24, detail='D' * 31, cursor=255, count=256)
     extra['list']['rows'] = [dict(name='N' * 24, prefix='P' * 4, suffix='S' * 4) for _ in range(4)]

@@ -313,13 +313,14 @@ ZTEST(ui_menu, test_radio_controls_helpers_pending_and_apply) {
     key(UiKey::Back);
 }
 
+#ifdef CONFIG_HT_CODEC2
 ZTEST(ui_menu, test_codec_statistics_page_reset_and_navigation) {
     load();
     m17::voice_statistics_reset();
     status(5);
     UiStatus page;
     model.status(page);
-    zassert_equal(strcmp(page.title, "CODEC2 / 6 OF 6"), 0);
+    zassert_equal(strcmp(page.title, "CODEC2 / 6 OF 9"), 0);
     zassert_equal(strcmp(page.rows[0], "Enc avg/max --/-- ms"), 0);
     zassert_not_null(strstr(page.detail, "heap0"));
     render("codec2-empty");
@@ -344,10 +345,12 @@ ZTEST(ui_menu, test_codec_statistics_page_reset_and_navigation) {
     zassert_equal(settings_status().revision, revision);
     key(UiKey::Down);
     model.status(page);
-    zassert_equal(strcmp(page.title, "RADIO / 1 OF 6"), 0);
+    zassert_equal(strcmp(page.title, "RX PATH / 7 OF 9"), 0);
+    zassert_false(model.codec_statistics_page());
     key(UiKey::Up);
     zassert_true(model.codec_statistics_page());
 }
+#endif
 
 ZTEST(ui_menu, test_status_exact_config_modes_activity_and_no_mutation) {
     load(true);
@@ -403,6 +406,54 @@ ZTEST(ui_menu, test_status_exact_config_modes_activity_and_no_mutation) {
     model.sync(digital);
     model.status(view);
     zassert_equal(strcmp(view.rows[2], "From -"), 0);
+}
+
+ZTEST(ui_menu, test_rx_register_pages_show_samples_without_commands_or_stale_tx_values) {
+    const bool codec = IS_ENABLED(CONFIG_HT_CODEC2);
+    status(codec ? 6 : 5);
+    UiStatus view;
+    model.status(view);
+    zassert_equal(strcmp(view.detail, "RX registers unavailable"), 0);
+    auto state = radio_snapshot();
+    state.rx_registers.valid = true;
+    state.rx_registers.sample_ms = k_uptime_get();
+    for (unsigned i = 0; i < sizeof(bk4819_rx_addresses); ++i) {
+        state.rx_registers.values[i] = 0xa000 + bk4819_rx_addresses[i];
+    }
+    model.sync(state);
+    model.status(view);
+    zassert_equal(strcmp(view.title, codec ? "RX PATH / 7 OF 9" : "RX PATH / 6 OF 8"), 0);
+    zassert_false(model.codec_statistics_page());
+    UiPresentation presentation;
+    ui_capture_presentation(model, presentation);
+    zassert_not_equal(strcmp(presentation.actions[0], "OK Reset"), 0);
+    zassert_equal(strcmp(view.rows[0], "30:A030  33:A033"), 0);
+    render("rx-path");
+    key(UiKey::Left);
+    model.status(view);
+    zassert_equal(strcmp(view.title, codec ? "RX GAIN / 8 OF 9" : "RX GAIN / 7 OF 8"), 0);
+    zassert_equal(strcmp(view.rows[3], "7B:A07B  7E:A07E"), 0);
+    render("rx-gain");
+    key(UiKey::Left);
+    model.status(view);
+    zassert_equal(strcmp(view.title, codec ? "RX SQUELCH / 9 OF 9" : "RX SQUELCH / 8 OF 8"), 0);
+    zassert_equal(strcmp(view.rows[3], "4F:A04F  78:A078"), 0);
+    render("rx-squelch");
+    key(UiKey::Enter);
+    zassert_equal(radio_snapshot().command_id, state.command_id);
+    state.phase = RadioPhase::Transmitting;
+    model.sync(state);
+    model.status(view);
+    zassert_equal(strcmp(view.detail, "Available while receiving"), 0);
+    zassert_equal(view.rows[0][0], 0);
+    state.phase = RadioPhase::Receiving;
+    state.rx_registers.sample_ms = k_uptime_get() - 1500;
+    model.sync(state);
+    model.status(view);
+    zassert_equal(view.color, UiStatusColor::Amber);
+    key(UiKey::Left);
+    model.status(view);
+    zassert_equal(strcmp(view.title, codec ? "RADIO / 1 OF 9" : "RADIO / 1 OF 8"), 0);
 }
 
 ZTEST(ui_menu, test_battery_page_fresh_charger_stale_error_age_recovery) {

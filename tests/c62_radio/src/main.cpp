@@ -26,6 +26,9 @@ static bool green;
 static bool fail_power;
 static bool fail_speaker;
 static bool fail_keyed_write;
+static bool fail_rx_register;
+static unsigned register_reads[128];
+static unsigned register_writes;
 static atomic_t audio_running;
 static atomic_t stall_audio_stop;
 static atomic_t delay_route;
@@ -91,11 +94,16 @@ extern "C" int bk4819_bus_init(void) {
 }
 
 extern "C" int bk4819_read(uint8_t address, uint16_t *value) {
+    ++register_reads[address];
+    if (fail_rx_register && address == 0x13) {
+        return -EIO;
+    }
     *value = registers[address];
     return 0;
 }
 
 extern "C" int bk4819_write(uint8_t address, uint16_t value) {
+    ++register_writes;
     if (address == 0x33 && (value & 0x18)) {
         if (atomic_get(&ptt_released)) {
             atomic_inc(&keyed_after_release);
@@ -221,6 +229,56 @@ static void configure(const RadioConfig &config) {
     RadioCommand command;
     command.config = config;
     zassert_ok(controller.execute(command));
+}
+
+ZTEST(c62_radio, test_rx_register_snapshot_is_read_only_bounded_and_refreshed_after_retune) {
+    rssi(-120); // Closed squelch keeps audio transitions out of the observation.
+    memset(register_reads, 0, sizeof(register_reads));
+    const unsigned writes_before = register_writes;
+    controller.poll();
+    const auto first = controller.state().rx_registers;
+    zassert_true(first.valid);
+    for (unsigned i = 0; i < sizeof(bk4819_rx_addresses); ++i) {
+        zassert_equal(first.values[i], registers[bk4819_rx_addresses[i]]);
+    }
+    zassert_equal(register_writes, writes_before);
+    zassert_equal(register_reads[0x13], 1);
+    zassert_equal(register_reads[0x02], 0); // Never consume interrupt or FIFO state.
+    zassert_equal(register_reads[0x5f], 0);
+    registers[0x13] = 0x1234;
+    controller.poll();
+    zassert_equal(register_reads[0x13], 1);
+    zassert_mem_equal(controller.state().rx_registers.values, first.values, sizeof(first.values));
+    k_sleep(K_MSEC(250));
+    controller.poll();
+    zassert_equal(register_reads[0x13], 2);
+    zassert_equal(controller.state().rx_registers.values[11], 0x1234);
+    zassert_true(controller.state().rx_registers.sample_ms > first.sample_ms);
+
+    auto config = controller.state().config;
+    config.rx_frequency_hz = 145500000;
+    configure(config);
+    zassert_false(controller.state().rx_registers.valid);
+    controller.poll();
+    zassert_equal(controller.state().rx_registers.values[1], 0x0040);
+    const unsigned reads_before_tx = register_reads[0x13];
+    set_ptt(true);
+    k_sleep(K_MSEC(250));
+    controller.poll();
+    zassert_false(controller.state().rx_registers.valid);
+    zassert_equal(register_reads[0x13], reads_before_tx);
+    set_ptt(false);
+    zassert_false(controller.state().rx_registers.valid);
+    controller.poll();
+    zassert_true(controller.state().rx_registers.valid);
+    RadioCommand command;
+    command.kind = CommandKind::EnterDiagnostics;
+    zassert_ok(controller.execute(command));
+    const unsigned reads_before_diagnostics = register_reads[0x13];
+    k_sleep(K_MSEC(250));
+    controller.poll();
+    zassert_false(controller.state().rx_registers.valid);
+    zassert_equal(register_reads[0x13], reads_before_diagnostics);
 }
 
 ZTEST(c62_radio, test_receive_audio_follows_reference_squelch_hysteresis) {
@@ -674,6 +732,14 @@ ZTEST(c62_radio, test_z_failures_stop_tx_and_latch_until_reboot) {
             k_sleep(K_MSEC(10));
         }
         zassert_equal(controller.state().fault, -ETIMEDOUT);
+    } else if (fault && strcmp(fault, "rx-register") == 0) {
+        controller.poll();
+        zassert_true(controller.state().rx_registers.valid);
+        fail_rx_register = true;
+        k_sleep(K_MSEC(250));
+        controller.poll();
+        zassert_equal(controller.state().fault, -EIO);
+        zassert_false(controller.state().rx_registers.valid);
     } else if (fault && strcmp(fault, "power") == 0) {
         fail_power = true;
         set_ptt(true);
