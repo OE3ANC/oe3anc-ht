@@ -74,6 +74,62 @@ static struct bk4819_config fm(uint32_t frequency) {
                                   .fm_af_dac_gain = 1};
 }
 
+ZTEST(bk4819, test_fm_voice_protection_and_m17_round_trip) {
+    struct bk4819_config config = fm(145500000);
+    config.tx_tone = (struct bk4819_tone){BK4819_TONE_CTCSS, 885, false};
+    registers[0x19] = 0x9234; // Reset disables microphone AGC.
+    registers[0x2b] = 0x8707; // Seed bypasses; retain RX and unrelated fields.
+    registers[0x47] = 0x6043;
+    registers[0x4b] = 0x7122;
+    registers[0x51] = 0x0155; // Preserve the sub-audio gain and bandwidth fields.
+    const uint16_t microphone_gain = registers[0x7d];
+    const uint16_t deviation = registers[0x40];
+
+    for (unsigned i = 0; i < 2; ++i) {
+        zassert_ok(bk4819_configure(&config));
+        zassert_ok(bk4819_transmit());
+        zassert_equal(registers[0x19], 0x1234);
+        zassert_equal(registers[0x2b], 0x8700);
+        zassert_equal(registers[0x47], 0x6042);
+        zassert_equal(registers[0x4b], 0x7102);
+        zassert_equal(registers[0x7d], microphone_gain);
+        zassert_equal(registers[0x40], deviation);
+        zassert_equal(registers[0x51], 0x9155);
+        zassert_equal(registers[0x07], 1827);
+
+        config.m17 = true;
+        zassert_ok(bk4819_configure(&config));
+        zassert_ok(bk4819_transmit());
+        zassert_equal(registers[0x19], 0x9234);
+        zassert_equal(registers[0x2b], 0x8707);
+        zassert_equal(registers[0x47] & 1, 1);
+        zassert_equal(registers[0x4b], 0x7122);
+        zassert_equal(registers[0x51] & 0x8000, 0);
+        config.m17 = false;
+        config.wide = false;
+        config.rx_frequency_hz = config.tx_frequency_hz = 430000000;
+    }
+}
+
+ZTEST(bk4819, test_fm_voice_configuration_failure_prevents_tx) {
+    const uint8_t addresses[] = {0x19, 0x2b, 0x47, 0x4b};
+    for (unsigned read = 0; read < 2; ++read) {
+        for (unsigned i = 0; i < ARRAY_SIZE(addresses); ++i) {
+            before(NULL);
+            struct bk4819_config config = fm(145500000);
+            zassert_ok(bk4819_configure(&config));
+            zassert_ok(bk4819_transmit());
+            fail_address = addresses[i];
+            fail_read = read != 0;
+            zassert_equal(bk4819_configure(&config), -EIO);
+            zassert_true(failed);
+            zassert_equal(registers[0x33], 0);
+            zassert_equal(registers[0x30] & 0x010e, 0);
+            zassert_equal(bk4819_transmit(), -ENODEV);
+        }
+    }
+}
+
 ZTEST(bk4819, test_fm_rx_controls_preserve_unrelated_fields_and_m17_profile) {
     struct bk4819_config config = fm(145500000);
     registers[0x43] = 0xc1cf;

@@ -56,6 +56,15 @@ Normal firmware updates preserve settings and do not clear this error.
 
 - FM with independent RX/TX CTCSS or DCS, and [M17](https://m17project.org/) voice with callsign
   addressing and CAN filtering.
+  FM explicitly enables the BK4819 microphone AGC, 300 Hz voice high-pass,
+  low-pass, pre-emphasis and audio level controller. The chip generates
+  CTCSS/DCS separately from microphone audio. Previously the voice filters
+  and level controller were enabled, but microphone AGC was left at its
+  disabled reset setting (see the [BK4819 register list](https://alfaexploit.com/files/BK4819V3Registers_List_20201218.pdf)).
+  M17 retains its flat audio path. Loud-speech CTCSS dropout still needs bench
+  verification: check tone and peak voice deviation on both bands, with matching
+  channel bandwidths, including after an M17/FM switch. If it persists, check
+  the upstream microphone ADC for clipping; BK4819 AGC cannot repair it.
 - Requested transmit power is shown in watts on the radio and in the companion
   editor. The C62 uses provisional 1, 2.5 and 5 W PWM settings; these are not
   measured power readings. Builds with `config/resources.conf` log the APC duty,

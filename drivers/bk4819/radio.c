@@ -106,6 +106,24 @@ static int apply_digital(bool transmit) {
     return update(0x51, 0x8000, 0);
 }
 
+static int apply_fm_voice(void) {
+    /* BK4819 V3 register list (2020-12-18): MIC AGC resets disabled.
+     * Enable it before the speech filters to reduce overload from loud audio.
+     * Keep the 300 Hz high-pass, low-pass, pre-emphasis and ALC enabled;
+     * CTCSS/CDCSS is generated separately, not in the microphone PCM stream. */
+    int error = update(0x19, 0x8000, 0);
+    if (!error) {
+        error = update(0x2b, 0x0007, 0);
+    }
+    if (!error) {
+        error = update(0x47, 0x0001, 0);
+    }
+    if (!error) {
+        error = update(0x4b, 0x0020, 0);
+    }
+    return error;
+}
+
 int bk4819_initialize(void) {
     initialized = false;
     configured = false;
@@ -217,6 +235,9 @@ int bk4819_configure(const struct bk4819_config *config) {
                 fm_profile[i] = value & profile[i].mask;
             }
         }
+    }
+    if (!error && !config->m17) {
+        error = apply_fm_voice();
     }
     if (!error) {
         error = config->m17 ? apply_digital(false)
