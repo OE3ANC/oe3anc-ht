@@ -144,9 +144,10 @@ function operatingEditor(parent, original) {
     const rx = field(common, 'RX frequency (MHz)', formatFrequency(original.rx_frequency_hz));
     const tx = field(common, 'TX frequency (MHz)', formatFrequency(original.tx_frequency_hz));
     const inhibit = field(common, 'Receive only (inhibit TX)', original.tx_inhibit);
-    const power = field(common, 'Requested power (mW)', original.power_mw, null, {
-        min: '1',
-        max: '5000'
+    const power = field(common, 'Requested power (W)', original.power_mw / 1000, null, {
+        min: '0.001',
+        max: '5',
+        step: '0.001'
     });
     const width = field(common, 'Bandwidth', original.bandwidth, [
         ['narrow', 'Narrow'],
@@ -217,7 +218,7 @@ function operatingEditor(parent, original) {
         rx_frequency_hz: decimal(rx, 6, 'RX frequency'),
         tx_frequency_hz: decimal(tx, 6, 'TX frequency'),
         tx_inhibit: inhibit.checked,
-        power_mw: number(power, 'Power'),
+        power_mw: decimal(power, 3, 'Power'),
         bandwidth: width.value,
         squelch: number(squelch, 'Squelch'),
         ...getSpecific()

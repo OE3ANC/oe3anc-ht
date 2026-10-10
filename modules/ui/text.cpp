@@ -1,9 +1,22 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include <ht/ui_text.hpp>
 #include <errno.h>
+#include <stdio.h>
 #include <string.h>
 
 namespace ht {
+void ui_format_power(char (&text)[16], uint32_t milliwatts) {
+    snprintf(text, sizeof(text), "%u.%03u", milliwatts / 1000, milliwatts % 1000);
+    size_t length = strlen(text);
+    while (text[length - 1] == '0') {
+        text[--length] = 0;
+    }
+    if (text[length - 1] == '.') {
+        text[--length] = 0;
+    }
+    strcpy(text + length, " W");
+}
+
 size_t TextEditor::capacity() const {
     return kind_ == TextKind::Name        ? 24
            : kind_ == TextKind::Callsign  ? 9

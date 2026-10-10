@@ -626,7 +626,9 @@ void UiModel::channel_lines(char (&text)[8][32]) const {
             names[3] = "Add to bank";
             strcpy(values[0], op.mode == Mode::Fm ? "FM" : "M17");
             strcpy(values[1], op.tx_inhibit ? "Inhibited" : "Enabled");
-            snprintf(values[2], 25, "%u mW", op.power_mw);
+            char power[16];
+            ui_format_power(power, op.power_mw);
+            snprintf(values[2], 25, "%s", power);
 #ifdef CONFIG_HT_CODEPLUG_STORAGE
             if (edit_bank_) {
                 Bank bank;

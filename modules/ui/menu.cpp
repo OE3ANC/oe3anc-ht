@@ -94,9 +94,12 @@ void menu_label(unsigned item, const RadioState &state, uint32_t step, char (&va
     case SquelchItem:
         snprintf(value, sizeof(value), "Squelch: %u", config.squelch);
         break;
-    case PowerItem:
-        snprintf(value, sizeof(value), "Power: %u mW", config.power_mw);
+    case PowerItem: {
+        char power[16];
+        ui_format_power(power, config.power_mw);
+        snprintf(value, sizeof(value), "Power: %s", power);
         break;
+    }
     case GainItem:
         snprintf(value, sizeof(value), "Gain: %u", config.gain);
         break;

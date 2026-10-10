@@ -5,6 +5,17 @@
 #include <zephyr/ztest.h>
 using namespace ht;
 
+ZTEST(ui_text, test_requested_power_in_watts_without_rounding) {
+    const uint32_t inputs[] = {0, 1, 10, 100, 1000, 1234, 2500, 5000, UINT32_MAX};
+    const char *expected[] = {"0 W",     "0.001 W", "0.01 W", "0.1 W",        "1 W",
+                              "1.234 W", "2.5 W",   "5 W",    "4294967.295 W"};
+    for (unsigned i = 0; i < ARRAY_SIZE(inputs); ++i) {
+        char text[16];
+        ui_format_power(text, inputs[i]);
+        zassert_equal(strcmp(text, expected[i]), 0, "%s", text);
+    }
+}
+
 ZTEST(ui_text, test_physical_digit_groups_and_timeout) {
     const char *groups[] = {" 0",   ".,?!-/1", "ABC2",  "DEF3", "GHI4",
                             "JKL5", "MNO6",    "PQRS7", "TUV8", "WXYZ9"};

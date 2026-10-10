@@ -778,7 +778,9 @@ void UiModel::lines(char (&text)[8][32]) const {
         snprintf(text[3], 32, "From %s",
                  state_.received_callsign[0] ? state_.received_callsign : "-");
         snprintf(text[4], 32, "Local %s", config.callsign[0] ? config.callsign : "unset");
-        snprintf(text[5], 32, "%u mW requested", config.power_mw);
+        char power[16];
+        ui_format_power(power, config.power_mw);
+        snprintf(text[5], 32, "%s requested", power);
 #ifdef CONFIG_HT_CODEPLUG_STORAGE
         if (state_.selection.operating == Operating::Memory) {
             Channel channel;

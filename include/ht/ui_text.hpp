@@ -4,6 +4,9 @@
 #include <stdint.h>
 
 namespace ht {
+// Exact requested power in watts, including sub-watt codeplug values.
+void ui_format_power(char (&text)[16], uint32_t milliwatts);
+
 enum class TextKind : uint8_t { Name, Callsign, Frequency, ChannelNumber };
 
 // One copied draft, no LVGL/controller/storage pointers. UI-thread ownership.

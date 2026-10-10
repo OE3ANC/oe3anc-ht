@@ -153,7 +153,9 @@ void UiModel::status(UiStatus &view) const {
                  config.rx_frequency_hz % 1000000);
         snprintf(view.rows[1], 32, "TX %u.%06u MHz", config.tx_frequency_hz / 1000000,
                  config.tx_frequency_hz % 1000000);
-        snprintf(view.rows[2], 32, "Requested power %u mW", config.power_mw);
+        char power[16];
+        ui_format_power(power, config.power_mw);
+        snprintf(view.rows[2], 32, "Requested power %s", power);
         const char *duplex = config.tx_inhibit                                  ? "Receive only"
                              : config.rx_frequency_hz != config.tx_frequency_hz ? "Split TX"
                                                                                 : "Simplex";

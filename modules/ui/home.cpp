@@ -95,9 +95,11 @@ void UiModel::home(UiHome &view) const {
     if (config.mode == Mode::Fm) {
         const bool tone =
             config.rx_tone.kind != ToneKind::None || config.tx_tone.kind != ToneKind::None;
-        snprintf(view.settings, sizeof(view.settings), "%s%s%s SQL%u %umW%s", duplex,
+        char power[16];
+        ui_format_power(power, config.power_mw);
+        snprintf(view.settings, sizeof(view.settings), "%s%s%s SQL%u %s%s", duplex,
                  *duplex ? " " : "", config.bandwidth == Bandwidth::Wide ? "W" : "N",
-                 config.squelch, config.power_mw, tone ? " T" : "");
+                 config.squelch, power, tone ? " T" : "");
     } else {
         snprintf(view.settings, sizeof(view.settings), "%s%sCAN%u%s %s", duplex, *duplex ? " " : "",
                  config.m17.can, config.m17.rx_can_check ? "F" : "",

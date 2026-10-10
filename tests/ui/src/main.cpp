@@ -270,7 +270,7 @@ ZTEST(ui, test_mode_settings_navigation_preserves_fm_configuration) {
     tick();
     zassert_equal(radio_snapshot().config.mode, Mode::M17);
     char lines[8][32];
-    const char *items[] = {"Mode: M17",          "Power: 1000 mW",  "Local callsign",
+    const char *items[] = {"Mode: M17",          "Power: 1 W",      "Local callsign",
                            "BK4819 diagnostics", "TX limit: 180 s", "Status"};
     // Every visible control is reachable in each direction; hidden controls
     // neither consume a navigation step nor clip earlier rows from the menu.

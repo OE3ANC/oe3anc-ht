@@ -74,6 +74,15 @@ function field(label) {
     return found;
 }
 const baseline = canonical(editor.document);
+const power = field('Requested power (W)');
+assert.equal(power.value, '1');
+for (const [watts, milliwatts] of [['0.001', 1], ['1.234', 1234], ['2.5', 2500], ['5', 5000]]) {
+    power.value = watts;
+    assert.equal(editor.readEditor().document.vfo.power_mw, milliwatts);
+}
+power.value = '1.0001';
+assert.throws(() => editor.readEditor(), /Power/);
+power.value = '1';
 field('Mode').change('m17');
 field('M17 destination').change('station');
 field('Destination callsign').value = 'OE1TEST';

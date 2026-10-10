@@ -129,7 +129,7 @@ def example(screen):
             name='UHF SIMPLEX',
             context='MHz / direct tuning',
             frequency='433.500',
-            settings='W SQL4 1000mW',
+            settings='W SQL4 1 W',
             activity='Listening',
             battery='7.40V',
             mode='FM',
@@ -222,7 +222,7 @@ def fixtures():
     extra['list'].update(
         detail='FM RX test / until reboot', cursor=19, count=23,
         rows=[dict(name=name, prefix='', suffix='') for name in
-              ['Power: 1000 mW', 'RX tone: off', 'TX tone: off', 'FM weak BW: 4.00k']],
+              ['Power: 1 W', 'RX tone: off', 'TX tone: off', 'FM weak BW: 4.00k']],
     )
     extra['actions'] = ['OK Change', 'BACK Home', 'P1 Prev', 'P2 Next']
     valid.append(dict(name='fm-rx-controls', document=extra))

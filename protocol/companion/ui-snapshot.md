@@ -124,3 +124,7 @@ Temporary FM RX test controls appear as ordinary Menu rows and use the existing
 virtual keys. Firmware owns range validation, FM/RX-only application and the
 reboot-scoped values; the companion never applies register writes independently.
 No screen IDs, payload fields, limits or codeplug formats change.
+
+Requested power is displayed in watts in radio presentation strings and the CPS
+editor (for example, `2.5 W`). CPS converts decimal watts to integer milliwatts;
+the stored and binary `power_mw` fields retain their existing units and limits.

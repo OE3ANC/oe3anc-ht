@@ -56,6 +56,10 @@ Normal firmware updates preserve settings and do not clear this error.
 
 - FM with independent RX/TX CTCSS or DCS, and [M17](https://m17project.org/) voice with callsign
   addressing and CAN filtering.
+- Requested transmit power is shown in watts on the radio and in the companion
+  editor. The C62 uses provisional 1, 2.5 and 5 W PWM settings; these are not
+  measured power readings. Builds with `config/resources.conf` log the APC duty,
+  timer configuration and PA pin mux at TX setup for hardware diagnosis.
 - VFO and Memory operation, separate RX/TX frequencies, 256 channels and 16
   ordered banks. Edit them on the radio or share a JSON codeplug.
 - Four themes, contrast settings, idle backlight dimming, keypad lock and a TX
