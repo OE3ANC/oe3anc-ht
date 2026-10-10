@@ -158,7 +158,19 @@ export function validate(document) {
         integer(value, 0, MAX_ID, '$.allocation.' + key);
     }
     const g = document.global;
-    fields(g, 'local_callsign gain transmit_limit_s ui vfo_step_hz', '$.global');
+    object(g, '$.global');
+    fields(
+        g,
+        'local_callsign gain transmit_limit_s ui vfo_step_hz' +
+            (Object.hasOwn(g, 'fm_ctcss_level') ? ' fm_ctcss_level' : ''),
+        '$.global'
+    );
+    integer(
+        Object.hasOwn(g, 'fm_ctcss_level') ? g.fm_ctcss_level : 74,
+        0,
+        127,
+        '$.global.fm_ctcss_level'
+    );
     choice(g.vfo_step_hz, VFO_STEPS_HZ, '$.global.vfo_step_hz');
     callsign(g.local_callsign, '$.global.local_callsign', true);
     integer(g.gain, 0, 15, '$.global.gain');
@@ -236,7 +248,7 @@ export function validate(document) {
     ) {
         fail('$.selection.channel_id', 'selected channel is outside the selected bank');
     }
-    return document;
+    return { ...document, global: { fm_ctcss_level: 74, ...g } };
 }
 export function parse(text) {
     return validate(parseJson(text, MAX_BYTES));
@@ -273,6 +285,7 @@ export function fresh() {
             local_callsign: '',
             gain: 0,
             transmit_limit_s: 180,
+            fm_ctcss_level: 74,
             vfo_step_hz: 12500,
             ui: {
                 theme: 'midnight',

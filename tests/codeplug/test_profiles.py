@@ -80,7 +80,7 @@ class ProfileTests(unittest.TestCase):
         original = wire.encode(self.example(), 1)
         length = struct.unpack_from('<H', original, 6)[0]
         header = bytearray(original[:12])
-        header[4] = 2
+        header[4] = 3
         struct.pack_into('<H', header, 6, length - 4)
         payload = original[16 : length - 4]
         old = (
@@ -95,12 +95,27 @@ class ProfileTests(unittest.TestCase):
         self.assertEqual(generation, 1)
         for step in (0, 1, 0xFFFFFFFF):
             damaged = bytearray(original)
-            struct.pack_into('<I', damaged, length - 4, step)
+            struct.pack_into('<I', damaged, length - 5, step)
             struct.pack_into('<I', damaged, 12, zlib.crc32(damaged[:12] + damaged[16:length]))
             with self.assertRaisesRegex(codeplug.InvalidCodeplug, 'vfo_step_hz'):
                 wire.decode(damaged)
         decoded['global']['vfo_step_hz'] = 6250
         self.assertEqual(wire.decode(wire.encode(decoded, 2))[0]['global']['vfo_step_hz'], 6250)
+
+    def test_public_v1_profile_defaults_ctcss_level(self):
+        original = wire.encode(self.example(), 1)
+        length = struct.unpack_from('<H', original, 6)[0]
+        header = bytearray(original[:12])
+        header[4] = 1
+        struct.pack_into('<H', header, 6, length - 1)
+        payload = original[16:length - 1]
+        legacy = bytes(header) + struct.pack('<I', zlib.crc32(header + payload)) + payload + original[length:]
+        decoded, generation = wire.decode(legacy)
+        self.assertEqual(generation, 1)
+        self.assertEqual(decoded['global']['fm_ctcss_level'], 74)
+        self.assertEqual(decoded['channels'], self.example()['channels'])
+        decoded['global']['fm_ctcss_level'] = 0
+        self.assertEqual(wire.decode(wire.encode(decoded, 2))[0]['global']['fm_ctcss_level'], 0)
 
     def test_binary_binding_string_reserved_field_and_membership_damage(self):
         original = wire.encode(self.example(), 1)

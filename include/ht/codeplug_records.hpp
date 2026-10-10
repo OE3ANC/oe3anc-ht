@@ -4,7 +4,8 @@
 #include <ht/codeplug.hpp>
 
 namespace ht {
-// Manifest, channel/bank records and JSON schema use version 1. Integers are little-endian;
+// Manifest writes version 2 and reads public version 1 with default CTCSS level 74.
+// Channel/bank records and JSON schema use version 1. Integers are little-endian;
 // no struct layout or padding is serialized. Generation zero is not committed.
 constexpr size_t codeplug_envelope_size = 16;
 constexpr size_t operating_wire_size = 40;
@@ -13,7 +14,7 @@ constexpr size_t channel_record_size =
 constexpr size_t bank_record_max =
     codeplug_envelope_size + 4 + radio_name_size + 2 + 4 * channel_capacity;
 constexpr size_t manifest_record_max =
-    codeplug_envelope_size + 83 + 4 * (channel_capacity + bank_capacity);
+    codeplug_envelope_size + 84 + 4 * (channel_capacity + bank_capacity);
 constexpr size_t codeplug_record_max = manifest_record_max;
 static_assert(bank_record_max <= codeplug_record_max, "Record scratch must hold a full bank");
 static_assert(codeplug_record_max <= 4064, "C62 pinned NVS sector payload limit");

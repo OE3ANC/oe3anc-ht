@@ -130,3 +130,13 @@ for (const theme of THEMES) {
     assert.equal(draft.global.ui.theme, theme);
 }
 console.log('Actual CPS editor accepts all seven themes');
+
+assert.equal(field('FM CTCSS level').value, '74');
+for (const level of [0, 74, 127]) {
+    field('FM CTCSS level').value = String(level);
+    assert.equal(validate(editor.readEditor().document).global.fm_ctcss_level, level);
+}
+field('FM CTCSS level').value = '128';
+assert.throws(() => validate(editor.readEditor().document), /fm_ctcss_level/);
+assert.equal(canonical(editor.document), baseline, 'global draft must not mutate the codeplug');
+console.log('Global FM CTCSS level: defaults, bounds and draft isolation passed');

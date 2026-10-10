@@ -116,6 +116,7 @@ bool valid_vfo_step(uint32_t hz) {
 
 int validate_global(const GlobalSettings &g) {
     return (g.local_callsign[0] && !valid_callsign(g.local_callsign)) || g.gain > 15 ||
+                   g.fm_ctcss_level > 127 ||
                    (!valid_transmit_limit(g.transmit_limit_s) || !valid_vfo_step(g.vfo_step_hz))
                ? -EINVAL
                : validate_ui_preferences(g.ui);

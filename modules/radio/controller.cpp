@@ -32,7 +32,8 @@ int validate_config(const RadioConfig &config) {
         }
     }
     if (config.power_mw == 0 || config.power_mw > caps.max_power_mw || config.squelch > 15 ||
-        config.gain > 15 || !valid_transmit_limit(config.transmit_limit_s) ||
+        config.gain > 15 || config.fm_ctcss_level > 127 ||
+        !valid_transmit_limit(config.transmit_limit_s) ||
         (config.mode != Mode::Fm && config.mode != Mode::M17) ||
         (config.bandwidth != Bandwidth::Narrow && config.bandwidth != Bandwidth::Wide)) {
         return -EINVAL;
@@ -214,6 +215,23 @@ int RadioController::execute(const RadioCommand &command) {
                         : configure(config, state_.fm_rx_controls);
             break;
         }
+        case CommandKind::FmCtcssLevel:
+            if (command.expected_generation != state_.generation ||
+                command.expected_revision != state_.configuration_revision ||
+                !same_selection(command.selection, state_.selection)) {
+                error = -ESTALE;
+            } else if (command.config.fm_ctcss_level > 127) {
+                error = -EINVAL;
+            } else if (state_.phase != RadioPhase::Receiving || ptt_ || radio_ptt_requested()) {
+                error = -EBUSY;
+            } else if (state_.config.mode != Mode::Fm) {
+                error = -ENOTSUP;
+            } else if (state_.config.fm_ctcss_level != command.config.fm_ctcss_level) {
+                RadioConfig config = state_.config;
+                config.fm_ctcss_level = command.config.fm_ctcss_level;
+                error = configure(config, state_.fm_rx_controls);
+            }
+            break;
         case CommandKind::FmRxControls:
             if (command.expected_generation != state_.generation ||
                 command.expected_revision != state_.configuration_revision ||

@@ -214,7 +214,7 @@ int bk4819_configure(const struct bk4819_config *config) {
         return -EINVAL;
     }
     if (!valid_tone(&config->rx_tone) || !valid_tone(&config->tx_tone) ||
-        config->fm_weak_filter > 7 || config->fm_af_dac_gain > 15) {
+        config->fm_weak_filter > 7 || config->fm_af_dac_gain > 15 || config->fm_ctcss_level > 127) {
         return -EINVAL;
     }
     configured = false;
@@ -303,9 +303,10 @@ static int tone(const struct bk4819_tone *selection, bool transmit) {
         const uint16_t polarity = selection->inverted ? 0x2000 : 0;
         /* REG_51[6:0] resets to minimum gain; enabling the tone alone leaves
          * its level unset. Provisional values from egzumer's BK4819 driver:
-         * CTCSS 74, DCS 51. C62 sub-audio deviation still needs bench calibration.
+         * CTCSS defaults to 74 (global setting), DCS 51. Both need bench calibration.
          * https://github.com/egzumer/uv-k5-firmware-custom/blob/main/driver/bk4819.c */
-        const uint16_t gain = selection->kind == BK4819_TONE_CTCSS ? 74 : 51;
+        const uint16_t gain =
+            selection->kind == BK4819_TONE_CTCSS ? configuration.fm_ctcss_level : 51;
         error = update(0x51, 0xa07f, 0x8000 | polarity | gain);
     }
     return error;

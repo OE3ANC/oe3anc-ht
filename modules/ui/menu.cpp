@@ -10,11 +10,11 @@ namespace ht {
 unsigned menu_item_at(unsigned position) {
 #ifdef CONFIG_HT_CODEPLUG_STORAGE
     static const MenuItem order[] = {
-        ChannelsItem,      SaveVfoItem,     EditChannelItem, BanksItem,         AppearanceItem,
-        OperatingItem,     FrequencyItem,   VfoStepItem,     QuickControlsItem, BacklightItem,
-        TransmitLimitItem, CallsignItem,    StatusItem,      ModeItem,          BandwidthItem,
-        SquelchItem,       PowerItem,       RxToneItem,      TxToneItem,        GainItem,
-        FmWeakFilterItem,  FmAfDacGainItem, CompanionItem,   DiagnosticsItem};
+        ChannelsItem,      SaveVfoItem,     EditChannelItem,  BanksItem,         AppearanceItem,
+        OperatingItem,     FrequencyItem,   VfoStepItem,      QuickControlsItem, BacklightItem,
+        TransmitLimitItem, CallsignItem,    StatusItem,       ModeItem,          BandwidthItem,
+        SquelchItem,       PowerItem,       RxToneItem,       TxToneItem,        GainItem,
+        FmWeakFilterItem,  FmAfDacGainItem, FmCtcssLevelItem, CompanionItem,     DiagnosticsItem};
     static_assert(sizeof(order) / sizeof(order[0]) == MenuCount,
                   "Every menu identity needs one position");
     return order[position];
@@ -35,6 +35,9 @@ unsigned menu_move(unsigned current, Mode mode, int direction) {
 }
 
 bool menu_available(unsigned item, Mode mode) {
+    if (item == FmCtcssLevelItem) {
+        return mode == Mode::Fm && backend_capabilities().ctcss;
+    }
     if (item == FmWeakFilterItem || item == FmAfDacGainItem) {
         return mode == Mode::Fm && backend_capabilities().registers;
     }
@@ -62,9 +65,9 @@ bool menu_available(unsigned item, Mode mode) {
 }
 
 bool menu_inline(unsigned item) {
-    return item == FmWeakFilterItem || item == FmAfDacGainItem || item == CompanionItem ||
-           item == ModeItem || item == BandwidthItem || item == PowerItem || item == RxToneItem ||
-           item == TxToneItem
+    return item == FmCtcssLevelItem || item == FmWeakFilterItem || item == FmAfDacGainItem ||
+           item == CompanionItem || item == ModeItem || item == BandwidthItem ||
+           item == PowerItem || item == RxToneItem || item == TxToneItem
 #ifndef CONFIG_HT_CODEPLUG_STORAGE
            || item == SquelchItem || item == GainItem
 #endif
@@ -81,6 +84,9 @@ void menu_label(unsigned item, const RadioState &state, uint32_t step, char (&va
         snprintf(value, sizeof(value), "FM weak BW: %u.%02uk", hz / 1000, hz % 1000 / 10);
         break;
     }
+    case FmCtcssLevelItem:
+        snprintf(value, sizeof(value), "FM CTCSS level: %u", state.config.fm_ctcss_level);
+        break;
     case FmAfDacGainItem:
         snprintf(value, sizeof(value), "FM AF DAC: %u", state.fm_rx_controls.af_dac_gain);
         break;
@@ -171,6 +177,7 @@ void UiModel::menu_page(UiListPage &page) const {
     page = {};
     strcpy(page.title, "MENU");
     strcpy(page.detail, state_.phase == RadioPhase::Transmitting ? "TX / read-only actions"
+                        : selected_ == FmCtcssLevelItem          ? "Global / 0-127 / default 74"
                         : selected_ == FmWeakFilterItem || selected_ == FmAfDacGainItem
                             ? "FM RX test / until reboot"
                             : "Choose an action");

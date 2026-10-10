@@ -1,4 +1,4 @@
-# Companion application protocol 1.1
+# Companion application protocol 1.2
 
 This document and `contract.json` are the normative definition. `fixtures.json`
 contains frozen examples used by both codecs. Generated constants belong to both
@@ -119,8 +119,8 @@ a transfer runs, waiting for any already outstanding PING before starting it.
 
 ## Complete CPS transfer
 
-The [CPS binary v1 definition](cps-binary.md) and `cps-fixtures.json` define the
-complete payload. It is at most 40,595 bytes, including every bank containing
+The [CPS binary v2 definition](cps-binary.md) and `cps-fixtures.json` define the
+complete payload. It is at most 40,596 bytes, including every bank containing
 all 256 channels. The 192-byte frame limit stays unchanged; chunks carry at most
 180 data bytes. Only one CPS transfer/baseline/result is retained per session.
 All integers below are unsigned LE unless explicitly a status/flags byte.
@@ -338,3 +338,21 @@ non-release identity `companion-identify`. This obtains the release identity for
 the archived-companion link without establishing a session. Only a 1.0 mismatch
 reply with session zero is accepted for discovery. The port is then closed;
 connected operations still require the exact current protocol and release.
+
+## Protocol 1.2 global FM CTCSS level
+
+Protocol 1.2 adds the saved global FM CTCSS transmit level (0..127, default 74)
+to complete CPS codeplugs. CPS uses binary v2, with a version 2 manifest ending
+in the new byte; its maximum payload is 40596 bytes. Channels/banks retain
+record version 1. JSON schema 1 accepts the optional `global.fm_ctcss_level`;
+omission supplies 74 and exports include the field. Both codecs validate it.
+Capabilities are unchanged: CPS still transfers the complete settings, and the
+existing UI snapshot/key capabilities render and operate the generic menu item.
+Both peers require protocol 1.2 and an exact release match before live UI or CPS
+mutation. Older public stored manifests load with default 74, but downgrades
+cannot read newly saved manifests. See [binary compatibility](cps-binary.md).
+
+The bounded HELLO identity discovery described above also accepts known protocol
+1.1 peers, using their reported minor version. The reply must match that version,
+report a release mismatch and have session zero. Discovery provides the archived
+companion link only; unknown protocol versions are rejected without a probe.

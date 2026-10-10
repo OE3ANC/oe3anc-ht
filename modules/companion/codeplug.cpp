@@ -58,7 +58,7 @@ int decode_codeplug(const uint8_t *bytes, size_t length, Codeplug &plug) {
         const auto *record = bytes + cursor;
         size = sys_get_le16(record + 6);
         if (size < codeplug_envelope_size || size > codeplug_record_max || size > length - cursor ||
-            record[4] != 1 || record[5] != kind) {
+            record[4] != (kind == 1 ? 2 : 1) || record[5] != kind) {
             return -EBADMSG;
         }
         return 0;
@@ -67,7 +67,7 @@ int decode_codeplug(const uint8_t *bytes, size_t length, Codeplug &plug) {
     int error = next(1, size);
     // CPS is strict: stored palette fallback do not
     // silently reinterpret a companion's unknown enums or schema.
-    if (!error && (size < 99 || bytes[40] >= ThemeCount || bytes[41] > 2)) {
+    if (!error && (size < 100 || bytes[40] >= ThemeCount || bytes[41] > 2)) {
         error = -EBADMSG;
     }
     if (!error) {

@@ -71,6 +71,7 @@ static struct bk4819_config fm(uint32_t frequency) {
     return (struct bk4819_config){.rx_frequency_hz = frequency,
                                   .tx_frequency_hz = frequency,
                                   .wide = true,
+                                  .fm_ctcss_level = 74,
                                   .fm_af_dac_gain = 1};
 }
 

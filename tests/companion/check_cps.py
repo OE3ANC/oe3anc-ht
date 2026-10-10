@@ -46,6 +46,11 @@ def main():
             document['global']['ui']['theme'] = theme
             add('theme ' + theme, json.dumps(document))
         mutations = [
+            ('null global', lambda d: d.update({'global': None})),
+            ('integer global', lambda d: d.update({'global': 1})),
+            ('boolean global', lambda d: d.update({'global': True})),
+            ('array global', lambda d: d.update({'global': []})),
+            ('string global', lambda d: d.update({'global': 'invalid'})),
             ('duplicate ID', lambda d: d['channels'].append(copy.deepcopy(d['channels'][0]))),
             (
                 'duplicate number',
@@ -83,6 +88,9 @@ def main():
             ),
             ('bool integer', lambda d: d['global'].update(gain=True)),
             ('unsupported gain offline valid', lambda d: d['global'].update(gain=15)),
+            ('bad CTCSS level', lambda d: d['global'].update(fm_ctcss_level=128)),
+            ('bool CTCSS level', lambda d: d['global'].update(fm_ctcss_level=True)),
+            ('missing CTCSS level defaults', lambda d: d['global'].pop('fm_ctcss_level')),
             ('bad step', lambda d: d['global'].update(vfo_step_hz=8333)),
             ('bool step', lambda d: d['global'].update(vfo_step_hz=True)),
             ('future version', lambda d: d.update(schema_version=3)),

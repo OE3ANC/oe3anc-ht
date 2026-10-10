@@ -4,14 +4,14 @@
 #include <stdint.h>
 namespace ht { namespace companion {
 constexpr unsigned MAJOR = 1;
-constexpr unsigned MINOR = 1;
+constexpr unsigned MINOR = 2;
 constexpr unsigned HEADER_SIZE = 20;
 constexpr unsigned MAX_PAYLOAD = 192;
 constexpr unsigned MAX_ENCODED = 219;
 constexpr unsigned FRAME_TIMEOUT_MS = 500;
 constexpr unsigned LEASE_MS = 1000;
 constexpr unsigned MAX_RELEASE = 96;
-constexpr unsigned CPS_MAX_BYTES = 40595;
+constexpr unsigned CPS_MAX_BYTES = 40596;
 constexpr unsigned CPS_CHUNK_BYTES = 180;
 constexpr unsigned UI_MAX_BYTES = 512;
 constexpr unsigned UI_CHUNK_BYTES = 180;

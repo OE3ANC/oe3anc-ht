@@ -281,6 +281,42 @@ ZTEST(c62_radio, test_rx_register_snapshot_is_read_only_bounded_and_refreshed_af
     zassert_equal(register_reads[0x13], reads_before_diagnostics);
 }
 
+ZTEST(c62_radio, test_ctcss_level_guards_and_driver_value) {
+    auto config = controller.state().config;
+    config.tx_tone = {ToneKind::Ctcss, 1622, false};
+    configure(config);
+    RadioCommand command;
+    command.kind = CommandKind::FmCtcssLevel;
+    command.expected_generation = controller.state().generation;
+    command.expected_revision = controller.state().configuration_revision;
+    command.selection = controller.state().selection;
+    command.config.fm_ctcss_level = 127;
+    zassert_ok(controller.execute(command));
+    zassert_equal(controller.execute(command), -ESTALE);
+    command.expected_revision = controller.state().configuration_revision;
+    command.config.fm_ctcss_level = 128;
+    zassert_equal(controller.execute(command), -EINVAL);
+    command.config.fm_ctcss_level = 0;
+    set_ptt(true);
+    zassert_equal(registers[0x51] & 0x7f, 127);
+    zassert_equal(controller.execute(command), -EBUSY);
+    set_ptt(false);
+    zassert_ok(controller.execute(command));
+    set_ptt(true);
+    zassert_equal(registers[0x51] & 0x7f, 0);
+    set_ptt(false);
+    config = controller.state().config;
+    config.mode = Mode::M17;
+    configure(config);
+    command.expected_revision = controller.state().configuration_revision;
+    zassert_equal(controller.execute(command), -ENOTSUP);
+    config.mode = Mode::Fm;
+    configure(config);
+    set_ptt(true);
+    zassert_equal(registers[0x51] & 0x7f, 0);
+    set_ptt(false);
+}
+
 ZTEST(c62_radio, test_fm_rx_controls_guard_changes_and_survive_retune_and_modes) {
     RadioCommand command;
     command.kind = CommandKind::FmRxControls;

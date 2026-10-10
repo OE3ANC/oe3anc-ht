@@ -64,6 +64,13 @@ Normal firmware updates preserve settings and do not clear this error.
   CTCSS/DCS transmit gain (`51[6:0]`) is set when enabling a TX tone; previously
   it remained at the minimum reset value. Provisional values are 74 for CTCSS
   and 51 for DCS, following the [egzumer BK4819 driver](https://github.com/egzumer/uv-k5-firmware-custom/blob/main/driver/bk4819.c).
+  **FM CTCSS level** in the radio menu adjusts the global CTCSS value from 0–127
+  with P1/P2 (OK increases); default 74. The companion's global settings editor
+  provides the same setting. It applies to VFO and all memories, saves after
+  10 seconds or power-off, and is locked during TX. It does not change DCS level
+  or M17. Zero selects minimum gain; use TX tone Off to disable CTCSS.
+  Existing saved settings/codeplug JSON load with default 74. New saves use a
+  v2 manifest, which older firmware cannot read; export a backup before a downgrade.
   These are raw gain codes, not calibrated deviation in Hz. M17 retains its flat
   audio path. Verify tone frequency, tone deviation and peak voice deviation on
   both bands with matching channel bandwidths, including after an M17/FM switch.

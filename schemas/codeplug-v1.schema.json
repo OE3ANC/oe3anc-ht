@@ -135,6 +135,13 @@
             50000,
             100000
           ]
+        },
+        "fm_ctcss_level": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 127,
+          "default": 74,
+          "description": "Global FM CTCSS transmit gain code; not deviation in Hz. Omitted public v1 field defaults to 74."
         }
       },
       "required": [

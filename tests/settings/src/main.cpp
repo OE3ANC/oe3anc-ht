@@ -286,6 +286,23 @@ ZTEST(settings, test_full_codeplug_selection_and_temporary_tuning) {
     zassert_equal(loaded.bank_id_high_water, bank_capacity);
 }
 
+ZTEST(settings, test_ctcss_level_is_global_debounced_and_persisted) {
+    RadioConfig config;
+    const uint8_t levels[] = {0, 127, 74};
+    for (size_t i = 0; i < ARRAY_SIZE(levels); ++i) {
+        config.fm_ctcss_level = levels[i];
+        configure(config, i * 20000);
+        zassert_true(settings_status().pending);
+        settings_service(radio_snapshot(), i * 20000 + 9999);
+        zassert_true(settings_status().pending);
+        settings_service(radio_snapshot(), i * 20000 + 10000);
+        restart(config);
+        zassert_equal(config.fm_ctcss_level, levels[i]);
+        zassert_ok(codeplug_load(loaded, generation));
+        zassert_equal(loaded.global.fm_ctcss_level, levels[i]);
+    }
+}
+
 ZTEST(settings, test_transmit_limit_is_global_debounced_and_persisted) {
     RadioConfig config;
     const uint16_t limits[] = {0, 60, 120, 180};

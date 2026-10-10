@@ -34,6 +34,7 @@ struct GlobalSettings {
     char local_callsign[10] = {};
     uint8_t gain = 0;
     uint16_t transmit_limit_s = 180; // Zero means off.
+    uint8_t fm_ctcss_level = 74;
     UiPreferences ui;
     uint32_t vfo_step_hz = 12500;
 };

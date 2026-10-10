@@ -26,6 +26,7 @@ struct RadioConfig {
     uint8_t squelch = 4;
     uint8_t gain = 0;
     uint16_t transmit_limit_s = 180; // Global normal setting; zero disables the limit.
+    uint8_t fm_ctcss_level = 74;     // Global BK4819 TX tone gain, 0..127; not deviation in Hz.
     Tone rx_tone;
     Tone tx_tone;
     char callsign[10] = {}; // Local station, independent of m17 destination.
@@ -99,7 +100,8 @@ enum class CommandKind : uint8_t {
     WriteRegister,
     TransmitLimit, // Global limit only; guarded, without RF/audio reconfiguration.
     CompanionMode,
-    FmRxControls // Temporary RX-only fields; guarded by lifecycle/revision/selection.
+    FmCtcssLevel, // Global CTCSS TX level; guarded by lifecycle/revision/selection.
+    FmRxControls  // Temporary RX-only fields; guarded by lifecycle/revision/selection.
 };
 
 struct RadioCommand {

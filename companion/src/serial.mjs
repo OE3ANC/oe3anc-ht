@@ -45,22 +45,23 @@ export class CompanionConnection {
                 const error = new Error(
                     `Radio protocol ${frame.major}.${frame.minor} requires a matching companion (this companion uses ${C.MAJOR}.${C.MINOR}).`
                 );
-                if (frame.major === 1 && frame.minor === 0) {
-                    // Public 1.0 has the same HELLO layout, but initially returns only a status.
+                if (frame.major === 1 && (frame.minor === 0 || frame.minor === 1)) {
+                    // Public 1.0/1.1 share HELLO's layout, but initially return only a status.
                     // This identity cannot match a release build, so discovery cannot open a session.
                     try {
                         const probe = await this.request(
                             C.MSG_HELLO,
                             helloPayload('companion-identify', nonce),
-                            0
+                            frame.minor
                         );
                         const info = helloReply(probe);
                         if (
-                            probe.major === 1 && probe.minor === 0 && probe.session === 0n &&
+                            probe.major === 1 && probe.minor === frame.minor &&
+                            probe.session === 0n &&
                             info.status === C.STATUS_MISMATCH
                         ) {
                             error.requiredRelease = info.release;
-                            error.message = `This radio requires companion ${info.release} (protocol 1.0).`;
+                            error.message = `This radio requires companion ${info.release} (protocol 1.${frame.minor}).`;
                         }
                     } catch {
                         // Preserve the original protocol error when identity discovery fails.

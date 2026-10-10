@@ -29,6 +29,7 @@ enum MenuItem {
     CompanionItem,
     FmWeakFilterItem,
     FmAfDacGainItem,
+    FmCtcssLevelItem,
     MenuCount
 };
 

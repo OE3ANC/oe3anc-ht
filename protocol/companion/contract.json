@@ -1,14 +1,14 @@
 {
   "name": "oe3anc-ht-companion",
   "major": 1,
-  "minor": 1,
+  "minor": 2,
   "header_size": 20,
   "max_payload": 192,
   "max_encoded": 219,
   "frame_timeout_ms": 500,
   "lease_ms": 1000,
   "max_release": 96,
-  "cps_max_bytes": 40595,
+  "cps_max_bytes": 40596,
   "cps_chunk_bytes": 180,
   "messages": {
     "HELLO": 1,

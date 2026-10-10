@@ -91,6 +91,7 @@ static int radio_config(const OperatingConfig &op, const GlobalSettings &global,
     result.m17 = op.m17;
     result.gain = global.gain;
     result.transmit_limit_s = global.transmit_limit_s;
+    result.fm_ctcss_level = global.fm_ctcss_level;
     memcpy(result.callsign, global.local_callsign, sizeof(result.callsign));
     const int error = validate_config(result);
     if (!error) {
@@ -102,13 +103,14 @@ static int radio_config(const OperatingConfig &op, const GlobalSettings &global,
 static void update_global(const RadioConfig &config) {
     database.global.gain = config.gain;
     database.global.transmit_limit_s = config.transmit_limit_s;
+    database.global.fm_ctcss_level = config.fm_ctcss_level;
     memset(database.global.local_callsign, 0, sizeof(database.global.local_callsign));
     memcpy(database.global.local_callsign, config.callsign, strlen(config.callsign));
 }
 
 static bool same_config(const RadioConfig &a, const RadioConfig &b) {
-    return same_operating(a, b) && a.gain == b.gain && a.transmit_limit_s == b.transmit_limit_s &&
-           !strcmp(a.callsign, b.callsign);
+    return a.fm_ctcss_level == b.fm_ctcss_level && same_operating(a, b) && a.gain == b.gain &&
+           a.transmit_limit_s == b.transmit_limit_s && !strcmp(a.callsign, b.callsign);
 }
 
 static void reset_database() {
@@ -506,6 +508,7 @@ void settings_service(const RadioState &state, int64_t now_ms) {
         const bool changed =
             !same_selection(state.selection, database.selection) ||
             (state.selection.operating == Operating::Vfo && !same_operating(state.config, vfo)) ||
+            state.config.fm_ctcss_level != observed.fm_ctcss_level ||
             state.config.gain != observed.gain ||
             state.config.transmit_limit_s != observed.transmit_limit_s ||
             strcmp(state.config.callsign, observed.callsign);

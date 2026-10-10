@@ -261,7 +261,7 @@ ZTEST(codeplug_storage, test_full_capacity_round_trip) {
 #ifndef CONFIG_HT_SETTINGS_NVS
     struct stat info;
     zassert_ok(stat(path, &info));
-    zassert_equal(info.st_size, 40595);
+    zassert_equal(info.st_size, 40596);
 #endif
 }
 
@@ -309,7 +309,7 @@ ZTEST(codeplug_storage, test_generation_conflict_exhaustion_and_corruption) {
     area.ready = false;
     zassert_ok(nvs_mount(&area)); // Refresh after writes through the backend's mount.
     const ssize_t n = nvs_read(&area, 0x2000, bytes, sizeof(bytes));
-    zassert_equal(n, 99);
+    zassert_equal(n, 100);
     sys_put_le32(UINT32_MAX, bytes + 8);
     sys_put_le32(crc32_ieee_update(crc32_ieee(bytes, 12), bytes + 16, n - 16), bytes + 12);
     zassert_equal(nvs_write(&area, 0x2000, bytes, n), n);
@@ -320,11 +320,11 @@ ZTEST(codeplug_storage, test_generation_conflict_exhaustion_and_corruption) {
 #else
     int fd = open(path, O_RDWR);
     zassert_true(fd >= 0);
-    zassert_equal(read(fd, bytes, 99), 99);
+    zassert_equal(read(fd, bytes, 100), 100);
     sys_put_le32(UINT32_MAX, bytes + 8);
-    sys_put_le32(crc32_ieee_update(crc32_ieee(bytes, 12), bytes + 16, 83), bytes + 12);
+    sys_put_le32(crc32_ieee_update(crc32_ieee(bytes, 12), bytes + 16, 84), bytes + 12);
     zassert_equal(lseek(fd, 0, SEEK_SET), 0);
-    zassert_equal(write(fd, bytes, 99), 99);
+    zassert_equal(write(fd, bytes, 100), 100);
     zassert_ok(close(fd));
 #endif
     remount();
@@ -333,11 +333,11 @@ ZTEST(codeplug_storage, test_generation_conflict_exhaustion_and_corruption) {
     zassert_equal(codeplug_save(plug, generation), -EOVERFLOW);
     bytes[27] ^= 1;
 #ifdef CONFIG_HT_SETTINGS_NVS
-    zassert_equal(nvs_write(&area, 0x2000, bytes, 99), 99);
+    zassert_equal(nvs_write(&area, 0x2000, bytes, 100), 100);
 #else
     fd = open(path, O_WRONLY);
     zassert_true(fd >= 0);
-    zassert_equal(write(fd, bytes, 99), 99);
+    zassert_equal(write(fd, bytes, 100), 100);
     zassert_ok(close(fd));
 #endif
     uint32_t unchanged = 88;

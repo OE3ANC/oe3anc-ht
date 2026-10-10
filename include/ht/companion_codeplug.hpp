@@ -5,7 +5,7 @@
 
 namespace ht {
 namespace companion {
-// CPS binary v1: complete explicit HTDB manifest/channel/bank v1 records,
+// CPS binary v2: explicit HTDB manifest v2 and channel/bank v1 records,
 // all with wire generation 1. RAM/storage revisions travel in transfer metadata.
 // Outputs are staging only: decode failure may partially fill an unpublished
 // Codeplug; discard it. Never pass the settings owner's applied database here.

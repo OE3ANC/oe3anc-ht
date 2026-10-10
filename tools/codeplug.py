@@ -145,11 +145,15 @@ def validate(document):
     for key, value in allocation.items():
         integer(value, 0, MAX_ID, '$.allocation.' + key)
     global_settings = document['global']
+    if type(global_settings) is not dict:
+        fail('$.global', 'expected an object')
     fields(
         global_settings,
-        'local_callsign gain transmit_limit_s ui vfo_step_hz',
+        'local_callsign gain transmit_limit_s ui vfo_step_hz'
+        + (' fm_ctcss_level' if 'fm_ctcss_level' in global_settings else ''),
         '$.global',
     )
+    integer(global_settings.get('fm_ctcss_level', 74), 0, 127, '$.global.fm_ctcss_level')
     choice(global_settings['vfo_step_hz'], VFO_STEPS_HZ, '$.global.vfo_step_hz')
     callsign(global_settings['local_callsign'], '$.global.local_callsign', allow_empty=True)
     integer(global_settings['gain'], 0, 15, '$.global.gain')
@@ -214,7 +218,7 @@ def validate(document):
     if selection['bank_id'] is not None and selection['channel_id'] is not None:
         if selection['channel_id'] not in banks[selection['bank_id']]['channel_ids']:
             fail('$.selection.channel_id', 'selected channel is outside the selected bank')
-    return document
+    return {**document, "global": {"fm_ctcss_level": 74, **global_settings}}
 
 
 def load(path):

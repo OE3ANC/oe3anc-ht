@@ -204,7 +204,7 @@ function readOperating(r) {
 function record(kind, payload) {
     const w = new Writer(16 + payload.length);
     w.append(Uint8Array.of(72, 84, 68, 66));
-    w.u8(1);
+    w.u8(kind === 1 ? 2 : 1);
     w.u8(kind);
     w.u16(w.bytes.length);
     // Transfer records use generation 1; the radio assigns the stored generation.
@@ -223,7 +223,7 @@ function record(kind, payload) {
 export function encodeCodeplug(document) {
     const plug = JSON.parse(canonical(validate(document)));
     const records = [];
-    const m = new Writer(83 + 4 * (plug.channels.length + plug.banks.length));
+    const m = new Writer(84 + 4 * (plug.channels.length + plug.banks.length));
     m.u32(plug.allocation.channel_id_high_water);
     m.u32(plug.allocation.bank_id_high_water);
     m.u16(plug.channels.length);
@@ -248,6 +248,7 @@ export function encodeCodeplug(document) {
         m.u32(item.id);
     }
     m.u32(g.vfo_step_hz);
+    m.u8(g.fm_ctcss_level);
     records.push(record(1, m.bytes));
     for (const channel of plug.channels) {
         const w = new Writer(71);
@@ -289,11 +290,11 @@ export function decodeCodeplug(bytes) {
             reject('invalid magic');
         }
         h.at = 4;
-        if (h.u8() !== 1 || h.u8() !== kind) {
+        if (h.u8() !== (kind === 1 ? 2 : 1) || h.u8() !== kind) {
             reject('unknown record version/kind');
         }
         const size = h.u16();
-        if (size < 16 || size > 1187 || h.u32() !== 1) {
+        if (size < 16 || size > 1188 || h.u32() !== 1) {
             reject('invalid record length/generation');
         }
         const checksum = h.u32();
@@ -337,6 +338,7 @@ export function decodeCodeplug(bytes) {
         bankIds.push(m.u32());
     }
     const vfo_step_hz = m.u32();
+    const fm_ctcss_level = m.u8();
     m.done();
     for (const expected of channelIds) {
         const r = next(2);
@@ -377,6 +379,7 @@ export function decodeCodeplug(bytes) {
             local_callsign,
             gain,
             transmit_limit_s,
+            fm_ctcss_level,
             vfo_step_hz,
             ui: { theme, contrast, animations, backlight }
         },

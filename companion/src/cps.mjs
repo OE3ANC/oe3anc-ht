@@ -457,6 +457,7 @@ export class CpsEditor {
         };
         add('Local callsign', 'local_callsign', null, { maxlength: '9' });
         add('Gain (current radios require 0)', 'gain', null, { min: '0', max: '15' });
+        add('FM CTCSS level', 'fm_ctcss_level', null, { min: '0', max: '127' });
         add('TX time limit', 'transmit_limit_s', [
             [0, 'Off'],
             [60, '60 seconds'],

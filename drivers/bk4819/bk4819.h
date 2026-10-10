@@ -24,6 +24,7 @@ struct bk4819_config {
     bool wide;
     bool m17;
     uint8_t fm_weak_filter; /* REG_43[11:9], 0..7. Ignored in M17. */
+    uint8_t fm_ctcss_level; /* REG_51[6:0], 0..127. Use 74 for the baseline. */
     uint8_t fm_af_dac_gain; /* REG_48[3:0], 0..15. Use 1 for the baseline. */
 };
 

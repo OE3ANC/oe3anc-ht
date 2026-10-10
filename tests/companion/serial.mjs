@@ -11,7 +11,7 @@ class Port {
         dropFirst = false,
         mismatch = false,
         versionMismatch = false,
-        legacy = false,
+        legacyMinor = null,
         shortError = false,
         silent = false
     } = {}) {
@@ -64,10 +64,10 @@ class Port {
                             session = 0n;
                             payload = Uint8Array.of(C.STATUS_MISMATCH);
                         }
-                        if (legacy) {
-                            minor = 0;
+                        if (legacyMinor !== null) {
+                            minor = legacyMinor;
                             session = 0n;
-                            if (request.minor !== 0) {
+                            if (request.minor !== legacyMinor) {
                                 payload = Uint8Array.of(C.STATUS_MISMATCH);
                             } else {
                                 assert.equal(
@@ -150,14 +150,17 @@ await assert.rejects(connection.connect(version), error =>
 );
 assert.equal(version.writes.length, 1);
 assert.equal(version.closed, 1);
-const legacy = new Port({ legacy: true, mismatch: true });
-await assert.rejects(
-    connection.connect(legacy),
-    error => error.requiredRelease === 'v1.0.0@' + 'a'.repeat(40)
-);
-assert.equal(legacy.writes.length, 2, 'Only HELLO and bounded identity discovery are sent');
-assert.equal(connection.session, 0n);
-assert.equal(legacy.closed, 1);
+for (const legacyMinor of [0, 1]) {
+    const legacy = new Port({ legacyMinor, mismatch: true });
+    await assert.rejects(
+        connection.connect(legacy),
+        error => error.requiredRelease === 'v1.0.0@' + 'a'.repeat(40) &&
+            error.message.includes(`protocol 1.${legacyMinor}`)
+    );
+    assert.equal(legacy.writes.length, 2, 'Only HELLO and bounded identity discovery are sent');
+    assert.equal(connection.session, 0n);
+    assert.equal(legacy.closed, 1);
+}
 const shortError = new Port({ shortError: true });
 await assert.rejects(connection.connect(shortError), /rejected the handshake/);
 assert.equal(shortError.closed, 1);

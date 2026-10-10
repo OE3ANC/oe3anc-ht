@@ -347,16 +347,38 @@ ZTEST(channels, test_vfo_step_wire_defaults_and_validation) {
         plug.global.vfo_step_hz = step;
         zassert_ok(make_manifest(plug, manifest));
         zassert_ok(encode_manifest(manifest, 1, bytes, sizeof(bytes), written));
-        zassert_equal(bytes[4], 1);
+        zassert_equal(bytes[4], 2);
         zassert_ok(decode_manifest(bytes, written, 1, manifest));
         zassert_equal(manifest.global.vfo_step_hz, step);
     }
-    sys_put_le32(0, bytes + written - 4);
+    sys_put_le32(0, bytes + written - 5);
     checksum();
     const auto previous = manifest.global.vfo_step_hz;
     zassert_equal(decode_manifest(bytes, written, 1, manifest), -EBADMSG);
     zassert_equal(manifest.global.vfo_step_hz, previous);
     plug.global.vfo_step_hz = 1;
+    zassert_equal(validate_codeplug(plug), -EINVAL);
+}
+
+ZTEST(channels, test_ctcss_level_manifest_versions_and_validation) {
+    plug.global.fm_ctcss_level = 127;
+    zassert_ok(make_manifest(plug, manifest));
+    zassert_ok(encode_manifest(manifest, 1, bytes, sizeof(bytes), written));
+    zassert_ok(decode_manifest(bytes, written, 1, manifest));
+    zassert_equal(manifest.global.fm_ctcss_level, 127);
+    bytes[written - 1] = 128;
+    checksum();
+    zassert_equal(decode_manifest(bytes, written, 1, manifest), -EBADMSG);
+    zassert_equal(manifest.global.fm_ctcss_level, 127);
+    // Public v1 ended after VFO step. Loading must preserve it and default the new field.
+    --written;
+    bytes[4] = 1;
+    sys_put_le16(written, bytes + 6);
+    checksum();
+    zassert_ok(decode_manifest(bytes, written, 1, manifest));
+    zassert_equal(manifest.global.fm_ctcss_level, 74);
+    zassert_equal(manifest.global.vfo_step_hz, 12500);
+    plug.global.fm_ctcss_level = 128;
     zassert_equal(validate_codeplug(plug), -EINVAL);
 }
 

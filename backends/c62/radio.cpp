@@ -127,7 +127,7 @@ int backend_configure(const RadioConfig &config, const FmRxControls &controls) {
                               config.tx_inhibit,           driver_tone(config.rx_tone),
                               driver_tone(config.tx_tone), config.bandwidth == Bandwidth::Wide,
                               config.mode == Mode::M17,    controls.weak_filter,
-                              controls.af_dac_gain};
+                              config.fm_ctcss_level,       controls.af_dac_gain};
     error = bk4819_configure(&radio);
     configured = error == 0;
     if (!error) {

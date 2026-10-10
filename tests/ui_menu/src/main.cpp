@@ -248,7 +248,7 @@ ZTEST(ui_menu, test_workflow_order_wrap_capabilities_and_physical_actions) {
     zassert_equal(model.screen(), UiScreen::Menu);
     zassert_equal(radio_snapshot().configuration_revision, revision);
     const auto count = page.count;
-    zassert_equal(count, 23); // No generic gain; two FM RX test controls included.
+    zassert_equal(count, 24); // No generic gain; two FM RX test controls included.
     for (unsigned i = 0; i < count; ++i) {
         key(UiKey::Down);
     }
@@ -262,7 +262,7 @@ ZTEST(ui_menu, test_workflow_order_wrap_capabilities_and_physical_actions) {
     load(false, Mode::M17);
     key(UiKey::Enter);
     model.menu_page(page);
-    zassert_equal(page.count, count - 7);
+    zassert_equal(page.count, count - 8);
     for (unsigned i = 0; i < page.count; ++i) {
         UiListPage digital;
         model.menu_page(digital);
@@ -272,6 +272,30 @@ ZTEST(ui_menu, test_workflow_order_wrap_capabilities_and_physical_actions) {
         zassert_is_null(strstr(name, "tone:"));
         key(UiKey::Down);
     }
+}
+
+ZTEST(ui_menu, test_ctcss_level_is_global_saved_and_locked_during_tx) {
+    load(true);
+    const auto selection = radio_snapshot().selection;
+    find("FM CTCSS level");
+    key(UiKey::Right);
+    tick();
+    zassert_equal(radio_snapshot().config.fm_ctcss_level, 75);
+    zassert_true(same_selection(selection, radio_snapshot().selection));
+    zassert_true(settings_status().pending);
+    render("fm-ctcss-level");
+    radio_ptt(true);
+    radio_service();
+    key(UiKey::Right);
+    zassert_equal(model.error(), -EBUSY);
+    radio_ptt(false);
+    tick(10000);
+    tick(10001);
+    RadioConfig config;
+    Selection restored;
+    zassert_ok(settings_start(config, restored));
+    zassert_equal(config.fm_ctcss_level, 75);
+    zassert_true(same_selection(selection, restored));
 }
 
 ZTEST(ui_menu, test_fm_rx_menu_controls_are_bounded_temporary_and_preserve_memory) {
