@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 import {
+    THEMES,
     MAX_BYTES,
     MAX_CHANNELS,
     MAX_BANKS,
@@ -472,7 +473,7 @@ export class CpsEditor {
         grid = element('div', '', { class: 'cps-grid' });
         display.append(grid);
         form.append(display);
-        add('Theme', 'ui.theme', ['midnight', 'nord', 'solarized-dark', 'darcula']);
+        add('Theme', 'ui.theme', THEMES);
         add('Contrast', 'ui.contrast', ['normal', 'high', 'maximum']);
         add('Animations', 'ui.animations');
         add(

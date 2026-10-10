@@ -33,6 +33,10 @@ def fixtures():
     ]
     full['selection'] = {'operating': 'memory', 'channel_id': 256, 'bank_id': 16}
     valid.append({'name': 'maximum', 'document': full, 'wire': wire.encode(full, 1).hex()})
+    for theme in codeplug.THEMES[4:]:
+        document = copy.deepcopy(valid[0]['document'])
+        document['global']['ui']['theme'] = theme
+        valid.append({'name': theme, 'document': document, 'wire': wire.encode(document, 1).hex()})
     invalid = []
     seed = bytes.fromhex(valid[0]['wire'])
 

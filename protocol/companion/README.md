@@ -1,11 +1,11 @@
-# Companion application protocol 1.0
+# Companion application protocol 1.1
 
 This document and `contract.json` are the normative definition. `fixtures.json`
 contains frozen examples used by both codecs. Generated constants belong to both
 applications; regenerate with `python3 tools/companion_contract.py`, and check
 freshness with `--check`. Any interface change updates this definition, both
 implementations, fixtures and version together. Additive changes increment minor;
-incompatible changes increment major. This initial pair requires exact major,
+incompatible changes increment major. Both peers require exact major,
 minor and release identity agreement.
 
 Implemented scope: identification, session establishment, keepalive, close and
@@ -14,7 +14,7 @@ complete CPS transfer, live UI snapshots, ordinary virtual keys and remote PTT. 
 present; bit 1 (`CAP_UI_SNAPSHOT = 2`) advertises UI snapshots when the UI owner
 is present; bit 2 (`CAP_UI_KEYS = 4`) advertises ordinary front keys and bit 3
 (`CAP_PTT = 8`) advertises controller-owned remote PTT. Other bits are zero.
-This is the public protocol baseline. Development-era protocol pairs and file
+Protocol 1.0 is the public baseline; 1.1 extends its theme enumeration. Development-era protocol pairs and file
 formats are unsupported; use firmware and companion from the same public release.
 CSK bootloader traffic is a separate protocol and must never use this envelope.
 
@@ -30,7 +30,7 @@ complete wire frame at most 219 bytes, below the backend's 256-byte write limit.
 | --- | --- | --- |
 | 0 | 2 | Magic ASCII `HT` (`48 54`) |
 | 2 | 1 | Protocol major, currently 1 |
-| 3 | 1 | Protocol minor, currently 0 |
+| 3 | 1 | Protocol minor, currently 1 |
 | 4 | 1 | Message ID |
 | 5 | 1 | Flags: request 0, response 1; other values invalid |
 | 6 | 2 | Payload length, 0..192 |
@@ -318,3 +318,23 @@ retry/unplug/reconnect behavior. Build both targets with `tools/build.py` and th
 website with `companion/build.py`. The emulator backend currently has no serial
 byte transport; these host checks exercise the actual codec/session core without
 claiming electrical or on-radio timing validation.
+
+## Protocol 1.1 theme extension
+
+Protocol 1.1 adds Terminal Green, Terminal Amber and Terminal Ice as theme IDs
+4, 5 and 6 in CPS and UI snapshots. Existing theme IDs and binary layouts are
+unchanged; codeplug JSON, HTDB records and UI snapshots retain schema version 1.
+The JSON theme names are `terminal-green`, `terminal-amber` and `terminal-ice`.
+Both peers require protocol 1.1 and an exact release match before connected
+operations. Older companions reject these new JSON names; use the matching
+companion for import/export. Older firmware may fall back to Midnight when
+loading a stored theme it does not know. Appearance uses four visible rows per
+page, wrapping across all seven themes. The renderer derives the page from the
+selected theme, so no extra presentation state or wire fields are needed.
+
+When a protocol 1.0 radio returns a short protocol-mismatch response, the 1.1
+companion may issue one 1.0 HELLO (with the normal single retry) using the
+non-release identity `companion-identify`. This obtains the release identity for
+the archived-companion link without establishing a session. Only a 1.0 mismatch
+reply with session zero is accepted for discovery. The port is then closed;
+connected operations still require the exact current protocol and release.

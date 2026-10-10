@@ -420,8 +420,8 @@ void UiModel::appearance(const UiInput &input) {
         cancel_appearance();
     } else if (input.key == UiKey::Up || input.key == UiKey::Down) {
         const unsigned theme = static_cast<unsigned>(appearance_draft_.theme);
-        appearance_draft_.theme =
-            static_cast<Theme>((theme + (input.key == UiKey::Down ? 1 : 3)) % 4);
+        appearance_draft_.theme = static_cast<Theme>(
+            (theme + (input.key == UiKey::Down ? 1 : ThemeCount - 1)) % ThemeCount);
     } else if (input.key == UiKey::Left) {
         appearance_draft_.contrast =
             static_cast<Contrast>((static_cast<unsigned>(appearance_draft_.contrast) + 1) % 3);
@@ -861,8 +861,10 @@ void UiModel::lines(char (&text)[8][32]) const {
         snprintf(text[0], 32, "APPEARANCE");
         snprintf(text[1], 32, "%s / Motion %s", ui_contrast_name(appearance_draft_.contrast),
                  appearance_draft_.animations ? "on" : "off");
-        for (unsigned theme = 0; theme < 4; ++theme) {
-            snprintf(text[theme + 2], 32, "%c %s",
+        const unsigned first = static_cast<unsigned>(appearance_draft_.theme) / 4 * 4;
+        for (unsigned row = 0; row < 4 && first + row < ThemeCount; ++row) {
+            const unsigned theme = first + row;
+            snprintf(text[row + 2], 32, "%c %s",
                      static_cast<unsigned>(appearance_draft_.theme) == theme ? '>' : ' ',
                      ui_palette(static_cast<Theme>(theme), Contrast::Normal).name);
         }

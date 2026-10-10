@@ -177,7 +177,7 @@ template <typename View, typename Codec> bool strings(View &v, Layout kind, Code
 bool valid(const UiPresentation &v, Layout kind) {
     if (unsigned(v.screen) > companion::UI_SCREEN_COMPANION_EXIT ||
         unsigned(v.list_return) > companion::UI_SCREEN_COMPANION_EXIT ||
-        v.preferences.theme > Theme::Darcula || v.preferences.contrast > Contrast::Maximum ||
+        v.preferences.theme > Theme::TerminalIce || v.preferences.contrast > Contrast::Maximum ||
         (v.system_visible && v.home.visible) || v.form_cursor > 3 ||
         (v.motion && !v.preferences.animations)) {
         return false;

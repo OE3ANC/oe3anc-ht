@@ -1575,14 +1575,14 @@ ZTEST(settings, test_ui_preferences_all_palettes_contrasts_and_reboot) {
     radio_service();
     settings_service(radio_snapshot(), 0);
     UiPreferences draft;
-    for (unsigned theme = 0; theme < 4; ++theme) {
+    for (unsigned theme = 0; theme < ThemeCount; ++theme) {
         for (unsigned contrast = 0; contrast < 3; ++contrast) {
             uint32_t revision;
             settings_ui_preferences(draft, &revision);
             draft.theme = static_cast<Theme>(theme);
             draft.contrast = static_cast<Contrast>(contrast);
             draft.animations = contrast != 2;
-            draft.brightness_percent = 25 * (theme + 1);
+            draft.brightness_percent = 25 * (theme % 4 + 1);
             draft.idle_s = theme == 0 ? 0 : theme == 1 ? 15 : theme == 2 ? 30 : 60;
             draft.dim_percent = 10 * (contrast + 1);
             const auto before = radio_snapshot();

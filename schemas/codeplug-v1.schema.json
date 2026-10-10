@@ -62,7 +62,10 @@
                 "midnight",
                 "nord",
                 "solarized-dark",
-                "darcula"
+                "darcula",
+                "terminal-green",
+                "terminal-amber",
+                "terminal-ice"
               ]
             },
             "contrast": {

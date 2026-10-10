@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-import { validate, canonical, FORMAT, SCHEMA_VERSION } from './codeplug.mjs';
+import { validate, canonical, FORMAT, SCHEMA_VERSION, THEMES } from './codeplug.mjs';
 import { C, crc32 } from './protocol.mjs';
 
-const themes = ['midnight', 'nord', 'solarized-dark', 'darcula'];
 const contrasts = ['normal', 'high', 'maximum'];
 
 function reject(reason) {
@@ -235,7 +234,7 @@ export function encodeCodeplug(document) {
     m.string(g.local_callsign, 10);
     m.u8(g.gain);
     m.u16(g.transmit_limit_s);
-    m.u8(themes.indexOf(ui.theme));
+    m.u8(THEMES.indexOf(ui.theme));
     m.u8(contrasts.indexOf(ui.contrast));
     m.u8(ui.animations);
     m.u8(light.brightness_percent);
@@ -317,7 +316,7 @@ export function decodeCodeplug(bytes) {
     const local_callsign = m.string(10);
     const gain = m.u8();
     const transmit_limit_s = m.u16();
-    const theme = m.enum(themes);
+    const theme = m.enum(THEMES);
     const contrast = m.enum(contrasts);
     const animations = m.bool();
     const backlight = { brightness_percent: m.u8(), idle_s: m.u8(), dim_percent: m.u8() };

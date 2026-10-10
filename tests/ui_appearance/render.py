@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""Run actual firmware UI checks and export the twelve RGB565 Appearance renders."""
+"""Run actual firmware UI checks and export all RGB565 Appearance renders."""
 import argparse
 import os
 from pathlib import Path
@@ -15,12 +15,15 @@ def main():
     parser.add_argument("--output", type=Path, default=Path("build/screens/appearance"))
     args = parser.parse_args()
     args.output.mkdir(parents=True, exist_ok=True)
-    themes = ("Midnight", "Nord", "Solarized Dark", "Darcula")
+    themes = (
+        "Midnight", "Nord", "Solarized Dark", "Darcula",
+        "Terminal Green", "Terminal Amber", "Terminal Ice",
+    )
     contrasts = ("Normal", "High", "Maximum")
     scale, gap, label_height = 3, 16, 30
     width, height = 160 * scale, 128 * scale
     sheet = Image.new(
-        "RGB", (4 * (width + gap) + gap, 3 * (height + label_height + gap) + gap), "#10151e"
+        "RGB", (len(themes) * (width + gap) + gap, 3 * (height + label_height + gap) + gap), "#10151e"
     )
     draw = ImageDraw.Draw(sheet)
     try:

@@ -13,7 +13,15 @@ static const UiPalette palettes[] = {
      0xdc322f, 0x073642},
     {"Darcula", 0x2b2b2b, 0x313335, 0xa9b7c6, 0xe6e6e6, 0x7aa9e0, 0x555555, 0xffc66d, 0xff7878,
      0x3c4756},
+    // Phosphor-inspired palettes keep warning and fault colors distinct.
+    {"Terminal Green", 0x071009, 0x0d1c12, 0x88b896, 0xd1f5d6, 0x78e894, 0x294b32, 0xffcb75,
+     0xff8585, 0x183925},
+    {"Terminal Amber", 0x120d05, 0x21190b, 0xc5a476, 0xffe5af, 0xffbf62, 0x514027, 0xffdf78,
+     0xff8585, 0x3b2d15},
+    {"Terminal Ice", 0x071015, 0x102029, 0x8fb6c6, 0xdbf5ff, 0x86deef, 0x2c4857, 0xffcb75, 0xff8585,
+     0x193642},
 };
+static_assert(sizeof(palettes) / sizeof(palettes[0]) == ThemeCount, "Missing theme palette");
 
 static uint32_t brighten(uint32_t color, unsigned amount) {
     uint32_t result = 0;
@@ -25,7 +33,7 @@ static uint32_t brighten(uint32_t color, unsigned amount) {
 }
 
 UiPalette ui_palette(Theme theme, Contrast contrast) {
-    UiPalette colors = palettes[theme <= Theme::Darcula ? static_cast<unsigned>(theme) : 0];
+    UiPalette colors = palettes[theme <= Theme::TerminalIce ? static_cast<unsigned>(theme) : 0];
     if (contrast != Contrast::Normal && contrast <= Contrast::Maximum) {
         const bool maximum = contrast == Contrast::Maximum;
         colors.white = brighten(colors.white, maximum ? 255 : 96);

@@ -708,7 +708,7 @@ ZTEST(ui_menu, test_selection_animation_not_restarted_motion_off_and_style_resto
 }
 
 ZTEST(ui_menu, test_all_theme_contrast_status_screens_bounded) {
-    for (unsigned theme = 0; theme < 4; ++theme) {
+    for (unsigned theme = 0; theme < ThemeCount; ++theme) {
         for (unsigned contrast = 0; contrast < 3; ++contrast) {
             load(false, Mode::Fm, static_cast<Theme>(theme), static_cast<Contrast>(contrast));
             key(UiKey::Enter);

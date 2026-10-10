@@ -62,8 +62,8 @@ Normal firmware updates preserve settings and do not clear this error.
   timer configuration and PA pin mux at TX setup for hardware diagnosis.
 - VFO and Memory operation, separate RX/TX frequencies, 256 channels and 16
   ordered banks. Edit them on the radio or share a JSON codeplug.
-- Four themes, contrast settings, idle backlight dimming, keypad lock and a TX
-  time limit. The desktop emulator runs the shared radio UI with fake hardware.
+- Seven themes (including Terminal Green, Amber and Ice), contrast settings,
+  idle backlight dimming, keypad lock and a TX time limit. The desktop emulator runs the shared radio UI with fake hardware.
 - Codec2-mod 3200 voice, with live processing statistics in **Status → Codec2**.
   Encoder/decoder average and maximum elapsed times are per 20 ms codec frame,
   including preemption. The page reports frame counts, processing above 20 ms,

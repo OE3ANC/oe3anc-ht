@@ -95,7 +95,7 @@ bool bank_contains(const Bank &bank, uint32_t channel_id) {
 }
 
 int validate_ui_preferences(const UiPreferences &u) {
-    if (u.theme > Theme::Darcula || u.contrast > Contrast::Maximum ||
+    if (u.theme > Theme::TerminalIce || u.contrast > Contrast::Maximum ||
         (u.brightness_percent != 25 && u.brightness_percent != 50 && u.brightness_percent != 75 &&
          u.brightness_percent != 100) ||
         (u.idle_s != 0 && u.idle_s != 15 && u.idle_s != 30 && u.idle_s != 60) ||

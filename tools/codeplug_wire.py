@@ -84,7 +84,7 @@ def manifest(value, generation=1):
             '<BHBBBBBB',
             g['gain'],
             g['transmit_limit_s'],
-            ('midnight', 'nord', 'solarized-dark', 'darcula').index(ui['theme']),
+            codeplug.THEMES.index(ui['theme']),
             ('normal', 'high', 'maximum').index(ui['contrast']),
             ui['animations'],
             light['brightness_percent'],
@@ -243,7 +243,7 @@ def read_configuration(reader):
 def read_global(reader):
     local = reader.string(10)
     gain, limit = reader.unpack('<BH')
-    theme = reader.enum(('midnight', 'nord', 'solarized-dark', 'darcula'), 'midnight')
+    theme = reader.enum(codeplug.THEMES, 'midnight')
     contrast = reader.enum(('normal', 'high', 'maximum'), 'normal')
     animations = reader.boolean()
     brightness, idle, dim = reader.unpack('<BBB')

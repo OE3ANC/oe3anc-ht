@@ -443,7 +443,7 @@ ZTEST(ui_diagnostic, test_register_errors_restore_failures_and_memory_fm_m17_ret
 }
 
 ZTEST(ui_diagnostic, test_all_themes_contrasts_editor_geometry_and_bounded_heap) {
-    for (unsigned theme = 0; theme < 4; ++theme) {
+    for (unsigned theme = 0; theme < ThemeCount; ++theme) {
         for (unsigned contrast = 0; contrast < 3; ++contrast) {
             load(false, Mode::Fm, static_cast<Theme>(theme), static_cast<Contrast>(contrast));
             open();

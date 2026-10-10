@@ -67,7 +67,7 @@ int decode_codeplug(const uint8_t *bytes, size_t length, Codeplug &plug) {
     int error = next(1, size);
     // CPS is strict: stored palette fallback do not
     // silently reinterpret a companion's unknown enums or schema.
-    if (!error && (size < 99 || bytes[40] > 3 || bytes[41] > 2)) {
+    if (!error && (size < 99 || bytes[40] >= ThemeCount || bytes[41] > 2)) {
         error = -EBADMSG;
     }
     if (!error) {

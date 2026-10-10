@@ -3,7 +3,16 @@
 #include <stdint.h>
 
 namespace ht {
-enum class Theme : uint8_t { Midnight = 0, Nord = 1, SolarizedDark = 2, Darcula = 3 };
+enum class Theme : uint8_t {
+    Midnight = 0,
+    Nord = 1,
+    SolarizedDark = 2,
+    Darcula = 3,
+    TerminalGreen = 4,
+    TerminalAmber = 5,
+    TerminalIce = 6
+};
+constexpr unsigned ThemeCount = static_cast<unsigned>(Theme::TerminalIce) + 1;
 enum class Contrast : uint8_t { Normal = 0, High = 1, Maximum = 2 };
 
 struct UiPreferences {

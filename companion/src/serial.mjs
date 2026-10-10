@@ -42,9 +42,31 @@ export class CompanionConnection {
                 helloPayload(this.release.identity, nonce)
             );
             if (frame.major !== C.MAJOR || frame.minor !== C.MINOR) {
-                throw new Error(
+                const error = new Error(
                     `Radio protocol ${frame.major}.${frame.minor} requires a matching companion (this companion uses ${C.MAJOR}.${C.MINOR}).`
                 );
+                if (frame.major === 1 && frame.minor === 0) {
+                    // Public 1.0 has the same HELLO layout, but initially returns only a status.
+                    // This identity cannot match a release build, so discovery cannot open a session.
+                    try {
+                        const probe = await this.request(
+                            C.MSG_HELLO,
+                            helloPayload('companion-identify', nonce),
+                            0
+                        );
+                        const info = helloReply(probe);
+                        if (
+                            probe.major === 1 && probe.minor === 0 && probe.session === 0n &&
+                            info.status === C.STATUS_MISMATCH
+                        ) {
+                            error.requiredRelease = info.release;
+                            error.message = `This radio requires companion ${info.release} (protocol 1.0).`;
+                        }
+                    } catch {
+                        // Preserve the original protocol error when identity discovery fails.
+                    }
+                }
+                throw error;
             }
             if (frame.payload.length === 1) {
                 throw new Error(`The radio rejected the handshake (status ${frame.payload[0]}).`);
@@ -74,7 +96,7 @@ export class CompanionConnection {
         }
     }
 
-    request(type, payload = new Uint8Array()) {
+    request(type, payload = new Uint8Array(), minor = C.MINOR) {
         if (!this.writer || this.pending) {
             return Promise.reject(new Error('Connection busy or closed'));
         }
@@ -84,6 +106,7 @@ export class CompanionConnection {
 
         const request = ++this.sequence;
         const bytes = encode({
+            minor,
             type,
             flags: C.FLAG_REQUEST,
             request,

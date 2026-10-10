@@ -86,11 +86,14 @@ def main():
         "rx-squelch",
         "fm-rx-controls",
     )
-    themes = ("Midnight", "Nord", "Solarized Dark", "Darcula")
+    themes = (
+        "Midnight", "Nord", "Solarized Dark", "Darcula",
+        "Terminal Green", "Terminal Amber", "Terminal Ice",
+    )
     contrasts = ("Normal", "High", "Maximum")
     galleries = {}
     for view in ("menu", "status"):
-        names = [f"{view}-theme-{theme}-{contrast}" for contrast in range(3) for theme in range(4)]
+        names = [f"{view}-theme-{theme}-{contrast}" for contrast in range(3) for theme in range(len(themes))]
         labels = [f"{theme} / {contrast}" for contrast in contrasts for theme in themes]
         galleries[view] = names, labels
     expected = list(overview + extra) + [name for names, _ in galleries.values() for name in names]
@@ -122,7 +125,7 @@ def main():
         frame.save(args.output / f"{name}.png")
     sheet(frames, overview, captions, 4, args.output / "overview.png")
     for view, (names, labels) in galleries.items():
-        sheet(frames, names, labels, 4, args.output / f"{view}-themes.png")
+        sheet(frames, names, labels, len(themes), args.output / f"{view}-themes.png")
     print(args.output / "overview.png")
 
 

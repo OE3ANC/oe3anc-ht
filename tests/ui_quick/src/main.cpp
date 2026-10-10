@@ -488,7 +488,7 @@ ZTEST(ui_quick, test_noop_keeps_monitor_and_storage_failure_reports_dirty_retry)
 ZTEST_SUITE(ui_quick, nullptr, setup, before, nullptr, nullptr);
 
 ZTEST(ui_quick, test_repeated_palette_field_navigation_is_bounded_and_motion_off) {
-    for (unsigned theme = 0; theme < 4; ++theme) {
+    for (unsigned theme = 0; theme < ThemeCount; ++theme) {
         for (unsigned contrast = 0; contrast < 3; ++contrast) {
             auto ui = plug.global.ui;
             ui.theme = static_cast<Theme>(theme);

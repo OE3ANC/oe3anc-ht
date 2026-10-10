@@ -40,7 +40,8 @@ times channel count, bank IDs:u32 times bank count, VFO step Hz:u32.
 Its length is `99 + 4*(channel count + bank count)`.
 
 Global settings in order: local callsign[10], gain:u8, transmit limit seconds:u16,
-theme:u8 (midnight=0, nord=1, solarized-dark=2, darcula=3), contrast:u8
+theme:u8 (midnight=0, nord=1, solarized-dark=2, darcula=3,
+terminal-green=4, terminal-amber=5, terminal-ice=6), contrast:u8
 (normal=0, high=1, maximum=2), animations:bool, brightness percent:u8,
 idle seconds:u8, dim percent:u8.
 

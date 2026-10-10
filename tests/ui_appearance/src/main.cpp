@@ -154,7 +154,7 @@ ZTEST(ui_appearance, test_preview_cancel_wrap_and_physical_secondary_roles) {
     open();
     const auto revision = settings_status().revision;
     key(UiKey::Up);
-    zassert_equal(model.preferences().theme, Theme::Darcula);
+    zassert_equal(model.preferences().theme, Theme::TerminalIce);
     key(UiKey::Down);
     zassert_equal(model.preferences().theme, Theme::Midnight);
     key(UiKey::Down);
@@ -386,9 +386,9 @@ ZTEST(ui_appearance, test_focus_loss_event_cancels_preview_and_release_bypasses_
     zassert_false(emulator_transmitting());
 }
 
-ZTEST(ui_appearance, test_real_lvgl_twelve_variants_bounded_heap_and_immediate_cancel) {
+ZTEST(ui_appearance, test_real_lvgl_all_variants_bounded_heap_and_immediate_cancel) {
     open();
-    for (unsigned theme = 0; theme < 4; ++theme) {
+    for (unsigned theme = 0; theme < ThemeCount; ++theme) {
         for (unsigned contrast = 0; contrast < 3; ++contrast) {
             zassert_equal(model.preferences().theme, static_cast<Theme>(theme));
             zassert_equal(model.preferences().contrast, static_cast<Contrast>(contrast));
@@ -397,7 +397,8 @@ ZTEST(ui_appearance, test_real_lvgl_twelve_variants_bounded_heap_and_immediate_c
                 ui_palette(static_cast<Theme>(theme), static_cast<Contrast>(contrast));
             zassert_equal(frame[0], lv_color_hex(colors.background).full);
             // Selected row has its accent marker, and actual OK-left/BACK-right footer text.
-            zassert_equal(frame[(42 + 15 * theme) * 160 + 5], lv_color_hex(colors.accent).full);
+            zassert_equal(frame[(42 + 15 * (theme % 4)) * 160 + 5],
+                          lv_color_hex(colors.accent).full);
             const auto screen = lv_disp_get_scr_act(display);
             const auto appearance = lv_obj_get_child(screen, -1);
             zassert_false(lv_obj_has_flag(appearance, LV_OBJ_FLAG_HIDDEN));
@@ -419,6 +420,32 @@ ZTEST(ui_appearance, test_real_lvgl_twelve_variants_bounded_heap_and_immediate_c
                 if (!strcmp(value, "P1 Contrast") || !strcmp(value, "P2 Motion")) {
                     ++secondary;
                 }
+            }
+            // Every page exposes only its themes; the last page has three rows.
+            for (unsigned row = 0; row < 4; ++row) {
+                const unsigned id = theme / 4 * 4 + row;
+                const auto *expected =
+                    id < ThemeCount ? ui_palette(static_cast<Theme>(id), Contrast::Normal).name
+                                    : "";
+                char lines[8][32];
+                model.lines(lines);
+                if (id < ThemeCount) {
+                    zassert_not_null(strstr(lines[row + 2], expected));
+                } else {
+                    zassert_equal(lines[row + 2][0], 0);
+                }
+                unsigned found = 0;
+                for (unsigned child = 0; child < lv_obj_get_child_cnt(appearance); ++child) {
+                    auto *object = lv_obj_get_child(appearance, child);
+                    if (lv_obj_check_type(object, &lv_label_class) &&
+                        lv_obj_get_y(object) == 41 + 15 * row) {
+                        zassert_equal(lv_obj_has_flag(object, LV_OBJ_FLAG_HIDDEN),
+                                      id >= ThemeCount);
+                        zassert_equal(strcmp(lv_label_get_text(object), expected), 0);
+                        ++found;
+                    }
+                }
+                zassert_equal(found, 1);
             }
             zassert_equal(primary, 2);
             zassert_equal(secondary, 2);
@@ -498,7 +525,7 @@ ZTEST(ui_appearance, test_motion_off_moves_immediately_and_fault_cancels_running
 }
 
 ZTEST(ui_appearance, test_contrast_foregrounds_brighten_surfaces_and_fallback_stay_dark) {
-    for (unsigned theme = 0; theme < 4; ++theme) {
+    for (unsigned theme = 0; theme < ThemeCount; ++theme) {
         const auto normal = ui_palette(static_cast<Theme>(theme), Contrast::Normal);
         const auto high = ui_palette(static_cast<Theme>(theme), Contrast::High);
         const auto maximum = ui_palette(static_cast<Theme>(theme), Contrast::Maximum);

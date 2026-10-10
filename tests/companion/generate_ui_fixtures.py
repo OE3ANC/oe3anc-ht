@@ -218,6 +218,11 @@ def fixtures():
               '43:4068  47:6140', '48:B3C1  37:1F0F'],
     )
     valid.append(dict(name='rx-registers', document=extra))
+    for theme in (4, 5, 6):
+        for screen in (0, 5):
+            value = example(screen)
+            value['theme'] = theme
+            valid.append(dict(name=f'terminal-{theme}-screen-{screen}', document=value))
     extra = example(2)
     extra['list'].update(
         detail='FM RX test / until reboot', cursor=19, count=23,
@@ -239,7 +244,7 @@ def fixtures():
     for name, index, value in [
         ('schema', 0, 2),
         ('screen', 1, 255),
-        ('theme', 2, 4),
+        ('theme', 2, 7),
         ('contrast', 3, 3),
         ('reserved-flags', 5, 6),
         ('form-cursor', 6, 4),

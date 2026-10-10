@@ -377,7 +377,7 @@ ZTEST(ui_limit, test_queue_busy_and_storage_failure_are_explicit_and_retryable) 
 }
 
 ZTEST(ui_limit, test_theme_contrast_forms_and_font_restore) {
-    for (unsigned theme = 0; theme < 4; ++theme) {
+    for (unsigned theme = 0; theme < ThemeCount; ++theme) {
         for (unsigned contrast = 0; contrast < 3; ++contrast) {
             UiPreferences prefs;
             uint32_t revision;

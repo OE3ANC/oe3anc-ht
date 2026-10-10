@@ -1260,6 +1260,186 @@
       "wire": "011b030000020302010000000200000003000000084f4b204170706c790b4241434b2043616e63656c085031204669656c64001052582050415448202f2037204f4620390d52582061676520323030206d731033303a42464631202033333a303034301033383a30344630202033393a303044451034333a34303638202034373a363134301034383a42334331202033373a3146304600"
     },
     {
+      "name": "terminal-4-screen-0",
+      "document": {
+        "screen": 0,
+        "theme": 4,
+        "contrast": 0,
+        "flags": 520,
+        "formCursor": 0,
+        "listReturn": 2,
+        "interruptions": 1,
+        "pttSequence": 2,
+        "monitorSequence": 3,
+        "actions": [
+          "OK Menu",
+          "BACK Quick",
+          "P1 Memory",
+          "P2 Save"
+        ],
+        "home": {
+          "identity": "VFO",
+          "name": "UHF SIMPLEX",
+          "context": "MHz / direct tuning",
+          "frequency": "433.500",
+          "settings": "W SQL4 1 W",
+          "activity": "Listening",
+          "battery": "7.40V",
+          "mode": "FM",
+          "status": 0,
+          "contextColor": 0,
+          "batteryColor": 0,
+          "bars": 4
+        }
+      },
+      "wire": "0100040008020002010000000200000003000000074f4b204d656e750a4241434b20517569636b095031204d656d6f727907503220536176650356464f0b5548462053494d504c4558134d487a202f206469726563742074756e696e67073433332e3530300a572053514c3420312057094c697374656e696e6705372e34305602464d00000004"
+    },
+    {
+      "name": "terminal-4-screen-5",
+      "document": {
+        "screen": 5,
+        "theme": 4,
+        "contrast": 2,
+        "flags": 512,
+        "formCursor": 1,
+        "listReturn": 2,
+        "interruptions": 1,
+        "pttSequence": 2,
+        "monitorSequence": 3,
+        "actions": [
+          "OK Apply",
+          "BACK Cancel",
+          "P1 Field",
+          ""
+        ],
+        "lines": {
+          "1": "Draft / radio owned",
+          "6": ""
+        }
+      },
+      "wire": "0105040200020102010000000200000003000000084f4b204170706c790b4241434b2043616e63656c085031204669656c6400134472616674202f20726164696f206f776e656400"
+    },
+    {
+      "name": "terminal-5-screen-0",
+      "document": {
+        "screen": 0,
+        "theme": 5,
+        "contrast": 0,
+        "flags": 520,
+        "formCursor": 0,
+        "listReturn": 2,
+        "interruptions": 1,
+        "pttSequence": 2,
+        "monitorSequence": 3,
+        "actions": [
+          "OK Menu",
+          "BACK Quick",
+          "P1 Memory",
+          "P2 Save"
+        ],
+        "home": {
+          "identity": "VFO",
+          "name": "UHF SIMPLEX",
+          "context": "MHz / direct tuning",
+          "frequency": "433.500",
+          "settings": "W SQL4 1 W",
+          "activity": "Listening",
+          "battery": "7.40V",
+          "mode": "FM",
+          "status": 0,
+          "contextColor": 0,
+          "batteryColor": 0,
+          "bars": 4
+        }
+      },
+      "wire": "0100050008020002010000000200000003000000074f4b204d656e750a4241434b20517569636b095031204d656d6f727907503220536176650356464f0b5548462053494d504c4558134d487a202f206469726563742074756e696e67073433332e3530300a572053514c3420312057094c697374656e696e6705372e34305602464d00000004"
+    },
+    {
+      "name": "terminal-5-screen-5",
+      "document": {
+        "screen": 5,
+        "theme": 5,
+        "contrast": 2,
+        "flags": 512,
+        "formCursor": 1,
+        "listReturn": 2,
+        "interruptions": 1,
+        "pttSequence": 2,
+        "monitorSequence": 3,
+        "actions": [
+          "OK Apply",
+          "BACK Cancel",
+          "P1 Field",
+          ""
+        ],
+        "lines": {
+          "1": "Draft / radio owned",
+          "6": ""
+        }
+      },
+      "wire": "0105050200020102010000000200000003000000084f4b204170706c790b4241434b2043616e63656c085031204669656c6400134472616674202f20726164696f206f776e656400"
+    },
+    {
+      "name": "terminal-6-screen-0",
+      "document": {
+        "screen": 0,
+        "theme": 6,
+        "contrast": 0,
+        "flags": 520,
+        "formCursor": 0,
+        "listReturn": 2,
+        "interruptions": 1,
+        "pttSequence": 2,
+        "monitorSequence": 3,
+        "actions": [
+          "OK Menu",
+          "BACK Quick",
+          "P1 Memory",
+          "P2 Save"
+        ],
+        "home": {
+          "identity": "VFO",
+          "name": "UHF SIMPLEX",
+          "context": "MHz / direct tuning",
+          "frequency": "433.500",
+          "settings": "W SQL4 1 W",
+          "activity": "Listening",
+          "battery": "7.40V",
+          "mode": "FM",
+          "status": 0,
+          "contextColor": 0,
+          "batteryColor": 0,
+          "bars": 4
+        }
+      },
+      "wire": "0100060008020002010000000200000003000000074f4b204d656e750a4241434b20517569636b095031204d656d6f727907503220536176650356464f0b5548462053494d504c4558134d487a202f206469726563742074756e696e67073433332e3530300a572053514c3420312057094c697374656e696e6705372e34305602464d00000004"
+    },
+    {
+      "name": "terminal-6-screen-5",
+      "document": {
+        "screen": 5,
+        "theme": 6,
+        "contrast": 2,
+        "flags": 512,
+        "formCursor": 1,
+        "listReturn": 2,
+        "interruptions": 1,
+        "pttSequence": 2,
+        "monitorSequence": 3,
+        "actions": [
+          "OK Apply",
+          "BACK Cancel",
+          "P1 Field",
+          ""
+        ],
+        "lines": {
+          "1": "Draft / radio owned",
+          "6": ""
+        }
+      },
+      "wire": "0105060200020102010000000200000003000000084f4b204170706c790b4241434b2043616e63656c085031204669656c6400134472616674202f20726164696f206f776e656400"
+    },
+    {
       "name": "fm-rx-controls",
       "document": {
         "screen": 2,
@@ -1377,7 +1557,7 @@
     },
     {
       "name": "theme",
-      "wire": "0100040008020002010000000200000003000000074f4b204d656e750a4241434b20517569636b095031204d656d6f727907503220536176650356464f0b5548462053494d504c4558134d487a202f206469726563742074756e696e67073433332e3530300a572053514c3420312057094c697374656e696e6705372e34305602464d00000004"
+      "wire": "0100070008020002010000000200000003000000074f4b204d656e750a4241434b20517569636b095031204d656d6f727907503220536176650356464f0b5548462053494d504c4558134d487a202f206469726563742074756e696e67073433332e3530300a572053514c3420312057094c697374656e696e6705372e34305602464d00000004"
     },
     {
       "name": "contrast",

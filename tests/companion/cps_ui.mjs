@@ -2,7 +2,7 @@
 // Minimal DOM doubles exercise the real editor's event handlers without a browser dependency.
 import assert from 'node:assert/strict';
 import { CpsEditor } from '../../companion/src/cps.mjs';
-import { canonical, validate } from '../../companion/src/codeplug.mjs';
+import { canonical, validate, THEMES } from '../../companion/src/codeplug.mjs';
 
 class Node {
     constructor(tag) {
@@ -121,3 +121,12 @@ assert.deepEqual(editor.readEditor().document.vfo.fm.rx_tone, {
 });
 assert.equal(canonical(editor.document), baseline);
 console.log('Actual CPS handlers preserve mode/tone controls, including invalid raw drafts');
+editor.switchPanel('global');
+assert.deepEqual(field('Theme').children.map(option => option.value), THEMES);
+for (const theme of THEMES) {
+    field('Theme').value = theme;
+    const draft = editor.readEditor().document;
+    validate(draft);
+    assert.equal(draft.global.ui.theme, theme);
+}
+console.log('Actual CPS editor accepts all seven themes');

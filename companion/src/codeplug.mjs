@@ -1,6 +1,15 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 import { parseJson } from './json.mjs';
 // Browser codeplug validation, cross-checked against tools/codeplug.py.
+export const THEMES = [
+    'midnight',
+    'nord',
+    'solarized-dark',
+    'darcula',
+    'terminal-green',
+    'terminal-amber',
+    'terminal-ice'
+];
 export const FORMAT = 'oe3anc-ht-codeplug';
 export const SCHEMA_VERSION = 1;
 export const MAX_BYTES = 512 * 1024;
@@ -156,7 +165,7 @@ export function validate(document) {
     choice(g.transmit_limit_s, [0, 60, 120, 180], '$.global.transmit_limit_s');
     const ui = g.ui;
     fields(ui, 'theme contrast animations backlight', '$.global.ui');
-    choice(ui.theme, ['midnight', 'nord', 'solarized-dark', 'darcula'], '$.global.ui.theme');
+    choice(ui.theme, THEMES, '$.global.ui.theme');
     choice(ui.contrast, ['normal', 'high', 'maximum'], '$.global.ui.contrast');
     boolean(ui.animations, '$.global.ui.animations');
     const light = ui.backlight;

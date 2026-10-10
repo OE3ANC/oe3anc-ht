@@ -41,6 +41,10 @@ def main():
             document = copy.deepcopy(seed)
             document['schema_version'] = version
             add('schema ' + str(version), json.dumps(document))
+        for theme in (*codeplug.THEMES, 'unknown-theme'):
+            document = copy.deepcopy(seed)
+            document['global']['ui']['theme'] = theme
+            add('theme ' + theme, json.dumps(document))
         mutations = [
             ('duplicate ID', lambda d: d['channels'].append(copy.deepcopy(d['channels'][0]))),
             (

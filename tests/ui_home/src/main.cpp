@@ -456,7 +456,7 @@ ZTEST(ui_home, test_storage_feedback_themes_lock_and_layout_restoration) {
     ui_view_update(model);
     lv_refr_now(display);
     zassert_equal(flush_count, locked_flushes);
-    for (unsigned theme = 0; theme < 4; ++theme) {
+    for (unsigned theme = 0; theme < ThemeCount; ++theme) {
         for (unsigned contrast = 0; contrast < 3; ++contrast) {
             load(false, Mode::Fm, static_cast<Theme>(theme), static_cast<Contrast>(contrast));
             char name[32];

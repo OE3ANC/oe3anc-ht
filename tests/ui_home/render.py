@@ -86,7 +86,7 @@ def main():
                     raise ValueError("Unexpected radio display geometry")
                 frames.append(frame.copy())
         themes = []
-        for theme in range(4):
+        for theme in range(7):
             for contrast in range(3):
                 with Image.open(Path(directory) / f"theme-{theme}-{contrast}.ppm") as frame:
                     themes.append(frame.copy())
@@ -97,9 +97,12 @@ def main():
         draw.text((x, y), caption, font=font, fill="#eaf1f6")
         sheet.paste(frame.resize((480, 384), Image.Resampling.NEAREST), (x, y + 30))
     sheet.save(args.output / "overview.png")
-    theme_sheet = Image.new("RGB", (4 * 496 + 16, 3 * 430 + 16), "#10151e")
+    theme_sheet = Image.new("RGB", (7 * 496 + 16, 3 * 430 + 16), "#10151e")
     theme_draw = ImageDraw.Draw(theme_sheet)
-    for theme, title in enumerate(("Midnight", "Nord", "Solarized Dark", "Darcula")):
+    for theme, title in enumerate(
+        ("Midnight", "Nord", "Solarized Dark", "Darcula",
+         "Terminal Green", "Terminal Amber", "Terminal Ice")
+    ):
         for contrast, level in enumerate(("Normal", "High", "Maximum")):
             frame = themes[theme * 3 + contrast]
             frame.save(args.output / f"theme-{theme}-{contrast}.png")

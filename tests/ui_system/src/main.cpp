@@ -299,7 +299,7 @@ ZTEST(ui_system, test_preview_discard_applied_theme_and_normal_layout_restoratio
 }
 
 ZTEST(ui_system, test_all_theme_contrast_fault_inactive_bounded_and_idle) {
-    for (unsigned theme = 0; theme < 4; ++theme) {
+    for (unsigned theme = 0; theme < ThemeCount; ++theme) {
         for (unsigned contrast = 0; contrast < 3; ++contrast) {
             load(static_cast<Theme>(theme), static_cast<Contrast>(contrast));
             auto state = radio_snapshot();

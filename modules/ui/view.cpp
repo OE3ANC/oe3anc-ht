@@ -458,7 +458,7 @@ void ui_view_update(const UiPresentation &presentation) {
         changed_text(title, "APPEARANCE");
         if (!appearance_visible || preferences.theme != last_theme || !motion) {
             lv_anim_del(selection, selection_y);
-            const int y = 39 + 15 * static_cast<unsigned>(preferences.theme);
+            const int y = 39 + 15 * (static_cast<unsigned>(preferences.theme) % 4);
             if (appearance_visible && motion && preferences.theme != last_theme) {
                 lv_anim_t animation;
                 lv_anim_init(&animation);
@@ -471,10 +471,18 @@ void ui_view_update(const UiPresentation &presentation) {
                 lv_obj_set_y(selection, y);
             }
         }
+        const unsigned first = static_cast<unsigned>(preferences.theme) / 4 * 4;
         for (unsigned row = 0; row < 4; ++row) {
+            const bool present = first + row < ThemeCount;
+            if (present) {
+                lv_obj_clear_flag(theme_rows[row], LV_OBJ_FLAG_HIDDEN);
+            } else {
+                lv_obj_add_flag(theme_rows[row], LV_OBJ_FLAG_HIDDEN);
+            }
             text_color(theme_rows[row], colors.white);
-            changed_text(theme_rows[row],
-                         ui_palette(static_cast<Theme>(row), Contrast::Normal).name);
+            changed_text(
+                theme_rows[row],
+                present ? ui_palette(static_cast<Theme>(first + row), Contrast::Normal).name : "");
         }
         changed_text(detail, lines[6][0] ? lines[6] : lines[1]);
         text_color(detail, presentation.error ? colors.red : colors.muted);

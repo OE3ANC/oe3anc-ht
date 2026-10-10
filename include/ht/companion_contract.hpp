@@ -4,7 +4,7 @@
 #include <stdint.h>
 namespace ht { namespace companion {
 constexpr unsigned MAJOR = 1;
-constexpr unsigned MINOR = 0;
+constexpr unsigned MINOR = 1;
 constexpr unsigned HEADER_SIZE = 20;
 constexpr unsigned MAX_PAYLOAD = 192;
 constexpr unsigned MAX_ENCODED = 219;

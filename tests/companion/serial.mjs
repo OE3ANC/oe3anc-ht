@@ -11,6 +11,7 @@ class Port {
         dropFirst = false,
         mismatch = false,
         versionMismatch = false,
+        legacy = false,
         shortError = false,
         silent = false
     } = {}) {
@@ -35,6 +36,7 @@ class Port {
                         continue;
                     }
                     let major = request.major;
+                    let minor = request.minor;
                     let session = request.session;
                     let payload = Uint8Array.of(C.STATUS_OK);
                     if (request.type === C.MSG_HELLO) {
@@ -62,6 +64,19 @@ class Port {
                             session = 0n;
                             payload = Uint8Array.of(C.STATUS_MISMATCH);
                         }
+                        if (legacy) {
+                            minor = 0;
+                            session = 0n;
+                            if (request.minor !== 0) {
+                                payload = Uint8Array.of(C.STATUS_MISMATCH);
+                            } else {
+                                assert.equal(
+                                    new TextDecoder().decode(request.payload.slice(1, 1 + size)),
+                                    'companion-identify'
+                                );
+                                payload[0] = C.STATUS_MISMATCH;
+                            }
+                        }
                         if (shortError) {
                             session = 0n;
                             payload = Uint8Array.of(C.STATUS_INVALID);
@@ -79,7 +94,7 @@ class Port {
                         })
                     );
                     this.rx.enqueue(
-                        encode({ ...request, flags: C.FLAG_RESPONSE, major, session, payload })
+                        encode({ ...request, flags: C.FLAG_RESPONSE, major, minor, session, payload })
                     );
                 }
             }
@@ -135,6 +150,14 @@ await assert.rejects(connection.connect(version), error =>
 );
 assert.equal(version.writes.length, 1);
 assert.equal(version.closed, 1);
+const legacy = new Port({ legacy: true, mismatch: true });
+await assert.rejects(
+    connection.connect(legacy),
+    error => error.requiredRelease === 'v1.0.0@' + 'a'.repeat(40)
+);
+assert.equal(legacy.writes.length, 2, 'Only HELLO and bounded identity discovery are sent');
+assert.equal(connection.session, 0n);
+assert.equal(legacy.closed, 1);
 const shortError = new Port({ shortError: true });
 await assert.rejects(connection.connect(shortError), /rejected the handshake/);
 assert.equal(shortError.closed, 1);

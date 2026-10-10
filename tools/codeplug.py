@@ -10,6 +10,11 @@ import sys
 FORMAT = 'oe3anc-ht-codeplug'
 SCHEMA_VERSION = 1
 VFO_STEPS_HZ = (1000, 2500, 5000, 6250, 10000, 12500, 20000, 25000, 50000, 100000)
+THEMES = (
+    'midnight', 'nord', 'solarized-dark', 'darcula',
+    'terminal-green', 'terminal-amber', 'terminal-ice',
+)
+
 MAX_BYTES = 512 * 1024
 MAX_ID = 0xFFFFFFFF
 MAX_CHANNELS = 256
@@ -151,7 +156,7 @@ def validate(document):
     choice(global_settings['transmit_limit_s'], (0, 60, 120, 180), '$.global.transmit_limit_s')
     ui = global_settings['ui']
     fields(ui, 'theme contrast animations backlight', '$.global.ui')
-    choice(ui['theme'], ('midnight', 'nord', 'solarized-dark', 'darcula'), '$.global.ui.theme')
+    choice(ui['theme'], THEMES, '$.global.ui.theme')
     choice(ui['contrast'], ('normal', 'high', 'maximum'), '$.global.ui.contrast')
     boolean(ui['animations'], '$.global.ui.animations')
     backlight = ui['backlight']

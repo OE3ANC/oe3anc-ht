@@ -1,7 +1,7 @@
 # Read-only UI snapshots, schema 1
 
 This document, `contract.json` and `ui-fixtures.json` are normative for companion
-protocol 1.0. The payload is presentation data for the existing shared LVGL
+protocol 1.1. The payload is presentation data for the existing shared LVGL
 renderer. It contains no native structs, pointers, LVGL objects, radio commands
 or whole codeplug. Integers are unsigned little-endian; fields have no padding.
 Unknown schema, enum, flags, invalid length/range and trailing bytes are rejected
@@ -62,7 +62,7 @@ Omitted internal fields are reset to their default values by the renderer decode
 | --- | --- | --- |
 | 0 | u8 | Schema, exactly 1 |
 | 1 | u8 | Screen ID from `ui_screens` in `contract.json` (0..28) |
-| 2 | u8 | Theme: Midnight=0, Nord=1, SolarizedDark=2, Darcula=3 |
+| 2 | u8 | Theme: Midnight=0, Nord=1, SolarizedDark=2, Darcula=3, TerminalGreen=4, TerminalAmber=5, TerminalIce=6 |
 | 3 | u8 | Contrast: Normal=0, High=1, Maximum=2 |
 | 4 | u16 | Flags below |
 | 6 | u8 | Form cursor, 0..3 |

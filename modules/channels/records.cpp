@@ -159,8 +159,8 @@ GlobalSettings get_global(Reader &r) {
     const uint8_t contrast = r.u8();
     // Stored preference IDs can outlive a firmware's available palettes. The
     // rest of the codeplug remains recoverable; JSON imports stay strict.
-    g.ui.theme =
-        theme <= static_cast<uint8_t>(Theme::Darcula) ? static_cast<Theme>(theme) : Theme::Midnight;
+    g.ui.theme = theme <= static_cast<uint8_t>(Theme::TerminalIce) ? static_cast<Theme>(theme)
+                                                                   : Theme::Midnight;
     g.ui.contrast = contrast <= static_cast<uint8_t>(Contrast::Maximum)
                         ? static_cast<Contrast>(contrast)
                         : Contrast::Normal;

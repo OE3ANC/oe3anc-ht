@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
+import { THEMES } from './codeplug.mjs';
 import { C } from './protocol.mjs';
 const S = name => C['UI_SCREEN_' + name];
 export function presentationKind(v) {
@@ -131,7 +132,7 @@ function valid(v) {
     if (
         v.screen > S('COMPANION_EXIT') ||
         v.listReturn > S('COMPANION_EXIT') ||
-        v.theme > 3 ||
+        v.theme >= THEMES.length ||
         v.contrast > 2 ||
         v.flags > 1023 ||
         (v.flags & 12) === 12 ||
