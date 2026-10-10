@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="light dark">
   <title>OE3ANC HT companion</title>
+  <script src="./src/theme.js"></script>
   <link rel="stylesheet" href="./style.css">
 </head>
 <body>
@@ -18,6 +19,13 @@
       <div class="release-info">
         <p id="release"></p>
         <a data-release-link href="https://github.com/OE3ANC/oe3anc-ht/releases" target="_blank" rel="noopener noreferrer">Firmware releases ↗</a>
+        <label class="theme-control">Theme
+          <select id="companion-theme">
+            <option value="system">System</option>
+            <option value="light">Light</option>
+            <option value="dark">Dark</option>
+          </select>
+        </label>
       </div>
     </header>
 

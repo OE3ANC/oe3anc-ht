@@ -15,7 +15,7 @@
     font: 16px/1.5 Arial, Helvetica, sans-serif;
     background: #c4cacb;
     color: var(--ink);
-    color-scheme: light dark;
+    color-scheme: light;
 }
 
 body {
@@ -113,6 +113,15 @@ section {
     text-align: right;
     flex-shrink: 0;
     padding-top: .5rem;
+}
+
+.theme-control {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: .5rem;
+    margin-top: .75rem;
+    font-size: .9rem;
 }
 
 .release-info a, .section-heading > a {
@@ -697,44 +706,43 @@ footer {
     font-size: .85rem;
 }
 
-@media (prefers-color-scheme: dark) {
-    :root {
-        --ink: #e4e7e1;
-        --muted: #b1b8af;
-        --panel: #303632;
-        --shell: #262c29;
-        --line: #657067;
-        --display: #131e18;
-        --danger: #ffad91;
-        --focus: #7dd3cf;
-        background: #171c1a;
-    }
+:root[data-theme=dark] {
+    color-scheme: dark;
+    --ink: #e4e7e1;
+    --muted: #b1b8af;
+    --panel: #303632;
+    --shell: #262c29;
+    --line: #657067;
+    --display: #131e18;
+    --danger: #ffad91;
+    --focus: #7dd3cf;
+    background: #171c1a;
+}
 
-    main {
-        background: linear-gradient(145deg, #343b36, var(--shell));
-        border-color: var(--line);
-        box-shadow: inset 0 1px #ffffff14, 0 8px 24px #0005;
-    }
+:root[data-theme=dark] main {
+    background: linear-gradient(145deg, #343b36, var(--shell));
+    border-color: var(--line);
+    box-shadow: inset 0 1px #ffffff14, 0 8px 24px #0005;
+}
 
-    a {
-        color: #aed5c6;
-    }
+:root[data-theme=dark] a {
+    color: #aed5c6;
+}
 
-    main > section {
-        background: #ffffff04;
-        border-color: #535e56;
-    }
+:root[data-theme=dark] main > section {
+    background: #ffffff04;
+    border-color: #535e56;
+}
 
-    button:disabled {
-        background: #303630;
-        color: #969e93;
-        border-color: #535e56;
-        box-shadow: none;
-    }
+:root[data-theme=dark] button:disabled {
+    background: #303630;
+    color: #969e93;
+    border-color: #535e56;
+    box-shadow: none;
+}
 
-    .tool-card {
-        background: #22292455;
-    }
+:root[data-theme=dark] .tool-card {
+    background: #22292455;
 }
 
 @media (max-width: 800px) {
@@ -746,6 +754,10 @@ footer {
     .release-info {
         text-align: left;
         padding: 0;
+    }
+
+    .theme-control {
+        justify-content: flex-start;
     }
 
     .release-info p {
