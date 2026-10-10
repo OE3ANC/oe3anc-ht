@@ -8,13 +8,14 @@
     --display: #202a25;
     --phosphor: #d5e6bd;
     --accent: #e39756;
+    --accent-ink: #242723;
     --danger: #8f321e;
     --focus: #00636e;
     --mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
     font: 16px/1.5 Arial, Helvetica, sans-serif;
     background: #c4cacb;
     color: var(--ink);
-    color-scheme: light;
+    color-scheme: light dark;
 }
 
 body {
@@ -157,7 +158,7 @@ section {
 .task-nav button[aria-selected=true] {
     background: var(--accent);
     border-color: #a86a3c;
-    color: var(--ink);
+    color: var(--accent-ink);
     box-shadow: inset 0 1px #fff6;
 }
 
@@ -249,7 +250,7 @@ button {
     border-radius: .35rem;
     padding: .65rem 1rem;
     background: linear-gradient(#efb582, var(--accent));
-    color: var(--ink);
+    color: var(--accent-ink);
     box-shadow: inset 0 1px #fffa, 0 1px 2px #2223;
     cursor: pointer;
 }
@@ -523,12 +524,13 @@ fieldset {
 
 .keypad-grid button[data-key="4"]:not(:disabled) {
     background: var(--accent);
+    color: var(--accent-ink);
 }
 
 .keypad-grid button[aria-pressed=true] {
     background: var(--accent);
     border-color: var(--ink);
-    color: var(--ink);
+    color: var(--accent-ink);
     box-shadow: inset 0 1px 2px #0002;
 }
 
@@ -692,6 +694,59 @@ footer {
     padding-top: 1.5rem;
     color: var(--muted);
     font-size: .85rem;
+}
+
+@media (prefers-color-scheme: dark) {
+    :root {
+        --ink: #e4e7e1;
+        --muted: #b1b8af;
+        --panel: #303632;
+        --shell: #262c29;
+        --line: #657067;
+        --display: #131e18;
+        --danger: #ffad91;
+        --focus: #7dd3cf;
+        background: #171c1a;
+    }
+
+    main {
+        background: linear-gradient(145deg, #343b36, var(--shell));
+        border-color: var(--line);
+        box-shadow: inset 0 1px #ffffff14, 0 8px 24px #0005;
+    }
+
+    a {
+        color: #aed5c6;
+    }
+
+    main > section {
+        background: #ffffff04;
+        border-color: #535e56;
+    }
+
+    button {
+        border-color: #a86a3c;
+    }
+
+    button, .file-button {
+        box-shadow: inset 0 1px #ffffff24, 0 1px 2px #0004;
+    }
+
+    button.secondary, button[aria-pressed=false] {
+        background: linear-gradient(#3b443d, #303831);
+        border-color: var(--line);
+    }
+
+    button:disabled {
+        background: #303630;
+        color: #969e93;
+        border-color: #535e56;
+        box-shadow: none;
+    }
+
+    .tool-card {
+        background: #22292455;
+    }
 }
 
 @media (max-width: 800px) {

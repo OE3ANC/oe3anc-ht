@@ -14,6 +14,9 @@ The companion uses a restrained plastic-console style: low-profile keys, thin
 borders, shallow shadows and recessed display glass. System fonts and CSS keep
 the site self-contained. LVGL also offers Terminal Green, Terminal Amber and
 Terminal Ice palettes on the radio and in the shared live renderer.
+The companion shell follows the desktop/browser light or dark preference and
+updates immediately when it changes, using CSS `prefers-color-scheme`.
+The radio display keeps its selected LVGL palette independently.
 
 The Channels, Radio and Firmware tabs show one workspace at a time. Connection
 status stays visible. Tab switching preserves editor drafts and ongoing transfers;
