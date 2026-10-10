@@ -11,6 +11,7 @@ target_include_directories(app PRIVATE include)
 target_sources(app PRIVATE app/main.cpp)
 if(CONFIG_BOARD_C62)
   target_sources(app PRIVATE backends/c62/memory.c)
+  target_compile_options(app PRIVATE -fstack-usage)
   zephyr_compile_definitions(PSRAM_CHIP_SIZE=4)
 endif()
 target_compile_options(app PRIVATE

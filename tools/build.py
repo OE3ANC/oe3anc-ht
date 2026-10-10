@@ -35,6 +35,47 @@ def verify_sdk(path):
         raise RuntimeError(f"{path}: expected SDK 0.16.1, found {version}")
 
 
+def verify_c62_boot_stack(build):
+    config = dict(
+        line.split('=', 1)
+        for line in (build / 'zephyr/.config').read_text().splitlines()
+        if line.startswith('CONFIG_') and '=' in line
+    )
+    if config.get('CONFIG_HT_SETTINGS') != 'y':
+        return
+
+    # Check the hardware-reproduced overflow path with the actual ARM frames.
+    # Reserve 512 bytes for decoder helpers, kernel entry and exception context;
+    # this focused regression guard is not a whole-program stack bound.
+    def frame(path, signature):
+        for line in (build / path).read_text().splitlines():
+            location, size, kind = line.split('\t')
+            if location.endswith(signature):
+                if kind != 'static':
+                    raise RuntimeError(f'Unbounded boot stack frame: {signature}')
+                return int(size)
+        raise RuntimeError(f'Missing boot stack frame: {signature}')
+
+    settings = 'modules/ht/settings/CMakeFiles/ht_settings.dir/'
+    records = 'modules/ht/channels/CMakeFiles/ht_channels.dir/records.cpp.su'
+    required = (
+        frame('CMakeFiles/app.dir/app/main.cpp.su', 'int main()')
+        + frame(settings + 'service.cpp.su', 'int ht::settings_start(RadioConfig&, Selection&)')
+        + frame(settings + 'codeplug_store.cpp.su', 'int ht::codeplug_load(Codeplug&, uint32_t&)')
+        + max(
+            frame(records, 'int ht::decode_manifest(const uint8_t*, size_t, uint32_t, '
+                  'CodeplugManifest&)'),
+            frame(records, 'int ht::decode_channel(const uint8_t*, size_t, uint32_t, Channel&)'),
+            frame(records, 'int ht::decode_bank(const uint8_t*, size_t, uint32_t, Bank&)'),
+        )
+        + 512
+    )
+    available = int(config['CONFIG_MAIN_STACK_SIZE'])
+    if required > available:
+        raise RuntimeError(f'C62 boot stack requires {required} bytes; configured {available}')
+    print(f'C62 boot stack: {required} bytes including reserve / {available} configured')
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('target', choices=('c62', 'emulator'))
@@ -157,6 +198,8 @@ def main():
     ]
     subprocess.run(command, env=env, check=True)
     subprocess.run(['cmake', '--build', str(build)], env=env, check=True)
+    if args.target == 'c62' and args.app.resolve() == ROOT:
+        verify_c62_boot_stack(build)
 
 
 if __name__ == '__main__':

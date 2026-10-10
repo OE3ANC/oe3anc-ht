@@ -16,6 +16,48 @@ spec.loader.exec_module(build)
 
 
 class BuildChecks(unittest.TestCase):
+    def test_c62_boot_stack_rejects_the_reported_2k_overflow(self):
+        # ARM frames from the failing release path, including its callers.
+        reports = {
+            'CMakeFiles/app.dir/app/main.cpp.su': 'int main()\t456\tstatic\n',
+            'modules/ht/settings/CMakeFiles/ht_settings.dir/service.cpp.su':
+                'int ht::settings_start(RadioConfig&, Selection&)\t304\tstatic\n',
+            'modules/ht/settings/CMakeFiles/ht_settings.dir/codeplug_store.cpp.su':
+                'int ht::codeplug_load(Codeplug&, uint32_t&)\t80\tstatic\n',
+            'modules/ht/channels/CMakeFiles/ht_channels.dir/records.cpp.su':
+                'int ht::decode_manifest(const uint8_t*, size_t, uint32_t, CodeplugManifest&)'
+                '\t1272\tstatic\n'
+                'int ht::decode_channel(const uint8_t*, size_t, uint32_t, Channel&)'
+                '\t160\tstatic\n'
+                'int ht::decode_bank(const uint8_t*, size_t, uint32_t, Bank&)'
+                '\t1096\tstatic\n',
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            directory = Path(directory)
+            for name, contents in reports.items():
+                path = directory / name
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text(contents)
+            config = directory / 'zephyr/.config'
+            config.parent.mkdir()
+            config.write_text('CONFIG_HT_SETTINGS=y\nCONFIG_MAIN_STACK_SIZE=2048\n')
+            with self.assertRaisesRegex(RuntimeError, 'requires 2624 bytes; configured 2048'):
+                build.verify_c62_boot_stack(directory)
+            config.write_text('CONFIG_HT_SETTINGS=y\nCONFIG_MAIN_STACK_SIZE=4096\n')
+            build.verify_c62_boot_stack(directory)
+            # A parser/call-path change must not silently remove a frame from the check.
+            path.write_text('')
+            with self.assertRaisesRegex(RuntimeError, 'Missing boot stack frame'):
+                build.verify_c62_boot_stack(directory)
+
+    def test_c62_boot_stack_without_settings_needs_no_decoder_reports(self):
+        with tempfile.TemporaryDirectory() as directory:
+            directory = Path(directory)
+            config = directory / 'zephyr/.config'
+            config.parent.mkdir()
+            config.write_text('# CONFIG_HT_SETTINGS is not set\nCONFIG_MAIN_STACK_SIZE=2048\n')
+            build.verify_c62_boot_stack(directory)
+
     def test_dependency_revision_and_dirty_files_are_rejected(self):
         with tempfile.TemporaryDirectory() as directory:
             repo = Path(directory)
