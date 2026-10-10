@@ -279,8 +279,8 @@ static int tune(uint32_t hz) {
 }
 
 static int tone(const struct bk4819_tone *selection, bool transmit) {
-    /* Own mode/width/source/polarity fields while preserving gain, automatic
-     * bandwidth and unrelated low fields. Disable TX until word writes finish. */
+    /* Own mode/width/source/polarity fields while preserving automatic bandwidth
+     * and unrelated low fields. Disable TX until word writes finish. */
     const uint16_t mode = selection->kind == BK4819_TONE_CTCSS ? 0x1000 : 0;
     int error = update(0x51, 0xfc00, mode);
     if (error || selection->kind == BK4819_TONE_NONE) {
@@ -301,7 +301,12 @@ static int tone(const struct bk4819_tone *selection, bool transmit) {
     }
     if (!error && transmit) {
         const uint16_t polarity = selection->inverted ? 0x2000 : 0;
-        error = update(0x51, 0xa000, 0x8000 | polarity);
+        /* REG_51[6:0] resets to minimum gain; enabling the tone alone leaves
+         * its level unset. Provisional values from egzumer's BK4819 driver:
+         * CTCSS 74, DCS 51. C62 sub-audio deviation still needs bench calibration.
+         * https://github.com/egzumer/uv-k5-firmware-custom/blob/main/driver/bk4819.c */
+        const uint16_t gain = selection->kind == BK4819_TONE_CTCSS ? 74 : 51;
+        error = update(0x51, 0xa07f, 0x8000 | polarity | gain);
     }
     return error;
 }

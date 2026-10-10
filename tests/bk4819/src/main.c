@@ -81,7 +81,7 @@ ZTEST(bk4819, test_fm_voice_protection_and_m17_round_trip) {
     registers[0x2b] = 0x8707; // Seed bypasses; retain RX and unrelated fields.
     registers[0x47] = 0x6043;
     registers[0x4b] = 0x7122;
-    registers[0x51] = 0x0155; // Preserve the sub-audio gain and bandwidth fields.
+    registers[0x51] = 0x0155; // Keep bandwidth fields, replace stale TX gain.
     const uint16_t microphone_gain = registers[0x7d];
     const uint16_t deviation = registers[0x40];
 
@@ -94,7 +94,7 @@ ZTEST(bk4819, test_fm_voice_protection_and_m17_round_trip) {
         zassert_equal(registers[0x4b], 0x7102);
         zassert_equal(registers[0x7d], microphone_gain);
         zassert_equal(registers[0x40], deviation);
-        zassert_equal(registers[0x51], 0x9155);
+        zassert_equal(registers[0x51], 0x914a);
         zassert_equal(registers[0x07], 1827);
 
         config.m17 = true;
@@ -220,6 +220,47 @@ ZTEST(bk4819, test_high_ctcss_tone_does_not_overflow_and_disable_clears_tx_tone)
     bool detected;
     zassert_ok(bk4819_tone_detected(&detected));
     zassert_true(detected);
+}
+
+ZTEST(bk4819, test_tx_tone_gain_from_reset_and_after_tone_changes) {
+    struct bk4819_config config = fm(145500000);
+    config.tx_tone = (struct bk4819_tone){BK4819_TONE_CTCSS, 1622, false};
+    config.rx_tone = (struct bk4819_tone){BK4819_TONE_CTCSS, 885, false};
+    zassert_equal(registers[0x51], 0); // Real reset gain is minimum, not a calibrated level.
+    zassert_ok(bk4819_configure(&config));
+    zassert_ok(bk4819_transmit());
+    zassert_equal(registers[0x07], 3349); // 162.2 Hz, 26 MHz crystal family.
+    zassert_equal(registers[0x51], 0x904a);
+    zassert_ok(bk4819_receive());
+    zassert_equal(registers[0x07], 1827);
+    zassert_equal(registers[0x51], 0x104a); // RX must not enable tone transmission.
+
+    config.tx_tone = (struct bk4819_tone){BK4819_TONE_DCS, 0023, true};
+    zassert_ok(bk4819_configure(&config));
+    registers[0x51] |= 0x0380; // Automatic-bandwidth and reserved fields remain intact.
+    zassert_ok(bk4819_transmit());
+    zassert_equal(registers[0x51], 0xa3b3);
+    config.tx_tone = (struct bk4819_tone){BK4819_TONE_CTCSS, 1622, false};
+    zassert_ok(bk4819_configure(&config));
+    zassert_ok(bk4819_transmit());
+    zassert_equal(registers[0x51], 0x93ca);
+    config.tx_tone = (struct bk4819_tone){0};
+    zassert_ok(bk4819_configure(&config));
+    zassert_ok(bk4819_transmit());
+    zassert_equal(registers[0x51] & 0x8000, 0);
+}
+
+ZTEST(bk4819, test_tx_tone_gain_write_failure_keeps_pa_off) {
+    struct bk4819_config config = fm(145500000);
+    config.tx_tone = (struct bk4819_tone){BK4819_TONE_CTCSS, 1622, false};
+    zassert_ok(bk4819_configure(&config));
+    fail_address = 0x51;
+    fail_value = 0x904a; // Final tone enable/gain write, after the frequency word.
+    zassert_equal(bk4819_transmit(), -EIO);
+    zassert_true(failed);
+    zassert_false(keyed_at_failure);
+    zassert_equal(registers[0x33], 0);
+    zassert_equal(registers[0x51] & 0x8000, 0);
 }
 
 ZTEST(bk4819, test_digital_profile_preserves_unrelated_bits_and_restores_fm) {
