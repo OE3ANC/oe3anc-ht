@@ -10,6 +10,9 @@ Build output is self-contained in `companion/dist/`; serve it over HTTPS or
 localhost. Firmware and companion must have an exact release identity match for
 live UI/connected CPS. Bootloader tools and offline editing work independently.
 
+The cassette-inspired shell uses warm instrument panels, orange controls and dark
+display fields, with system fonts and CSS only (no external assets).
+
 The Channels, Radio and Firmware tabs show one workspace at a time. Connection
 status stays visible. Tab switching preserves editor drafts and ongoing transfers;
 leaving Radio pauses live polling and releases virtual keys. Use Left/Right or
