@@ -109,7 +109,8 @@ section {
     border-bottom: 1px solid #334151;
 }
 
-.task-nav a {
+.task-nav button {
+    background: transparent;
     color: #e9eef5;
     text-decoration: none;
     padding: .55rem 1rem;
@@ -117,9 +118,20 @@ section {
     border-radius: .4rem;
 }
 
-.task-nav a:hover {
+.task-nav button:hover {
     border-color: #66d9cc;
     background: #18212c;
+}
+
+.task-nav button[aria-selected=true] {
+    background: #66d9cc;
+    border-color: #66d9cc;
+    color: #10151d;
+}
+
+[role=tabpanel]:focus-visible {
+    outline: 3px solid #ffc76a;
+    outline-offset: 4px;
 }
 
 .skip-link {
@@ -151,6 +163,10 @@ main > section {
 
 .connection h2 {
     font-size: 1.1rem;
+}
+
+.connection p {
+    margin-bottom: .5rem;
 }
 
 .connection p:last-child {
@@ -668,7 +684,7 @@ footer {
         gap: .3rem;
     }
 
-    .task-nav a {
+    .task-nav button {
         padding: .5rem;
         font-size: .83rem;
     }

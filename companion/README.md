@@ -10,9 +10,12 @@ Build output is self-contained in `companion/dist/`; serve it over HTTPS or
 localhost. Firmware and companion must have an exact release identity match for
 live UI/connected CPS. Bootloader tools and offline editing work independently.
 
-The page groups codeplug file actions separately from radio transfers, places the
-live display beside its keypad and keeps backup/update/calibration tools together
-under Firmware tools. Reset and full restore are in the Recovery disclosure.
+The Channels, Radio and Firmware tabs show one workspace at a time. Connection
+status stays visible. Tab switching preserves editor drafts and ongoing transfers;
+leaving Radio pauses live polling and releases virtual keys. Use Left/Right or
+Home/End on the tab bar, or link directly to `#cps`, `#live-ui` or `#firmware-tools`.
+Setup details are expandable, with flash risks and destructive confirmations kept
+visible in Firmware. Reset and full restore are in the Recovery disclosure.
 Tagged companions link directly to their matching GitHub firmware release;
 development previews link to the releases list. A version mismatch also links
 to the release required by the connected radio.

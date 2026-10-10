@@ -323,7 +323,7 @@ export class VirtualKeypad {
             );
         }
         this.status.textContent = available
-            ? 'Keypad ready. Use arrow keys, Enter, Escape, digits, * and # when focused here. Hold ★ to lock the keypad. Keys do not auto-repeat.'
-            : 'Connect the matching firmware and keep live view running to enable the keypad. Controls pause when this tab is inactive.';
+            ? 'Keypad ready'
+            : 'Keypad paused';
     }
 }

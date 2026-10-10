@@ -281,7 +281,7 @@ export class CpsEditor {
         this.recordId = 0;
         this.dirtyForm = false;
         this.render();
-        this.message('Codeplug loaded locally. No radio settings have been changed.');
+        this.message('Loaded locally · Radio unchanged.');
     }
 
     async importFile(input) {
@@ -327,7 +327,7 @@ export class CpsEditor {
             anchor.click();
             anchor.remove();
             setTimeout(() => URL.revokeObjectURL(url), 1000);
-            this.message('JSON download prepared. You can share this file yourself.');
+            this.message('Codeplug exported.');
         } catch (error) {
             this.message(error.message, true);
         }
@@ -422,7 +422,7 @@ export class CpsEditor {
                 this.dirtyForm = false;
                 this.creationDraft = null;
                 this.render();
-                this.message('Editor reset to the applied codeplug values.');
+                this.message('Unsaved edits discarded.');
             })
         );
     }

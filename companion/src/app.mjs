@@ -7,6 +7,7 @@ import { ConnectedCps } from './connected-cps.mjs';
 import { LiveUi } from './live-ui.mjs';
 import { FirmwareTools } from './firmware-tools.mjs';
 import { releaseTag, githubReleaseUrl } from './release-links.mjs';
+import { setupToolTabs } from './tabs.mjs';
 
 const editor = new CpsEditor(document.querySelector('#cps'));
 const connect = document.querySelector('#connect');
@@ -19,7 +20,7 @@ document.querySelector('#release').textContent = `Companion ${release.label}`;
 for (const link of document.querySelectorAll('[data-release-link]')) {
     const url = githubReleaseUrl(release.identity);
     link.href = url ?? 'https://github.com/OE3ANC/oe3anc-ht/releases';
-    link.textContent = url ? `Download ${release.label} firmware ↗` : 'Browse firmware releases ↗';
+    link.textContent = url ? `Firmware ${release.label} ↗` : 'Firmware releases ↗';
 }
 
 let connecting = false;
@@ -49,6 +50,7 @@ const firmwareTools = new FirmwareTools(document.querySelector('#firmware-tools'
     available: () => !connecting && !connection.port,
     changed: updatePortButtons
 });
+setupToolTabs(document, () => liveUi.update());
 if (!('serial' in navigator)) {
     connect.disabled = true;
     status.textContent = 'Serial connections require a desktop browser with Web Serial support.';

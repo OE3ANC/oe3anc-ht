@@ -30,7 +30,7 @@ export class LiveUi {
     }
 
     refresh() {
-        if (!this.session || this.paused || this.polling === this.generation) {
+        if (!this.session || this.paused || this.root.hidden || this.polling === this.generation) {
             return;
         }
         clearTimeout(this.timer);
@@ -47,7 +47,7 @@ export class LiveUi {
         const c = this.connection;
         const available = !!c.session && !!(c.info?.capabilities & C.CAP_UI_SNAPSHOT);
         this.pause.disabled = !available;
-        if (!available || this.paused) {
+        if (!available || this.paused || this.root.hidden) {
             clearTimeout(this.timer);
             this.generation++;
             this.session = 0n;
@@ -55,8 +55,9 @@ export class LiveUi {
             this.stale(
                 available
                     ? 'Live view paused.'
-                    : 'Connect the matching firmware to use the live display.'
+                    : 'Connect your radio to view its display.'
             );
+            this.keypad.update();
             return;
         }
         if (this.session === c.session) {
@@ -106,7 +107,7 @@ export class LiveUi {
                 this.root.classList.remove('stale');
                 this.active = true;
                 this.freshAt = performance.now();
-                this.status.textContent = `Live radio display · revision ${result.revision}`;
+                this.status.textContent = 'Live';
                 if (!this.animation) {
                     this.animate();
                 }

@@ -14,24 +14,21 @@
       <div>
         <p class="eyebrow">OE3ANC HT · C62</p>
         <h1>Radio companion</h1>
-        <p class="hint">Program channels, control your radio and manage firmware.</p>
       </div>
       <div class="release-info">
         <p id="release"></p>
         <a data-release-link href="https://github.com/OE3ANC/oe3anc-ht/releases" target="_blank" rel="noopener noreferrer">Firmware releases ↗</a>
       </div>
     </header>
-    <nav class="task-nav" aria-label="Companion tools">
-      <a href="#cps">Channel programming</a>
-      <a href="#live-ui">Remote control</a>
-      <a href="#firmware-tools">Firmware tools</a>
-    </nav>
 
     <section id="connection" class="connection" aria-labelledby="connection-title">
       <div>
-        <h2 id="connection-title">Radio connection</h2>
-        <p>For programming and remote control, enable <strong>Companion</strong> on the radio, then connect the cable.</p>
-        <p class="hint">Use the companion matching your firmware. Unplug before confirming Done on the radio.</p>
+        <h2 id="connection-title">Connection</h2>
+        <p>Enable <strong>Companion</strong> on the radio, then connect.</p>
+        <details class="connection-notes">
+          <summary>Connection help</summary>
+          <p>Use the companion matching your firmware. To exit, unplug the cable before confirming Done on the radio.</p>
+        </details>
       </div>
       <div class="connection-controls">
         <div class="actions">
@@ -46,12 +43,16 @@
       </div>
     </section>
 
-    <section id="cps" aria-labelledby="cps-title">
+    <nav class="task-nav" role="tablist" aria-label="Companion tools">
+      <button type="button" id="tab-cps" role="tab" aria-controls="cps" aria-selected="true">Channels</button>
+      <button type="button" id="tab-live-ui" role="tab" aria-controls="live-ui" aria-selected="false" tabindex="-1">Radio</button>
+      <button type="button" id="tab-firmware-tools" role="tab" aria-controls="firmware-tools" aria-selected="false" tabindex="-1">Firmware</button>
+    </nav>
+
+    <section id="cps" role="tabpanel" aria-labelledby="tab-cps" tabindex="0">
       <div class="section-heading">
         <div>
-          <p class="eyebrow">Channel programming</p>
-          <h2 id="cps-title">Codeplug editor</h2>
-          <p>Edit channels, banks and radio settings. A codeplug is the complete set of these settings.</p>
+          <h2 id="cps-title">Channels &amp; settings</h2>
         </div>
         <p id="cps-summary" class="summary"></p>
       </div>
@@ -59,20 +60,19 @@
         <div class="tool-group">
           <h3>Codeplug file</h3>
           <div class="actions">
-            <button id="cps-new" class="secondary" type="button">New codeplug</button>
+            <button id="cps-new" class="secondary" type="button">New</button>
             <label class="file-button">Import JSON<input id="cps-import" type="file" accept=".json,application/json"></label>
             <button id="cps-export" class="secondary" type="button">Export JSON</button>
           </div>
-          <p class="hint">Work offline and keep or share your codeplug as a JSON file.</p>
         </div>
         <div class="tool-group">
           <h3>Radio transfer</h3>
           <div class="actions">
             <button id="cps-read" type="button" disabled>Read from radio</button>
-            <button id="cps-write" type="button" disabled>Review and write to radio</button>
-            <button id="cps-cancel" class="secondary" type="button" disabled>Cancel transfer</button>
+            <button id="cps-write" type="button" disabled>Write to radio…</button>
+            <button id="cps-cancel" class="secondary" type="button" disabled>Cancel</button>
           </div>
-          <p id="cps-radio-status" role="status" aria-live="polite">Connect to review a write. The radio is read automatically if needed. A write replaces its complete codeplug.</p>
+          <p id="cps-radio-status" role="status" aria-live="polite">Offline editing · Writing replaces all radio channels and settings.</p>
         </div>
       </div>
       <nav class="actions cps-tabs" aria-label="Codeplug sections">
@@ -85,7 +85,7 @@
       <div id="cps-content"></div>
       <details id="cps-preview">
         <summary>View codeplug JSON</summary>
-        <p>Apply your edits to update this preview. Export downloads the complete codeplug.</p>
+        <p>Apply edits to update the preview.</p>
         <label class="cps-field">Codeplug JSON<textarea id="cps-json" rows="12" readonly spellcheck="false"></textarea></label>
       </details>
       <p id="cps-status" role="status" aria-live="polite">Editing local codeplug.</p>
@@ -102,15 +102,13 @@
       </dialog>
     </section>
 
-    <section id="live-ui" class="stale" aria-labelledby="live-ui-title">
-      <p class="eyebrow">Remote control</p>
-      <h2 id="live-ui-title">Display and keypad</h2>
-      <p>See the radio's current screen and use its front-panel keys. Navigation and edits happen on the radio.</p>
+    <section id="live-ui" class="stale" role="tabpanel" aria-labelledby="tab-live-ui" tabindex="0" hidden>
+      <h2 id="live-ui-title">Display &amp; keypad</h2>
       <div class="remote-layout">
         <div class="radio-screen">
           <canvas width="160" height="128" aria-label="Radio display"></canvas>
           <button type="button" class="secondary" disabled>Pause live view</button>
-          <p role="status" aria-live="polite">Connect the matching firmware to use the live display.</p>
+          <p role="status" aria-live="polite">Connect your radio to view its display.</p>
         </div>
       <div id="radio-keypad" tabindex="0" aria-label="Virtual radio keypad">
         <div class="keypad-grid">
@@ -136,28 +134,29 @@
         <p role="status" aria-live="polite"></p>
       </div>
       </div>
-      <p class="hint">Focus the keypad to use keyboard shortcuts. Leaving Companion mode must be confirmed on the radio after unplugging.</p>
+      <details>
+        <summary>Keyboard shortcuts</summary>
+        <p>Focus the keypad, then use arrows, Enter, Escape, digits, * and #. Hold ★ to lock. Keys do not auto-repeat.</p>
+      </details>
     </section>
 
-    <section id="firmware-tools" aria-labelledby="firmware-title">
+    <section id="firmware-tools" role="tabpanel" aria-labelledby="tab-firmware-tools" tabindex="0" hidden>
       <div class="section-heading">
         <div>
-          <p class="eyebrow">Firmware maintenance</p>
-          <h2 id="firmware-title">Firmware tools</h2>
-          <p>Back up flash, install firmware or inspect factory calibration through the C62 bootloader.</p>
+          <h2 id="firmware-title">Firmware</h2>
         </div>
         <a data-release-link href="https://github.com/OE3ANC/oe3anc-ht/releases" target="_blank" rel="noopener noreferrer">Firmware releases ↗</a>
       </div>
       <p class="warning">Use this software at your own risk. Flashing or restoring firmware may brick your device or cause data loss. The project authors and contributors accept no responsibility for resulting damage or loss.</p>
       <div class="boot-connection">
         <h3>Bootloader connection</h3>
-        <p>Disconnect the radio connection above. Enter manual bootloader mode, attach the programming cable and release physical PTT before connecting here.</p>
+        <p>Disconnect above, enter bootloader mode and attach the cable. Release PTT before connecting.</p>
         <div class="actions">
           <button type="button" data-boot-connect>Connect bootloader</button>
           <button type="button" class="secondary" data-boot-close disabled>Disconnect bootloader</button>
           <button type="button" class="secondary" data-boot-cancel disabled>Cancel operation</button>
         </div>
-        <p data-firmware-status role="status" aria-live="polite">Bootloader disconnected. Select firmware or backup files for review without connecting.</p>
+        <p data-firmware-status role="status" aria-live="polite">Bootloader disconnected.</p>
         <progress max="1" value="0" aria-label="Bootloader operation progress"></progress>
         <details class="connection-notes">
           <summary>Cable and bootloader notes</summary>
@@ -169,28 +168,30 @@
       <div class="firmware-grid">
         <div class="tool-card">
           <h3>1. Back up the radio</h3>
-          <p>Save a verified copy of the complete flash before making changes. Keep the downloaded file for recovery of this same radio.</p>
+          <p>Save a complete backup before updating. Keep it for recovery of this radio.</p>
           <button type="button" data-flash-backup disabled>Download complete backup</button>
-          <p class="hint">An interrupted or failed read does not produce a successful backup.</p>
         </div>
         <div class="tool-card">
           <h3>2. Install firmware</h3>
-          <p>Download the firmware ZIP from the matching GitHub release and extract <code>firmware-bundle.json</code>. Select it here, then review the images and addresses before flashing.</p>
+          <p>Select <code>firmware-bundle.json</code> from the extracted release ZIP.</p>
           <div class="actions">
             <label class="file-button">Select firmware bundle<input data-bundle-file type="file" accept=".json,application/json"></label>
             <button type="button" data-flash-update disabled>Review firmware update</button>
           </div>
           <p data-bundle-status class="hint">No firmware bundle selected.</p>
-          <p class="hint">Choose application + DSP for the first install. Application-only updates require a matching DSP. Normal updates preserve settings and calibration.</p>
+          <p class="hint">First install: application + DSP. Updates preserve settings and calibration.</p>
         </div>
         <div class="tool-card calibration-card">
           <h3>Factory calibration</h3>
-          <p>Read the factory power-calibration tables without changing them. PWM duty percentages are not measured RF watts.</p>
+          <p>Read-only power tables. PWM duty is not measured RF power.</p>
           <div class="actions">
             <button type="button" class="secondary" data-factory-read disabled>Read calibration tables</button>
             <button type="button" class="secondary" data-factory-download disabled>Download raw factory region</button>
           </div>
-          <p class="hint">Table inspection verifies the 64 KiB journal at 0x3B0000–0x3C0000. The raw download separately reads and verifies the entire factory region to the end of flash.</p>
+          <details>
+            <summary>Region details</summary>
+            <p>Tables: the 64 KiB journal at 0x3B0000–0x3C0000. Raw download: the entire factory region to the end of flash. Both reads are verified.</p>
+          </details>
           <div data-calibration></div>
         </div>
       </div>
@@ -199,10 +200,10 @@
         <div class="firmware-grid">
           <div class="tool-card">
             <h3>Reset settings and codeplug</h3>
-            <p>Use this for a read-only store caused by unsupported development settings (C62 load error -134).</p>
+            <p>Recover a protected settings store (load error -134).</p>
             <p class="error">Deletes all saved settings, channels and banks. Firmware, DSP and factory calibration are preserved.</p>
             <button type="button" class="secondary" data-settings-reset disabled>Review settings reset</button>
-            <p class="hint">Resets and verifies 0x308000–0x347FFF. Reboot afterward, then read the radio again before writing a codeplug.</p>
+            <p class="hint">After reset, reboot and read the radio before writing a codeplug.</p>
           </div>
           <div class="tool-card">
             <h3>Restore complete backup</h3>

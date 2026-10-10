@@ -220,6 +220,7 @@ def main():
     subprocess.run([args.node, str(ROOT / 'tests/companion/presentation-wire.mjs')], check=True)
     subprocess.run([args.node, str(ROOT / 'tests/companion/ui-transfer.mjs')], check=True)
     subprocess.run([args.node, str(ROOT / 'tests/companion/keys.mjs')], check=True)
+    subprocess.run([args.node, str(ROOT / 'tests/companion/tabs.mjs')], check=True)
     subprocess.run([args.node, str(ROOT / 'tests/companion/ptt.mjs')], check=True)
 
 

@@ -47,12 +47,12 @@ export class ConnectedCps {
             const result = progress.result;
             this.message(
                 result.state === C.CPS_STATE_ACCEPTED
-                    ? 'Replacement accepted; waiting for the radio.'
+                    ? 'Waiting for the radio…'
                     : result.state === C.CPS_STATE_DURABLE
-                      ? `Codeplug applied and durably saved (revision ${result.revision}, generation ${result.generation}).`
+                      ? 'Codeplug saved on the radio.'
                       : result.state === C.CPS_STATE_FAILED
                         ? `Replacement rejected: ${statusText(result.error)}. Your local draft is retained.`
-                        : `Codeplug applied (revision ${result.revision}); ${result.saveError ? `save failed: ${statusText(result.saveError)}. The radio will retry.` : 'durable save is pending.'}`,
+                        : `Codeplug applied; ${result.saveError ? `save failed: ${statusText(result.saveError)}. The radio will retry.` : 'saving…'}`,
                 !!result.error || !!result.saveError
             );
         }
@@ -65,10 +65,10 @@ export class ConnectedCps {
             const baseline = await pending;
             this.update();
             this.message(
-                `Radio read complete: revision ${baseline.revision}, generation ${baseline.generation}${baseline.pending ? '; unsaved radio changes' : ''}${baseline.protected ? '; protected settings' : ''}.`
+                `Radio read complete${baseline.pending ? '; unsaved radio changes' : ''}${baseline.protected ? '; protected settings' : ''}.`
             );
             this.editor.confirm(
-                'Load the complete radio codeplug into this editor? Export first to keep your current draft. Cancel keeps your local draft and still permits a reviewed write using this fresh radio read.',
+                'Replace your local draft with the radio codeplug? Export first to keep it. Cancel keeps your draft.',
                 () => this.editor.replace(baseline.document, 'radio-codeplug.json')
             );
         } catch (error) {
@@ -95,7 +95,7 @@ export class ConnectedCps {
             }
             let baseline = this.transfer.baseline;
             if (!baseline || baseline.session !== this.connection.session) {
-                this.message('Reading the radio for comparison. Your local draft is retained.');
+                this.message('Reading radio for comparison · Draft kept.');
                 const pending = this.transfer.read();
                 this.update();
                 baseline = await pending;
@@ -144,7 +144,7 @@ export class ConnectedCps {
             dialog.querySelector('#cps-before').value = canonical(old);
             dialog.querySelector('#cps-after').value = canonical(replacement);
             this.editor.confirm(
-                `Replace the complete radio codeplug read at revision ${baseline.revision}? ${changes.length ? changes.join('; ') : 'No setting differences.'} Calibration is outside this codeplug. Continue writes these reviewed values; Cancel keeps your local draft.`,
+                `Replace all radio channels and settings? ${changes.length ? changes.join('; ') : 'No setting differences.'} Calibration is preserved. Continue writes these changes.`,
                 () => {
                     if (this.transfer.baseline !== baseline) {
                         this.message('The radio read changed; review again.', true);
