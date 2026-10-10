@@ -10,8 +10,8 @@ Build output is self-contained in `companion/dist/`; serve it over HTTPS or
 localhost. Firmware and companion must have an exact release identity match for
 live UI/connected CPS. Bootloader tools and offline editing work independently.
 
-The companion uses a restrained plastic-console style: low-profile keys, thin
-borders, shallow shadows and recessed display glass. System fonts and CSS keep
+The companion uses a restrained plastic-console style: flat buttons matching the
+selected tab, thin borders, faint highlights and recessed display glass. System fonts and CSS keep
 the site self-contained. LVGL also offers Terminal Green, Terminal Amber and
 Terminal Ice palettes on the radio and in the shared live renderer.
 The companion shell follows the desktop/browser light or dark preference and

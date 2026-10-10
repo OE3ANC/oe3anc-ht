@@ -246,17 +246,17 @@ main > section {
 
 button {
     font: 500 .95rem/1.4 Arial, Helvetica, sans-serif;
-    border: 1px solid var(--ink);
-    border-radius: .35rem;
-    padding: .65rem 1rem;
-    background: linear-gradient(#efb582, var(--accent));
+    border: 1px solid #a86a3c;
+    border-radius: .3rem;
+    padding: .55rem 1rem;
+    background: var(--accent);
     color: var(--accent-ink);
-    box-shadow: inset 0 1px #fffa, 0 1px 2px #2223;
+    box-shadow: inset 0 1px #fff6;
     cursor: pointer;
 }
 
 button.secondary, button[aria-pressed=false] {
-    background: linear-gradient(#eaeae4, #d7d8d0);
+    background: var(--panel);
     color: var(--ink);
     border-color: var(--line);
 }
@@ -307,17 +307,18 @@ input[type=checkbox] {
 
 .file-button {
     background: var(--panel);
-    box-shadow: inset 0 1px #fffa, 0 1px 2px #2223;
+    box-shadow: inset 0 1px #fff6;
     font-weight: 500;
     position: relative;
     display: inline-flex;
     align-items: center;
-    padding: .6rem 1rem;
+    padding: .55rem 1rem;
     border: 1px solid var(--line);
-    border-radius: .35rem;
+    border-radius: .3rem;
     cursor: pointer;
     color: var(--ink);
     font-size: .95rem;
+    line-height: 1.4;
 }
 
 .file-button input {
@@ -722,19 +723,6 @@ footer {
     main > section {
         background: #ffffff04;
         border-color: #535e56;
-    }
-
-    button {
-        border-color: #a86a3c;
-    }
-
-    button, .file-button {
-        box-shadow: inset 0 1px #ffffff24, 0 1px 2px #0004;
-    }
-
-    button.secondary, button[aria-pressed=false] {
-        background: linear-gradient(#3b443d, #303831);
-        border-color: var(--line);
     }
 
     button:disabled {
