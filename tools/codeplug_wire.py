@@ -1,13 +1,13 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""Explicit HTDB manifest v2 / channel-bank v1 Linux-profile codec; no native struct layout is serialized."""
+"""Explicit HTDB manifest v3 / channel-bank v1 Linux-profile codec; no native struct layout is serialized."""
 import json
 import struct
 import zlib
 
 import codeplug
 
-MAX_RECORD = 1188
-MAX_PROFILE = 1188 + 256 * 87 + 16 * 1071
+MAX_RECORD = 1189
+MAX_PROFILE = 1189 + 256 * 87 + 16 * 1071
 
 
 def string(value, size):
@@ -54,7 +54,7 @@ def configuration(value):
 
 
 def envelope(kind, payload, generation=1):
-    header = b'HTDB' + struct.pack('<BBHI', 2 if kind == 1 else 1, kind, len(payload) + 16, generation)
+    header = b'HTDB' + struct.pack('<BBHI', 3 if kind == 1 else 1, kind, len(payload) + 16, generation)
     return header + struct.pack('<I', zlib.crc32(header + payload)) + payload
 
 
@@ -96,7 +96,8 @@ def manifest(value, generation=1):
     )
     for item in value['channels'] + value['banks']:
         payload += struct.pack('<I', item['id'])
-    payload += struct.pack('<IB', g['vfo_step_hz'], g.get('fm_ctcss_level', 74))
+    payload += struct.pack('<IBB', g['vfo_step_hz'], g.get('fm_ctcss_level', 74),
+                           g.get('lna_inverted', False))
     return envelope(1, payload, generation)
 
 
@@ -179,7 +180,7 @@ class Reader:
         payload = self.get(size - 16)
         if zlib.crc32(header[:12] + payload) != checksum:
             codeplug.fail(self.label, 'record CRC mismatch')
-        if version != 1 and not (kind == 1 and version == 2):
+        if version != 1 and not (kind == 1 and version in (2, 3)):
             codeplug.fail(self.label, f'unsupported binary version {version}')
         if found_kind != kind or not found_generation or generation not in (None, found_generation):
             codeplug.fail(self.label, 'record kind/generation mismatch')
@@ -276,7 +277,8 @@ def decode(data):
     channel_ids = [first.unpack('<I')[0] for _ in range(channel_count)]
     bank_ids = [first.unpack('<I')[0] for _ in range(bank_count)]
     global_settings['vfo_step_hz'] = first.unpack('<I')[0]
-    global_settings['fm_ctcss_level'] = first.unpack('<B')[0] if first.version == 2 else 74
+    global_settings['fm_ctcss_level'] = first.unpack('<B')[0] if first.version >= 2 else 74
+    global_settings['lna_inverted'] = first.boolean() if first.version >= 3 else False
     first.finish()
     channels, banks = [], []
     for index, expected_id in enumerate(channel_ids):

@@ -1,8 +1,8 @@
-# CPS binary payload version 2
+# CPS binary payload version 3
 
 This is the normative complete-codeplug encoding for the companion protocol's CPS capability.
 JSON schema 1 remains file interchange. Firmware need not parse JSON. Binary
-v2 reuses the explicitly serialized HTDB record layout below, with **wire
+v3 reuses the explicitly serialized HTDB record layout below, with **wire
 generation always 1**. RAM/storage revisions are transfer metadata, independent
 of this binary version, JSON schema and application protocol version. Changes
 to this layout require paired definition/implementation/fixture updates.
@@ -20,14 +20,14 @@ A payload concatenates one manifest, its channels in manifest ID order, then
 its banks in manifest ID order. Record-array order carries no additional
 meaning; ordered bank membership is preserved. Browser writes sort channels
 by number and banks by ID. Radio reads may use the owner's existing record order.
-The maximum is `1188 + 256*87 + 16*1071 = 40596` bytes.
+The maximum is `1189 + 256*87 + 16*1071 = 40597` bytes.
 
 Each record starts with:
 
 | Offset | Size | Field |
 | --- | --- | --- |
 | 0 | 4 | ASCII HTDB |
-| 4 | 1 | Record version 2 for manifest; version 1 for channel and bank |
+| 4 | 1 | Record version 3 for manifest; version 1 for channel and bank |
 | 5 | 1 | Manifest kind 1, channel kind 2, bank kind 3 |
 | 6 | 2 | Total record length including 16-byte header |
 | 8 | 4 | Wire generation 1 |
@@ -37,8 +37,8 @@ Manifest payload, in order: channel high-water:u32, bank high-water:u32,
 channel count:u16 (0..256), bank count:u8 (0..16), global settings (19 bytes),
 selection (9 bytes), VFO operating configuration (40 bytes), channel IDs:u32
 times channel count, bank IDs:u32 times bank count, VFO step Hz:u32,
-global FM CTCSS level:u8 (0..127, default 74; raw TX gain, not Hz).
-Its length is `100 + 4*(channel count + bank count)`.
+global FM CTCSS level:u8 (0..127, default 74; raw TX gain, not Hz), global LNA inversion:bool (default false).
+Its length is `101 + 4*(channel count + bank count)`.
 
 Global settings in order: local callsign[10], gain:u8, transmit limit seconds:u16,
 theme:u8 (midnight=0, nord=1, solarized-dark=2, darcula=3,
@@ -70,11 +70,12 @@ rejection vectors for the real C++/JavaScript codecs. Regenerate with
 checks freshness and runs both codecs. Maximum capacity, field semantics and
 canonical JSON round trips are included.
 
-Protocol 1.2 requires this v2 manifest on the live CPS wire; a v1 manifest is
-rejected before mutation. Local storage and host profile tools may read the public
-v1 manifest (ending after VFO step), supplying CTCSS level 74; subsequent saves
-write v2. JSON schema 1 gains optional `global.fm_ctcss_level`, defaulting to 74
-when absent; canonical exports include it. Old companion releases reject this
-new field and must not be used to edit these exports. Earlier firmware cannot
-read a v2 stored manifest; export a backup before downgrading. Channel and bank
-records, CTCSS frequencies, and DCS gain remain unchanged.
+Protocol 1.3 requires this v3 manifest on the live CPS wire; v1/v2 manifests are
+rejected before mutation. Local storage and host profile readers accept v1/v2,
+defaulting LNA inversion to false (and CTCSS level to 74 for v1). Subsequent saves
+write v3. JSON schema 1 adds optional `global.lna_inverted`, defaulting to false;
+canonical exports include it. It inverts only BK4819 GPIO0/1 polarity in RX, TX,
+idle and shutdown, for both FM and M17. It is global across VFO and memories.
+Older companion releases reject the new JSON field, and earlier firmware cannot
+read v3 stored manifests; export a backup before downgrading. Channel and bank
+records are unchanged.

@@ -46,6 +46,10 @@ def main():
             document['global']['ui']['theme'] = theme
             add('theme ' + theme, json.dumps(document))
         mutations = [
+            ('inverted LNA', lambda d: d['global'].update(lna_inverted=True)),
+            ('integer LNA polarity', lambda d: d['global'].update(lna_inverted=1)),
+            ('null LNA polarity', lambda d: d['global'].update(lna_inverted=None)),
+            ('missing LNA polarity defaults', lambda d: d['global'].pop('lna_inverted')),
             ('null global', lambda d: d.update({'global': None})),
             ('integer global', lambda d: d.update({'global': 1})),
             ('boolean global', lambda d: d.update({'global': True})),

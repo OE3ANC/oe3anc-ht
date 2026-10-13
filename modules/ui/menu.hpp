@@ -30,6 +30,7 @@ enum MenuItem {
     FmWeakFilterItem,
     FmAfDacGainItem,
     FmCtcssLevelItem,
+    LnaPolarityItem,
     MenuCount
 };
 

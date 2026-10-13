@@ -347,11 +347,11 @@ ZTEST(channels, test_vfo_step_wire_defaults_and_validation) {
         plug.global.vfo_step_hz = step;
         zassert_ok(make_manifest(plug, manifest));
         zassert_ok(encode_manifest(manifest, 1, bytes, sizeof(bytes), written));
-        zassert_equal(bytes[4], 2);
+        zassert_equal(bytes[4], 3);
         zassert_ok(decode_manifest(bytes, written, 1, manifest));
         zassert_equal(manifest.global.vfo_step_hz, step);
     }
-    sys_put_le32(0, bytes + written - 5);
+    sys_put_le32(0, bytes + written - 6);
     checksum();
     const auto previous = manifest.global.vfo_step_hz;
     zassert_equal(decode_manifest(bytes, written, 1, manifest), -EBADMSG);
@@ -366,12 +366,12 @@ ZTEST(channels, test_ctcss_level_manifest_versions_and_validation) {
     zassert_ok(encode_manifest(manifest, 1, bytes, sizeof(bytes), written));
     zassert_ok(decode_manifest(bytes, written, 1, manifest));
     zassert_equal(manifest.global.fm_ctcss_level, 127);
-    bytes[written - 1] = 128;
+    bytes[written - 2] = 128;
     checksum();
     zassert_equal(decode_manifest(bytes, written, 1, manifest), -EBADMSG);
     zassert_equal(manifest.global.fm_ctcss_level, 127);
     // Public v1 ended after VFO step. Loading must preserve it and default the new field.
-    --written;
+    written -= 2;
     bytes[4] = 1;
     sys_put_le16(written, bytes + 6);
     checksum();
@@ -380,6 +380,24 @@ ZTEST(channels, test_ctcss_level_manifest_versions_and_validation) {
     zassert_equal(manifest.global.vfo_step_hz, 12500);
     plug.global.fm_ctcss_level = 128;
     zassert_equal(validate_codeplug(plug), -EINVAL);
+}
+
+ZTEST(channels, test_lna_polarity_manifest_and_v2_default) {
+    plug.global.lna_inverted = true;
+    zassert_ok(make_manifest(plug, manifest));
+    zassert_ok(encode_manifest(manifest, 1, bytes, sizeof(bytes), written));
+    zassert_ok(decode_manifest(bytes, written, 1, manifest));
+    zassert_true(manifest.global.lna_inverted);
+    bytes[written - 1] = 2;
+    checksum();
+    zassert_equal(decode_manifest(bytes, written, 1, manifest), -EBADMSG);
+    zassert_true(manifest.global.lna_inverted);
+    --written;
+    bytes[4] = 2;
+    sys_put_le16(written, bytes + 6);
+    checksum();
+    zassert_ok(decode_manifest(bytes, written, 1, manifest));
+    zassert_false(manifest.global.lna_inverted);
 }
 
 ZTEST_SUITE(channels, nullptr, nullptr, before, nullptr, nullptr);

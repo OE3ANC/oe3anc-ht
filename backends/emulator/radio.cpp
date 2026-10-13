@@ -30,7 +30,7 @@ static int operation() {
     return error;
 }
 
-int backend_init() {
+int backend_init(const RadioConfig &) {
     const int error = operation();
     if (error) {
         return error;

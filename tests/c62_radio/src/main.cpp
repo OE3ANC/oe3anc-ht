@@ -20,6 +20,7 @@
 using namespace ht;
 static RadioController controller;
 static uint16_t registers[128];
+static uint16_t expected_lna_off = 0x60;
 static uint8_t duty;
 static bool speaker;
 static bool green;
@@ -105,7 +106,7 @@ extern "C" int bk4819_read(uint8_t address, uint16_t *value) {
 extern "C" int bk4819_write(uint8_t address, uint16_t value) {
     ++register_writes;
     if (address == 0x33 && (value & 0x18)) {
-        zassert_equal(value & 0x60, 0x60, "PA enabled with an RX LNA active");
+        zassert_equal(value & 0x60, expected_lna_off, "PA enabled with an RX LNA active");
         if (atomic_get(&ptt_released)) {
             atomic_inc(&keyed_after_release);
         }
@@ -280,6 +281,28 @@ ZTEST(c62_radio, test_rx_register_snapshot_is_read_only_bounded_and_refreshed_af
     controller.poll();
     zassert_false(controller.state().rx_registers.valid);
     zassert_equal(register_reads[0x13], reads_before_diagnostics);
+}
+
+ZTEST(c62_radio, test_lna_polarity_guards_and_driver_value) {
+    RadioCommand command;
+    command.kind = CommandKind::LnaPolarity;
+    command.expected_generation = controller.state().generation;
+    command.expected_revision = controller.state().configuration_revision;
+    command.selection = controller.state().selection;
+    command.config.lna_inverted = true;
+    expected_lna_off = 0;
+    zassert_ok(controller.execute(command));
+    zassert_true(controller.state().config.lna_inverted);
+    zassert_equal(controller.execute(command), -ESTALE);
+    command.expected_revision = controller.state().configuration_revision;
+    command.config.lna_inverted = false;
+    set_ptt(true);
+    zassert_equal(registers[0x33] & 0x60, 0);
+    zassert_equal(controller.execute(command), -EBUSY);
+    set_ptt(false);
+    expected_lna_off = 0x60;
+    zassert_ok(controller.execute(command));
+    zassert_false(controller.state().config.lna_inverted);
 }
 
 ZTEST(c62_radio, test_ctcss_level_guards_and_driver_value) {
@@ -850,7 +873,7 @@ ZTEST(c62_radio, test_z_failures_stop_tx_and_latch_until_reboot) {
     set_ptt(true);
     stopped();
     zassert_equal(controller.state().phase, RadioPhase::Fault);
-    zassert_not_equal(backend_init(), 0);
+    zassert_not_equal(backend_init(controller.state().config), 0);
     atomic_set(&stall_audio_stop, 0);
     k_sem_give(&audio_stop_block);
 }

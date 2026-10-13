@@ -261,7 +261,7 @@ ZTEST(codeplug_storage, test_full_capacity_round_trip) {
 #ifndef CONFIG_HT_SETTINGS_NVS
     struct stat info;
     zassert_ok(stat(path, &info));
-    zassert_equal(info.st_size, 40596);
+    zassert_equal(info.st_size, 40597);
 #endif
 }
 

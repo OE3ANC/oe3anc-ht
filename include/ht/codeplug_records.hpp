@@ -14,7 +14,7 @@ constexpr size_t channel_record_size =
 constexpr size_t bank_record_max =
     codeplug_envelope_size + 4 + radio_name_size + 2 + 4 * channel_capacity;
 constexpr size_t manifest_record_max =
-    codeplug_envelope_size + 84 + 4 * (channel_capacity + bank_capacity);
+    codeplug_envelope_size + 85 + 4 * (channel_capacity + bank_capacity);
 constexpr size_t codeplug_record_max = manifest_record_max;
 static_assert(bank_record_max <= codeplug_record_max, "Record scratch must hold a full bank");
 static_assert(codeplug_record_max <= 4064, "C62 pinned NVS sector payload limit");

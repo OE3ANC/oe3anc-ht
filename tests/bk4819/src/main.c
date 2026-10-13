@@ -6,6 +6,7 @@
 #include <zephyr/ztest.h>
 
 static uint16_t registers[128];
+static uint16_t expected_lna_off = 0x60;
 static int fail_address = -1;
 static bool fail_read;
 static bool failed;
@@ -47,7 +48,7 @@ int bk4819_write(uint8_t address, uint16_t value) {
         return -EIO;
     }
     if (address == 0x33 && (value & 0x18)) {
-        zassert_equal(value & 0x60, 0x60, "PA enabled with an RX LNA active");
+        zassert_equal(value & 0x60, expected_lna_off, "PA enabled with an RX LNA active");
     }
     registers[address] = value;
     if (address == 0x08) {
@@ -67,6 +68,8 @@ static void before(void *unused) {
     keyed_at_failure = false;
     fail_read = failed = false;
     dcs_high = dcs_low = 0;
+    bk4819_set_lna_inverted(false);
+    expected_lna_off = 0x60;
     zassert_ok(bk4819_initialize());
 }
 
@@ -485,6 +488,53 @@ ZTEST(bk4819, test_dcs_write_failure_unkeys_and_failed_detector_retains_output) 
         zassert_equal(bk4819_tone_detected(&detected), -EIO);
         zassert_true(detected);
     }
+}
+
+ZTEST(bk4819, test_inverted_lna_all_states_and_failure_cleanup) {
+    expected_lna_off = 0;
+    struct bk4819_config config = fm(145500000);
+    config.lna_inverted = true;
+    for (unsigned mode = 0; mode < 2; ++mode) {
+        config.m17 = mode;
+        for (unsigned band = 0; band < 2; ++band) {
+            config.rx_frequency_hz = config.tx_frequency_hz = band ? 430000000 : 145500000;
+            zassert_ok(bk4819_configure(&config));
+            zassert_equal(registers[0x33], 0);
+            zassert_ok(bk4819_receive());
+            zassert_equal(registers[0x33], band ? 0x20 : 0x40);
+            zassert_ok(bk4819_transmit());
+            zassert_equal(registers[0x33], band ? 0x0c : 0x14);
+            zassert_ok(bk4819_disable());
+            zassert_equal(registers[0x33], 0);
+        }
+    }
+    zassert_ok(bk4819_initialize());
+    zassert_equal(registers[0x33], 0);
+    zassert_ok(bk4819_configure(&config));
+    fail_address = 0x30;
+    fail_value = 0xc1fe;
+    zassert_equal(bk4819_transmit(), -EIO);
+    zassert_true(failed);
+    zassert_equal(registers[0x33], 0);
+    zassert_ok(bk4819_gpio_off());
+    zassert_equal(registers[0x33], 0);
+    config.lna_inverted = false;
+    expected_lna_off = 0x60;
+    zassert_ok(bk4819_configure(&config));
+    zassert_equal(registers[0x33], 0x60);
+}
+
+ZTEST(bk4819, test_saved_inversion_applies_before_initialize_and_its_failure) {
+    bk4819_set_lna_inverted(true);
+    expected_lna_off = 0;
+    zassert_ok(bk4819_initialize());
+    zassert_equal(registers[0x33], 0);
+    fail_address = 0x37;
+    zassert_equal(bk4819_initialize(), -EIO);
+    zassert_true(failed);
+    zassert_equal(registers[0x33], 0);
+    bk4819_set_lna_inverted(false);
+    expected_lna_off = 0x60;
 }
 
 ZTEST_SUITE(bk4819, NULL, NULL, before, NULL, NULL);

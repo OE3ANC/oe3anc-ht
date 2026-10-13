@@ -83,7 +83,8 @@ static int health() {
     return error ? error : m17_status().error;
 }
 
-int backend_init() {
+int backend_init(const RadioConfig &config) {
+    bk4819_set_lna_inverted(config.lna_inverted);
     backend_stop();
     if (peripheral_error) {
         return peripheral_error;
@@ -127,7 +128,8 @@ int backend_configure(const RadioConfig &config, const FmRxControls &controls) {
                               config.tx_inhibit,           driver_tone(config.rx_tone),
                               driver_tone(config.tx_tone), config.bandwidth == Bandwidth::Wide,
                               config.mode == Mode::M17,    controls.weak_filter,
-                              config.fm_ctcss_level,       controls.af_dac_gain};
+                              config.fm_ctcss_level,       config.lna_inverted,
+                              controls.af_dac_gain};
     error = bk4819_configure(&radio);
     configured = error == 0;
     if (!error) {
@@ -384,8 +386,8 @@ int backend_write_register(uint8_t address, uint16_t value) {
     }
     int error = bk4819_write(address, value);
     if (address == 0) {
-        // A diagnostic reset must leave PAs off and active-low RX LNAs disabled.
-        const int unkey_error = bk4819_write(0x33, 0x0060);
+        // A diagnostic reset must leave PAs and LNAs off using the selected polarity.
+        const int unkey_error = bk4819_gpio_off();
         if (!error) {
             error = unkey_error;
         }

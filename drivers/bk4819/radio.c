@@ -14,6 +14,8 @@ static struct bk4819_config configuration;
 static bool digital;
 static bool initialized;
 static bool configured;
+/* Retained across reinitialization so fault/power shutdown uses the selected polarity. */
+static bool lna_inverted;
 
 struct register_value {
     uint8_t address;
@@ -59,9 +61,22 @@ static int update(uint8_t address, uint16_t mask, uint16_t value) {
     return error ? error : bk4819_write(address, (previous & ~mask) | (value & mask));
 }
 
+void bk4819_set_lna_inverted(bool inverted) {
+    lna_inverted = inverted;
+}
+
+static int write_gpio(uint16_t value) {
+    return bk4819_write(0x33, value ^ (lna_inverted ? 0x0060 : 0));
+}
+
+int bk4819_gpio_off(void) {
+    return write_gpio(0x0060);
+}
+
 static int write_table(const struct register_value *table, size_t count) {
     for (size_t i = 0; i < count; ++i) {
-        const int error = bk4819_write(table[i].address, table[i].value);
+        const int error = table[i].address == 0x33 ? write_gpio(table[i].value)
+                                                 : bk4819_write(table[i].address, table[i].value);
         if (error) {
             return error;
         }
@@ -71,8 +86,8 @@ static int write_table(const struct register_value *table, size_t count) {
 
 int bk4819_disable(void) {
     /* Direct write: unkeying cannot depend on a successful read first. The
-     * C62 LNA controls are active-low: keep both high while PAs and TX LED are off. */
-    const int pa_error = bk4819_write(0x33, 0x0060);
+     * C62 LNA controls default to active-low; apply the selected polarity. */
+    const int pa_error = bk4819_gpio_off();
     const int rf_error = bk4819_write(0x30, 0);
     const int dac_error = bk4819_write(0x30, 1U << 9);
     const int tone_error = update(0x51, 0x8000, 0);
@@ -218,6 +233,7 @@ int bk4819_configure(const struct bk4819_config *config) {
         return -EINVAL;
     }
     configured = false;
+    lna_inverted = config->lna_inverted;
     int error = bk4819_disable();
     if (!error) {
         error = bk4819_af(false);
@@ -319,7 +335,7 @@ int bk4819_receive(void) {
     int error = bk4819_disable();
     if (!error) {
         /* Stock C62 RX selects the band by driving its LNA control low. */
-        error = bk4819_write(0x33, configuration.rx_frequency_hz <= 174000000 ? 0x0020 : 0x0040);
+        error = write_gpio(configuration.rx_frequency_hz <= 174000000 ? 0x0020 : 0x0040);
     }
     if (!error) {
         error = tune(configuration.rx_frequency_hz);
@@ -355,7 +371,7 @@ int bk4819_transmit(void) {
     }
     if (!error) {
         /* Disable both active-low RX LNAs before enabling the selected PA. */
-        error = bk4819_write(0x33, configuration.tx_frequency_hz <= 174000000 ? 0x0074 : 0x006c);
+        error = write_gpio(configuration.tx_frequency_hz <= 174000000 ? 0x0074 : 0x006c);
     }
     if (!error) {
         error = bk4819_write(0x30, 0);

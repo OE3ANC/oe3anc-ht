@@ -274,6 +274,30 @@ ZTEST(ui_menu, test_workflow_order_wrap_capabilities_and_physical_actions) {
     }
 }
 
+ZTEST(ui_menu, test_lna_polarity_is_global_saved_and_locked_during_tx) {
+    load(true);
+    const auto selection = radio_snapshot().selection;
+    find("Invert LNA GPIOs");
+    key(UiKey::Right);
+    tick();
+    zassert_equal(radio_snapshot().config.lna_inverted, true);
+    zassert_true(same_selection(selection, radio_snapshot().selection));
+    zassert_true(settings_status().pending);
+    render("lna-polarity");
+    radio_ptt(true);
+    radio_service();
+    key(UiKey::Right);
+    zassert_equal(model.error(), -EBUSY);
+    radio_ptt(false);
+    tick(10000);
+    tick(10001);
+    RadioConfig config;
+    Selection restored;
+    zassert_ok(settings_start(config, restored));
+    zassert_equal(config.lna_inverted, true);
+    zassert_true(same_selection(selection, restored));
+}
+
 ZTEST(ui_menu, test_ctcss_level_is_global_saved_and_locked_during_tx) {
     load(true);
     const auto selection = radio_snapshot().selection;

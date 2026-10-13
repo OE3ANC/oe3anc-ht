@@ -129,7 +129,7 @@ int RadioController::start(const RadioConfig &config, bool power_active,
         state_.phase = RadioPhase::Inactive;
         return 0;
     }
-    error = backend_init();
+    error = backend_init(state_.config);
     if (error) {
         return fail(error);
     }
@@ -215,6 +215,21 @@ int RadioController::execute(const RadioCommand &command) {
                         : configure(config, state_.fm_rx_controls);
             break;
         }
+        case CommandKind::LnaPolarity:
+            if (command.expected_generation != state_.generation ||
+                command.expected_revision != state_.configuration_revision ||
+                !same_selection(command.selection, state_.selection)) {
+                error = -ESTALE;
+            } else if (state_.phase != RadioPhase::Receiving || ptt_ || radio_ptt_requested()) {
+                error = -EBUSY;
+            } else if (!backend_capabilities().registers) {
+                error = -ENOTSUP;
+            } else if (state_.config.lna_inverted != command.config.lna_inverted) {
+                RadioConfig config = state_.config;
+                config.lna_inverted = command.config.lna_inverted;
+                error = configure(config, state_.fm_rx_controls);
+            }
+            break;
         case CommandKind::FmCtcssLevel:
             if (command.expected_generation != state_.generation ||
                 command.expected_revision != state_.configuration_revision ||
@@ -301,7 +316,7 @@ int RadioController::execute(const RadioCommand &command) {
             if (state_.phase != RadioPhase::Diagnostics || ptt_) {
                 error = -EBUSY;
             } else {
-                error = backend_init();
+                error = backend_init(state_.config);
                 if (error) {
                     fail(error);
                 } else {
@@ -463,7 +478,7 @@ void RadioController::set_power(bool active) {
         fail(state_.fault);
         return;
     }
-    const int error = backend_init();
+    const int error = backend_init(state_.config);
     if (error) {
         fail(error);
     } else if (!radio_power_requested()) {

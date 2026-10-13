@@ -131,6 +131,11 @@ for (const theme of THEMES) {
 }
 console.log('Actual CPS editor accepts all seven themes');
 
+assert.equal(field('Invert LNA GPIOs').checked, false);
+field('Invert LNA GPIOs').checked = true;
+assert.equal(validate(editor.readEditor().document).global.lna_inverted, true);
+assert.equal(canonical(editor.document), baseline);
+
 assert.equal(field('FM CTCSS level').value, '74');
 for (const level of [0, 74, 127]) {
     field('FM CTCSS level').value = String(level);

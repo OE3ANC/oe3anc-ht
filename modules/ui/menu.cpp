@@ -14,7 +14,8 @@ unsigned menu_item_at(unsigned position) {
         OperatingItem,     FrequencyItem,   VfoStepItem,      QuickControlsItem, BacklightItem,
         TransmitLimitItem, CallsignItem,    StatusItem,       ModeItem,          BandwidthItem,
         SquelchItem,       PowerItem,       RxToneItem,       TxToneItem,        GainItem,
-        FmWeakFilterItem,  FmAfDacGainItem, FmCtcssLevelItem, CompanionItem,     DiagnosticsItem};
+        FmWeakFilterItem,  FmAfDacGainItem, FmCtcssLevelItem, LnaPolarityItem,   CompanionItem,
+        DiagnosticsItem};
     static_assert(sizeof(order) / sizeof(order[0]) == MenuCount,
                   "Every menu identity needs one position");
     return order[position];
@@ -35,6 +36,9 @@ unsigned menu_move(unsigned current, Mode mode, int direction) {
 }
 
 bool menu_available(unsigned item, Mode mode) {
+    if (item == LnaPolarityItem) {
+        return backend_capabilities().registers;
+    }
     if (item == FmCtcssLevelItem) {
         return mode == Mode::Fm && backend_capabilities().ctcss;
     }
@@ -65,7 +69,8 @@ bool menu_available(unsigned item, Mode mode) {
 }
 
 bool menu_inline(unsigned item) {
-    return item == FmCtcssLevelItem || item == FmWeakFilterItem || item == FmAfDacGainItem ||
+    return item == LnaPolarityItem || item == FmCtcssLevelItem || item == FmWeakFilterItem ||
+           item == FmAfDacGainItem ||
            item == CompanionItem || item == ModeItem || item == BandwidthItem ||
            item == PowerItem || item == RxToneItem || item == TxToneItem
 #ifndef CONFIG_HT_CODEPLUG_STORAGE
@@ -84,6 +89,9 @@ void menu_label(unsigned item, const RadioState &state, uint32_t step, char (&va
         snprintf(value, sizeof(value), "FM weak BW: %u.%02uk", hz / 1000, hz % 1000 / 10);
         break;
     }
+    case LnaPolarityItem:
+        snprintf(value, sizeof(value), "Invert LNA GPIOs: %s", config.lna_inverted ? "on" : "off");
+        break;
     case FmCtcssLevelItem:
         snprintf(value, sizeof(value), "FM CTCSS level: %u", state.config.fm_ctcss_level);
         break;
@@ -177,6 +185,7 @@ void UiModel::menu_page(UiListPage &page) const {
     page = {};
     strcpy(page.title, "MENU");
     strcpy(page.detail, state_.phase == RadioPhase::Transmitting ? "TX / read-only actions"
+                        : selected_ == LnaPolarityItem           ? "Global / RX, TX and idle"
                         : selected_ == FmCtcssLevelItem          ? "Global / 0-127 / default 74"
                         : selected_ == FmWeakFilterItem || selected_ == FmAfDacGainItem
                             ? "FM RX test / until reboot"

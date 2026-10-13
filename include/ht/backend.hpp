@@ -33,7 +33,7 @@ struct BackendStatus {
 // calls these functions; observations from other contexts are synchronized
 // inside the backend. No backend may retain borrowed configuration pointers.
 const RadioCapabilities &backend_capabilities();
-int backend_init();
+int backend_init(const RadioConfig &config);
 int backend_configure(const RadioConfig &config, const FmRxControls &controls);
 int backend_receive();
 // Transient FM RX gating only. stop/configure must discard this override.

@@ -150,9 +150,11 @@ def validate(document):
     fields(
         global_settings,
         'local_callsign gain transmit_limit_s ui vfo_step_hz'
-        + (' fm_ctcss_level' if 'fm_ctcss_level' in global_settings else ''),
+        + (' fm_ctcss_level' if 'fm_ctcss_level' in global_settings else '')
+        + (' lna_inverted' if 'lna_inverted' in global_settings else ''),
         '$.global',
     )
+    boolean(global_settings.get('lna_inverted', False), '$.global.lna_inverted')
     integer(global_settings.get('fm_ctcss_level', 74), 0, 127, '$.global.fm_ctcss_level')
     choice(global_settings['vfo_step_hz'], VFO_STEPS_HZ, '$.global.vfo_step_hz')
     callsign(global_settings['local_callsign'], '$.global.local_callsign', allow_empty=True)
@@ -218,7 +220,7 @@ def validate(document):
     if selection['bank_id'] is not None and selection['channel_id'] is not None:
         if selection['channel_id'] not in banks[selection['bank_id']]['channel_ids']:
             fail('$.selection.channel_id', 'selected channel is outside the selected bank')
-    return {**document, "global": {"fm_ctcss_level": 74, **global_settings}}
+    return {**document, "global": {"fm_ctcss_level": 74, "lna_inverted": False, **global_settings}}
 
 
 def load(path):

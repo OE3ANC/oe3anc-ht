@@ -80,7 +80,7 @@ class ProfileTests(unittest.TestCase):
         original = wire.encode(self.example(), 1)
         length = struct.unpack_from('<H', original, 6)[0]
         header = bytearray(original[:12])
-        header[4] = 3
+        header[4] = 4
         struct.pack_into('<H', header, 6, length - 4)
         payload = original[16 : length - 4]
         old = (
@@ -95,7 +95,7 @@ class ProfileTests(unittest.TestCase):
         self.assertEqual(generation, 1)
         for step in (0, 1, 0xFFFFFFFF):
             damaged = bytearray(original)
-            struct.pack_into('<I', damaged, length - 5, step)
+            struct.pack_into('<I', damaged, length - 6, step)
             struct.pack_into('<I', damaged, 12, zlib.crc32(damaged[:12] + damaged[16:length]))
             with self.assertRaisesRegex(codeplug.InvalidCodeplug, 'vfo_step_hz'):
                 wire.decode(damaged)
@@ -107,8 +107,8 @@ class ProfileTests(unittest.TestCase):
         length = struct.unpack_from('<H', original, 6)[0]
         header = bytearray(original[:12])
         header[4] = 1
-        struct.pack_into('<H', header, 6, length - 1)
-        payload = original[16:length - 1]
+        struct.pack_into('<H', header, 6, length - 2)
+        payload = original[16:length - 2]
         legacy = bytes(header) + struct.pack('<I', zlib.crc32(header + payload)) + payload + original[length:]
         decoded, generation = wire.decode(legacy)
         self.assertEqual(generation, 1)

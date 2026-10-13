@@ -249,6 +249,14 @@ void UiModel::menu(int direction) {
     command.config = state_.config;
     auto &config = command.config;
     switch (selected_) {
+    case LnaPolarityItem:
+        command.kind = CommandKind::LnaPolarity;
+        config.lna_inverted = !config.lna_inverted;
+        command.expected_generation = state_.generation;
+        command.expected_revision = state_.configuration_revision;
+        command.selection = state_.selection;
+        submit(command);
+        return;
     case FmCtcssLevelItem: {
         const int next = int(config.fm_ctcss_level) + direction;
         if (next < 0 || next > 127) {

@@ -25,16 +25,20 @@ struct bk4819_config {
     bool m17;
     uint8_t fm_weak_filter; /* REG_43[11:9], 0..7. Ignored in M17. */
     uint8_t fm_ctcss_level; /* REG_51[6:0], 0..127. Use 74 for the baseline. */
+    bool lna_inverted; /* Invert GPIO0/1 in RX, TX and idle. */
     uint8_t fm_af_dac_gain; /* REG_48[3:0], 0..15. Use 1 for the baseline. */
 };
 
 /* One controller-owned transceiver. No borrowed configuration is retained.
  * Frequencies are requested Hz; the synthesizer rounds down to 10 Hz.
  * Every operation reports GPIO/transport errors to its owner. */
+/* Set before initialization so error shutdown also uses the requested polarity. */
+void bk4819_set_lna_inverted(bool inverted);
 int bk4819_initialize(void);
 int bk4819_configure(const struct bk4819_config *config);
 int bk4819_receive(void);
 int bk4819_transmit(void); /* Caller sets APC and prepares audio before keying. */
+int bk4819_gpio_off(void); /* Direct GPIO shutdown using the configured LNA polarity. */
 int bk4819_disable(void);  /* PA/LNA/LED GPIOs go inactive before other writes. */
 int bk4819_af(bool enabled);
 int bk4819_rssi(int16_t *dbm);

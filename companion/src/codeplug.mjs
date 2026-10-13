@@ -162,7 +162,8 @@ export function validate(document) {
     fields(
         g,
         'local_callsign gain transmit_limit_s ui vfo_step_hz' +
-            (Object.hasOwn(g, 'fm_ctcss_level') ? ' fm_ctcss_level' : ''),
+            (Object.hasOwn(g, 'fm_ctcss_level') ? ' fm_ctcss_level' : '') +
+            (Object.hasOwn(g, 'lna_inverted') ? ' lna_inverted' : ''),
         '$.global'
     );
     integer(
@@ -175,6 +176,7 @@ export function validate(document) {
     callsign(g.local_callsign, '$.global.local_callsign', true);
     integer(g.gain, 0, 15, '$.global.gain');
     choice(g.transmit_limit_s, [0, 60, 120, 180], '$.global.transmit_limit_s');
+    boolean(Object.hasOwn(g, 'lna_inverted') ? g.lna_inverted : false, '$.global.lna_inverted');
     const ui = g.ui;
     fields(ui, 'theme contrast animations backlight', '$.global.ui');
     choice(ui.theme, THEMES, '$.global.ui.theme');
@@ -248,7 +250,7 @@ export function validate(document) {
     ) {
         fail('$.selection.channel_id', 'selected channel is outside the selected bank');
     }
-    return { ...document, global: { fm_ctcss_level: 74, ...g } };
+    return { ...document, global: { fm_ctcss_level: 74, lna_inverted: false, ...g } };
 }
 export function parse(text) {
     return validate(parseJson(text, MAX_BYTES));
@@ -286,6 +288,7 @@ export function fresh() {
             gain: 0,
             transmit_limit_s: 180,
             fm_ctcss_level: 74,
+            lna_inverted: false,
             vfo_step_hz: 12500,
             ui: {
                 theme: 'midnight',

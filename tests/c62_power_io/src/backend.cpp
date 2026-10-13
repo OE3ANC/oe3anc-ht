@@ -29,6 +29,10 @@ extern "C" int bk4819_write(uint8_t address, uint16_t value) {
     return writes == 1 ? pa_error : 0;
 }
 
+extern "C" int bk4819_gpio_off() {
+    return bk4819_write(0x33, 0x0060);
+}
+
 static void before(void *) {
     power_io_test_reset();
     order = rf_calls = bus_calls = writes = 0;
