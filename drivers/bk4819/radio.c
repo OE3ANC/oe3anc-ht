@@ -20,7 +20,7 @@ struct register_value {
     uint16_t value;
 };
 static const struct register_value initialization[] = {
-    {0x00, 0x8000}, {0x00, 0x0000}, {0x33, 0x0000}, {0x37, 0x1d0f}, {0x13, 0x03be}, {0x12, 0x037b},
+    {0x00, 0x8000}, {0x00, 0x0000}, {0x33, 0x0060}, {0x37, 0x1d0f}, {0x13, 0x03be}, {0x12, 0x037b},
     {0x11, 0x027b}, {0x10, 0x007a}, {0x14, 0x0019}, {0x49, 0x2a38}, {0x7b, 0x8420}, {0x7d, 0xe959},
     {0x48, 0xb3c1}, {0x1e, 0x4c58}, {0x1f, 0xa656}, {0x3e, 0xa037}, {0x3f, 0x07fe}, {0x2a, 0x7fff},
     {0x28, 0x6b00}, {0x53, 59000},  {0x2c, 0x5705}, {0x4b, 0x7102},
@@ -71,8 +71,8 @@ static int write_table(const struct register_value *table, size_t count) {
 
 int bk4819_disable(void) {
     /* Direct write: unkeying cannot depend on a successful read first. The
-     * C62 uses GPIOs 0..4 for LNA, PA and TX LED; remaining outputs are unused. */
-    const int pa_error = bk4819_write(0x33, 0);
+     * C62 LNA controls are active-low: keep both high while PAs and TX LED are off. */
+    const int pa_error = bk4819_write(0x33, 0x0060);
     const int rf_error = bk4819_write(0x30, 0);
     const int dac_error = bk4819_write(0x30, 1U << 9);
     const int tone_error = update(0x51, 0x8000, 0);
@@ -354,7 +354,8 @@ int bk4819_transmit(void) {
         error = tone(&configuration.tx_tone, true);
     }
     if (!error) {
-        error = bk4819_write(0x33, configuration.tx_frequency_hz <= 174000000 ? 0x0014 : 0x000c);
+        /* Disable both active-low RX LNAs before enabling the selected PA. */
+        error = bk4819_write(0x33, configuration.tx_frequency_hz <= 174000000 ? 0x0074 : 0x006c);
     }
     if (!error) {
         error = bk4819_write(0x30, 0);

@@ -46,6 +46,9 @@ int bk4819_write(uint8_t address, uint16_t value) {
         keyed_at_failure = (registers[0x33] & 0x1c) != 0;
         return -EIO;
     }
+    if (address == 0x33 && (value & 0x18)) {
+        zassert_equal(value & 0x60, 0x60, "PA enabled with an RX LNA active");
+    }
     registers[address] = value;
     if (address == 0x08) {
         if (value & 0x8000) {
@@ -124,7 +127,7 @@ ZTEST(bk4819, test_fm_voice_configuration_failure_prevents_tx) {
             fail_read = read != 0;
             zassert_equal(bk4819_configure(&config), -EIO);
             zassert_true(failed);
-            zassert_equal(registers[0x33], 0);
+            zassert_equal(registers[0x33], 0x0060);
             zassert_equal(registers[0x30] & 0x010e, 0);
             zassert_equal(bk4819_transmit(), -ENODEV);
         }
@@ -172,12 +175,12 @@ ZTEST(bk4819, test_fm_rx_controls_preserve_unrelated_fields_and_m17_profile) {
     config.fm_af_dac_gain = 1;
     fail_address = 0x48;
     zassert_equal(bk4819_configure(&config), -EIO);
-    zassert_equal(registers[0x33], 0);
+    zassert_equal(registers[0x33], 0x0060);
     zassert_equal(bk4819_receive(), -ENODEV);
 }
 
 ZTEST(bk4819, test_bias_startup_and_configuration_required_before_tx) {
-    zassert_equal(registers[0x33], 0);
+    zassert_equal(registers[0x33], 0x0060);
     zassert_equal(registers[0x30] & 0x010e, 0);
     zassert_equal(registers[0x47] & 0x0f00, 0);
     zassert_equal(bk4819_transmit(), -ENODEV);
@@ -190,12 +193,12 @@ ZTEST(bk4819, test_simplex_band_selection_and_ten_hertz_tuning) {
     zassert_ok(bk4819_receive());
     zassert_equal(registers[0x33], 0x0020); // Active-low VHF selection, including band top.
     zassert_ok(bk4819_transmit());
-    zassert_equal(registers[0x33], 0x0014); // VHF PA and TX LED only.
+    zassert_equal(registers[0x33], 0x0074); // VHF PA/TX LED on; both active-low LNAs off.
     zassert_equal(registers[0x30], 0xc1fe);
     writes = 0;
     zassert_ok(bk4819_disable());
     zassert_equal(first_write, 0x33); // Unkey before tone/PLL work.
-    zassert_equal(registers[0x33], 0);
+    zassert_equal(registers[0x33], 0x0060);
     config = fm(430123459);
     zassert_ok(bk4819_configure(&config));
     config.rx_frequency_hz = config.tx_frequency_hz = 145500000; // Caller memory is not retained.
@@ -203,7 +206,7 @@ ZTEST(bk4819, test_simplex_band_selection_and_ten_hertz_tuning) {
     zassert_equal(registers[0x33], 0x0040);
     zassert_equal(((uint32_t)registers[0x39] << 16) | registers[0x38], 43012345);
     zassert_ok(bk4819_transmit());
-    zassert_equal(registers[0x33], 0x000c);
+    zassert_equal(registers[0x33], 0x006c);
 }
 
 ZTEST(bk4819, test_high_ctcss_tone_does_not_overflow_and_disable_clears_tx_tone) {
@@ -260,7 +263,7 @@ ZTEST(bk4819, test_tx_tone_gain_write_failure_keeps_pa_off) {
     zassert_equal(bk4819_transmit(), -EIO);
     zassert_true(failed);
     zassert_false(keyed_at_failure);
-    zassert_equal(registers[0x33], 0);
+    zassert_equal(registers[0x33], 0x0060);
     zassert_equal(registers[0x51] & 0x8000, 0);
 }
 
@@ -299,14 +302,14 @@ ZTEST(bk4819, test_failed_tx_unkeys_and_returns_bus_error) {
     fail_read = true; // Fail tone/status reads independently of shutdown.
     fail_address = 0x51;
     zassert_equal(bk4819_transmit(), -EIO);
-    zassert_equal(registers[0x33], 0);
+    zassert_equal(registers[0x33], 0x0060);
     fail_read = false;
     failed = false;
     fail_address = 0x30;
     fail_value = 0xc1fe; // Fail after the PA was enabled, not the initial unkey.
     zassert_equal(bk4819_transmit(), -EIO);
     zassert_true(keyed_at_failure);
-    zassert_equal(registers[0x33], 0);
+    zassert_equal(registers[0x33], 0x0060);
     fail_address = -1;
     registers[0x67] = 150;
     int16_t rssi;
@@ -322,7 +325,7 @@ ZTEST(bk4819, test_invalid_configuration_and_failed_reinitialization) {
     zassert_equal(bk4819_configure(&config), -EINVAL);
     fail_address = 0x49;
     zassert_equal(bk4819_initialize(), -EIO);
-    zassert_equal(registers[0x33], 0);
+    zassert_equal(registers[0x33], 0x0060);
     zassert_equal(bk4819_transmit(), -ENODEV);
 }
 
@@ -334,7 +337,7 @@ ZTEST(bk4819, test_split_tuning_unkeys_before_pll_and_inhibit_leaves_rx) {
     writes = 0;
     zassert_ok(bk4819_transmit());
     zassert_equal(first_write, 0x33);
-    zassert_equal(registers[0x33], 0x0014);
+    zassert_equal(registers[0x33], 0x0074);
     zassert_equal(((uint32_t)registers[0x39] << 16) | registers[0x38], 14512500);
     writes = 0;
     zassert_ok(bk4819_receive());
@@ -358,7 +361,7 @@ ZTEST(bk4819, test_split_tuning_unkeys_before_pll_and_inhibit_leaves_rx) {
     fail_address = 0x38;
     zassert_equal(bk4819_transmit(), -EIO);
     zassert_false(keyed_at_failure);
-    zassert_equal(registers[0x33], 0);
+    zassert_equal(registers[0x33], 0x0060);
 }
 
 ZTEST(bk4819, test_all_dcs_words_against_independent_upstream_encoder) {
@@ -473,7 +476,7 @@ ZTEST(bk4819, test_dcs_write_failure_unkeys_and_failed_detector_retains_output) 
         fail_value = values[i];
         zassert_equal(bk4819_transmit(), -EIO);
         zassert_false(keyed_at_failure);
-        zassert_equal(registers[0x33], 0);
+        zassert_equal(registers[0x33], 0x0060);
         zassert_equal(registers[0x51] & 0x8000, 0);
         fail_address = 0x0c;
         fail_read = true;

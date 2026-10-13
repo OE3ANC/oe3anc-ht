@@ -19,6 +19,7 @@ NATIVE_TESTS = (
     'companion_ptt',
     'c62_companion',
     'c62_radio',
+    'c62_power_io',
     'radio',
     'codec2',
     'm17',

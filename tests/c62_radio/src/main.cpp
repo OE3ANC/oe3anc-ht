@@ -105,6 +105,7 @@ extern "C" int bk4819_read(uint8_t address, uint16_t *value) {
 extern "C" int bk4819_write(uint8_t address, uint16_t value) {
     ++register_writes;
     if (address == 0x33 && (value & 0x18)) {
+        zassert_equal(value & 0x60, 0x60, "PA enabled with an RX LNA active");
         if (atomic_get(&ptt_released)) {
             atomic_inc(&keyed_after_release);
         }
@@ -544,7 +545,7 @@ ZTEST(c62_radio, test_power_duties_and_receive_after_ptt_release) {
             set_ptt(true);
             zassert_equal(controller.state().phase, RadioPhase::Transmitting);
             zassert_equal(duty, expected[band][level]);
-            zassert_equal(registers[0x33], band ? 0x000c : 0x0014);
+            zassert_equal(registers[0x33], band ? 0x006c : 0x0074);
             zassert_equal(registers[0x07], 5246);
             zassert_false(speaker);
             set_ptt(false);
@@ -862,7 +863,7 @@ ZTEST(c62_radio, test_split_frequency_uses_tx_band_for_apc_and_inhibit) {
     set_ptt(true);
     zassert_equal(controller.state().phase, RadioPhase::Transmitting);
     zassert_equal(duty, 25);
-    zassert_equal(registers[0x33], 0x0014);
+    zassert_equal(registers[0x33], 0x0074);
     zassert_equal(((uint32_t)registers[0x39] << 16) | registers[0x38], 14512500);
     set_ptt(false);
     stopped();

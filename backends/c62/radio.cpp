@@ -384,8 +384,8 @@ int backend_write_register(uint8_t address, uint16_t value) {
     }
     int error = bk4819_write(address, value);
     if (address == 0) {
-        // A diagnostic chip reset must also leave external PA outputs inactive.
-        const int unkey_error = bk4819_write(0x33, 0);
+        // A diagnostic reset must leave PAs off and active-low RX LNAs disabled.
+        const int unkey_error = bk4819_write(0x33, 0x0060);
         if (!error) {
             error = unkey_error;
         }

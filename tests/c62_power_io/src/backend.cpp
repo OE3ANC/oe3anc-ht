@@ -22,7 +22,7 @@ extern "C" int bk4819_bus_init() {
 }
 
 extern "C" int bk4819_write(uint8_t address, uint16_t value) {
-    zassert_equal(value, 0);
+    zassert_equal(value, address == 0x33 ? 0x0060 : 0);
     ++writes;
     zassert_equal(++order, writes + 2);
     zassert_equal(address, writes == 1 ? 0x33 : 0x30);
