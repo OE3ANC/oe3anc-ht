@@ -4,7 +4,8 @@
 #include <ht/codeplug.hpp>
 
 namespace ht {
-// Manifest writes version 2 and reads public version 1 with default CTCSS level 74.
+// Manifest writes version 3; v1/v2 loads default LNA inversion to false,
+// and v1 loads default CTCSS level 74.
 // Channel/bank records and JSON schema use version 1. Integers are little-endian;
 // no struct layout or padding is serialized. Generation zero is not committed.
 constexpr size_t codeplug_envelope_size = 16;

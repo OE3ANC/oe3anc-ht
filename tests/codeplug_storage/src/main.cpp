@@ -304,12 +304,13 @@ ZTEST(codeplug_storage, test_generation_conflict_exhaustion_and_corruption) {
     uint32_t stale = 0;
     zassert_equal(codeplug_save(plug, stale), -ESTALE);
     zassert_equal(stale, 0);
+    constexpr size_t empty_manifest_size = 101; // v3 envelope and empty manifest payload.
     // Modify the persisted empty generation to the maximum valid generation.
 #ifdef CONFIG_HT_SETTINGS_NVS
     area.ready = false;
     zassert_ok(nvs_mount(&area)); // Refresh after writes through the backend's mount.
     const ssize_t n = nvs_read(&area, 0x2000, bytes, sizeof(bytes));
-    zassert_equal(n, 100);
+    zassert_equal(n, empty_manifest_size);
     sys_put_le32(UINT32_MAX, bytes + 8);
     sys_put_le32(crc32_ieee_update(crc32_ieee(bytes, 12), bytes + 16, n - 16), bytes + 12);
     zassert_equal(nvs_write(&area, 0x2000, bytes, n), n);
@@ -320,11 +321,13 @@ ZTEST(codeplug_storage, test_generation_conflict_exhaustion_and_corruption) {
 #else
     int fd = open(path, O_RDWR);
     zassert_true(fd >= 0);
-    zassert_equal(read(fd, bytes, 100), 100);
+    zassert_equal(read(fd, bytes, empty_manifest_size), empty_manifest_size);
     sys_put_le32(UINT32_MAX, bytes + 8);
-    sys_put_le32(crc32_ieee_update(crc32_ieee(bytes, 12), bytes + 16, 84), bytes + 12);
+    sys_put_le32(crc32_ieee_update(crc32_ieee(bytes, 12), bytes + 16,
+                                 empty_manifest_size - codeplug_envelope_size),
+                 bytes + 12);
     zassert_equal(lseek(fd, 0, SEEK_SET), 0);
-    zassert_equal(write(fd, bytes, 100), 100);
+    zassert_equal(write(fd, bytes, empty_manifest_size), empty_manifest_size);
     zassert_ok(close(fd));
 #endif
     remount();
@@ -333,11 +336,11 @@ ZTEST(codeplug_storage, test_generation_conflict_exhaustion_and_corruption) {
     zassert_equal(codeplug_save(plug, generation), -EOVERFLOW);
     bytes[27] ^= 1;
 #ifdef CONFIG_HT_SETTINGS_NVS
-    zassert_equal(nvs_write(&area, 0x2000, bytes, 100), 100);
+    zassert_equal(nvs_write(&area, 0x2000, bytes, empty_manifest_size), empty_manifest_size);
 #else
     fd = open(path, O_WRONLY);
     zassert_true(fd >= 0);
-    zassert_equal(write(fd, bytes, 100), 100);
+    zassert_equal(write(fd, bytes, empty_manifest_size), empty_manifest_size);
     zassert_ok(close(fd));
 #endif
     uint32_t unchanged = 88;
