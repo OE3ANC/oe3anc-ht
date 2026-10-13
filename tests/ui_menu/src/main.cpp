@@ -248,7 +248,7 @@ ZTEST(ui_menu, test_workflow_order_wrap_capabilities_and_physical_actions) {
     zassert_equal(model.screen(), UiScreen::Menu);
     zassert_equal(radio_snapshot().configuration_revision, revision);
     const auto count = page.count;
-    zassert_equal(count, 24); // No generic gain; two FM RX test controls included.
+    zassert_equal(count, 25); // No generic gain; includes the global LNA polarity option.
     for (unsigned i = 0; i < count; ++i) {
         key(UiKey::Down);
     }
@@ -263,15 +263,18 @@ ZTEST(ui_menu, test_workflow_order_wrap_capabilities_and_physical_actions) {
     key(UiKey::Enter);
     model.menu_page(page);
     zassert_equal(page.count, count - 8);
+    bool has_lna_polarity = false;
     for (unsigned i = 0; i < page.count; ++i) {
         UiListPage digital;
         model.menu_page(digital);
         const char *name = digital.rows[digital.cursor % 4].name;
+        has_lna_polarity |= strstr(name, "Invert LNA GPIOs:") != nullptr;
         zassert_is_null(strstr(name, "BW:"));
         zassert_is_null(strstr(name, "Squelch:"));
         zassert_is_null(strstr(name, "tone:"));
         key(UiKey::Down);
     }
+    zassert_true(has_lna_polarity);
 }
 
 ZTEST(ui_menu, test_lna_polarity_is_global_saved_and_locked_during_tx) {
