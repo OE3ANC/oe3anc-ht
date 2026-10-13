@@ -260,7 +260,7 @@ ZTEST(c62_radio, test_rx_register_snapshot_is_read_only_bounded_and_refreshed_af
     configure(config);
     zassert_false(controller.state().rx_registers.valid);
     controller.poll();
-    zassert_equal(controller.state().rx_registers.values[1], 0x0040);
+    zassert_equal(controller.state().rx_registers.values[1], 0x0020);
     const unsigned reads_before_tx = register_reads[0x13];
     set_ptt(true);
     k_sleep(K_MSEC(250));
@@ -550,7 +550,7 @@ ZTEST(c62_radio, test_power_duties_and_receive_after_ptt_release) {
             set_ptt(false);
             zassert_equal(controller.state().phase, RadioPhase::Receiving);
             stopped();
-            zassert_equal(registers[0x33], band ? 0x20 : 0x40);
+            zassert_equal(registers[0x33], band ? 0x40 : 0x20);
         }
     }
 }
@@ -866,7 +866,7 @@ ZTEST(c62_radio, test_split_frequency_uses_tx_band_for_apc_and_inhibit) {
     zassert_equal(((uint32_t)registers[0x39] << 16) | registers[0x38], 14512500);
     set_ptt(false);
     stopped();
-    zassert_equal(registers[0x33], 0x0020);
+    zassert_equal(registers[0x33], 0x0040);
     zassert_equal(((uint32_t)registers[0x39] << 16) | registers[0x38], 43907500);
     config.tx_inhibit = true;
     configure(config);

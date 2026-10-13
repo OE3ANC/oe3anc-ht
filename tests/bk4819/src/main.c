@@ -188,7 +188,7 @@ ZTEST(bk4819, test_simplex_band_selection_and_ten_hertz_tuning) {
     struct bk4819_config config = fm(174000000);
     zassert_ok(bk4819_configure(&config));
     zassert_ok(bk4819_receive());
-    zassert_equal(registers[0x33], 0x0040); // Includes VHF band top.
+    zassert_equal(registers[0x33], 0x0020); // Active-low VHF selection, including band top.
     zassert_ok(bk4819_transmit());
     zassert_equal(registers[0x33], 0x0014); // VHF PA and TX LED only.
     zassert_equal(registers[0x30], 0xc1fe);
@@ -200,7 +200,7 @@ ZTEST(bk4819, test_simplex_band_selection_and_ten_hertz_tuning) {
     zassert_ok(bk4819_configure(&config));
     config.rx_frequency_hz = config.tx_frequency_hz = 145500000; // Caller memory is not retained.
     zassert_ok(bk4819_receive());
-    zassert_equal(registers[0x33], 0x0020);
+    zassert_equal(registers[0x33], 0x0040);
     zassert_equal(((uint32_t)registers[0x39] << 16) | registers[0x38], 43012345);
     zassert_ok(bk4819_transmit());
     zassert_equal(registers[0x33], 0x000c);
@@ -339,7 +339,7 @@ ZTEST(bk4819, test_split_tuning_unkeys_before_pll_and_inhibit_leaves_rx) {
     writes = 0;
     zassert_ok(bk4819_receive());
     zassert_equal(first_write, 0x33);
-    zassert_equal(registers[0x33], 0x0020);
+    zassert_equal(registers[0x33], 0x0040);
     zassert_equal(((uint32_t)registers[0x39] << 16) | registers[0x38], 43907500);
     config.tx_inhibit = true;
     zassert_ok(bk4819_configure(&config));
@@ -347,10 +347,10 @@ ZTEST(bk4819, test_split_tuning_unkeys_before_pll_and_inhibit_leaves_rx) {
     writes = 0;
     zassert_equal(bk4819_transmit(), -EPERM);
     zassert_equal(writes, 0);
-    zassert_equal(registers[0x33], 0x0020);
+    zassert_equal(registers[0x33], 0x0040);
     config.tx_frequency_hz = 300000000;
     zassert_equal(bk4819_configure(&config), -EINVAL);
-    zassert_equal(registers[0x33], 0x0020);
+    zassert_equal(registers[0x33], 0x0040);
     config.tx_frequency_hz = 145125009;
     config.tx_inhibit = false;
     zassert_ok(bk4819_configure(&config));
@@ -456,7 +456,7 @@ ZTEST(bk4819, test_invalid_tones_leave_current_rx_undisturbed) {
         writes = 0;
         zassert_equal(bk4819_configure(&config), -EINVAL);
         zassert_equal(writes, 0);
-        zassert_equal(registers[0x33], 0x0020);
+        zassert_equal(registers[0x33], 0x0040);
     }
 }
 

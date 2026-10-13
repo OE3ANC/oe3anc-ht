@@ -318,7 +318,8 @@ int bk4819_receive(void) {
     }
     int error = bk4819_disable();
     if (!error) {
-        error = bk4819_write(0x33, configuration.rx_frequency_hz <= 174000000 ? 0x0040 : 0x0020);
+        /* Stock C62 RX selects the band by driving its LNA control low. */
+        error = bk4819_write(0x33, configuration.rx_frequency_hz <= 174000000 ? 0x0020 : 0x0040);
     }
     if (!error) {
         error = tune(configuration.rx_frequency_hz);

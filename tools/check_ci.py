@@ -13,6 +13,7 @@ from build import ROOT
 
 # Required gates cover serial ownership, RF leases, shared input and settings/NVS.
 NATIVE_TESTS = (
+    'bk4819',
     'companion_cps',
     'companion_keys',
     'companion_ptt',
