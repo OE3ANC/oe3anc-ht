@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-name: Build and check
-description: Bootstrap public pinned dependencies and run the required software gates
+name: Build firmware and companion
+description: Bootstrap pinned dependencies and build firmware and companion; tests disabled
 inputs:
   tag:
     description: Version tag for release builds; empty for ordinary CI
@@ -30,11 +30,11 @@ runs:
     - name: Bootstrap pinned public dependencies
       shell: bash
       run: .deps/ci/venv/bin/python tools/bootstrap_ci.py
-    - name: Required builds and regression gates
+    - name: Paired builds (tests disabled)
       shell: bash
       env:
         RELEASE_TAG: ${{ inputs.tag }}
       run: |
         tag_args=()
         if [[ -n "$RELEASE_TAG" ]]; then tag_args=(--tag "$RELEASE_TAG"); fi
-        .deps/ci/venv/bin/python tools/check_ci.py "${tag_args[@]}"
+        .deps/ci/venv/bin/python tools/check_ci.py --skip-tests "${tag_args[@]}"

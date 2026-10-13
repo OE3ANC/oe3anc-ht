@@ -159,3 +159,8 @@ schematics so the open-source community can develop innovative firmware and
 extend the capabilities of existing hardware.
 
 Project code uses GPL-3.0-or-later; see [license](LICENSES/GPL-3.0-or-later.txt) and the attribution above.
+
+Automated tests are currently disabled in CI and tagged release builds via
+`tools/check_ci.py --skip-tests`. Firmware and companion builds and release
+identity checks still run. Test sources remain available; omit `--skip-tests`
+to run the complete checks manually.

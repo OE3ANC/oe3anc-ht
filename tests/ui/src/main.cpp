@@ -271,14 +271,16 @@ ZTEST(ui, test_mode_settings_navigation_preserves_fm_configuration) {
     zassert_equal(radio_snapshot().config.mode, Mode::M17);
     char lines[8][32];
     const char *items[] = {"Mode: M17",          "Power: 1 W",      "Local callsign",
-                           "BK4819 diagnostics", "TX limit: 180 s", "Status"};
+                           "BK4819 diagnostics", "TX limit: 180 s", "Status",
+                           "Invert LNA GPIOs: off"};
+    const unsigned count = ARRAY_SIZE(items);
     // Every visible control is reachable in each direction; hidden controls
     // neither consume a navigation step nor clip earlier rows from the menu.
     const UiKey directions[] = {UiKey::Down, UiKey::Up};
     for (const auto direction : directions) {
-        for (unsigned i = 0; i < 6; ++i) {
+        for (unsigned i = 0; i < count; ++i) {
             model.lines(lines);
-            const unsigned index = direction == UiKey::Down ? i : (6 - i) % 6;
+            const unsigned index = direction == UiKey::Down ? i : (count - i) % count;
             unsigned selected = 0, visible = 0;
             for (const auto &line : lines) {
                 zassert_is_null(strstr(line, "BW:"));
@@ -293,7 +295,7 @@ ZTEST(ui, test_mode_settings_navigation_preserves_fm_configuration) {
             zassert_equal(selected, 1);
             UiListPage page;
             model.menu_page(page);
-            zassert_equal(page.count, 6);
+            zassert_equal(page.count, count);
             zassert_equal(visible, MIN(4, page.count - page.cursor / 4 * 4));
             key(direction);
         }

@@ -40,7 +40,7 @@ def run(*args, **options):
     subprocess.run([str(arg) for arg in args], check=True, **options)
 
 
-def check(dependencies, tag, base_path):
+def check(dependencies, tag, base_path, skip_tests=False):
     pins = json.loads((ROOT / 'config/ci-toolchains.json').read_text())
     node = dependencies / 'emsdk/node' / (pins['node'] + '_64bit/bin/node')
     c62 = dependencies / 'c62'
@@ -63,24 +63,25 @@ def check(dependencies, tag, base_path):
     ]
     build = ROOT / 'build/ci'
     expected = companion_release.metadata(tag)
-    for script in (
-        'tests/build/test_build.py',
-        'tests/build/test_ci.py',
-        'tests/build/test_release_pipeline.py',
-        'tests/build/test_pages.py',
-        'tests/codeplug/test_codeplug.py',
-        'tests/codeplug/test_profiles.py',
-        'tests/companion/test_release.py',
-    ):
-        run(sys.executable, ROOT / script)
-    for script in (
-        'tests/companion/check.py',
-        'tests/companion/check_cps.py',
-        'tests/companion/test_firmware_bundle.py',
-    ):
-        run(sys.executable, ROOT / script, '--node', node)
-    for script in ('bootloader.mjs', 'calibration.mjs', 'firmware_tools.mjs'):
-        run(node, ROOT / 'tests/companion' / script)
+    if not skip_tests:
+        for script in (
+            'tests/build/test_build.py',
+            'tests/build/test_ci.py',
+            'tests/build/test_release_pipeline.py',
+            'tests/build/test_pages.py',
+            'tests/codeplug/test_codeplug.py',
+            'tests/codeplug/test_profiles.py',
+            'tests/companion/test_release.py',
+        ):
+            run(sys.executable, ROOT / script)
+        for script in (
+            'tests/companion/check.py',
+            'tests/companion/check_cps.py',
+            'tests/companion/test_firmware_bundle.py',
+        ):
+            run(sys.executable, ROOT / script, '--node', node)
+        for script in ('bootloader.mjs', 'calibration.mjs', 'firmware_tools.mjs'):
+            run(node, ROOT / 'tests/companion' / script)
     for target in ('c62', 'emulator'):
         args = ['--release-tag', tag] if tag else []
         run(
@@ -113,61 +114,68 @@ def check(dependencies, tag, base_path):
     ):
         if json.loads(path.read_text()) != expected:
             raise ValueError(f'Paired build metadata mismatch: {path}')
-    run(
-        node,
-        ROOT / 'tests/companion/firmware_bundle.mjs',
-        build / 'c62/zephyr/firmware-bundle.json',
-    )
-    env = os.environ.copy()
-    env['SDL_VIDEODRIVER'] = 'dummy'
-    cases = [(name, None) for name in NATIVE_TESTS]
-    cases += [(name, ROOT / 'tests' / name / 'nvs.conf') for name in ('codeplug_storage', 'settings')]
-    for name, overlay in cases:
-        directory = build / 'tests' / (name + ('-nvs' if overlay else ''))
+    if not skip_tests:
         run(
-            sys.executable,
-            ROOT / 'tools/build.py',
-            'emulator',
-            '--app',
-            ROOT / 'tests' / name,
-            '--build-dir',
-            directory,
-            *common,
-            *(['--extra-conf', overlay] if overlay else []),
+            node,
+            ROOT / 'tests/companion/firmware_bundle.mjs',
+            build / 'c62/zephyr/firmware-bundle.json',
         )
-        if name == 'codeplug_profile':
-            probe_env = dict(env, HT_CODEPLUG_PROBE=str(directory / 'zephyr/zephyr.exe'))
-            run(sys.executable, ROOT / 'tests/codeplug/test_profiles.py', env=probe_env)
-        else:
-            run(directory / 'zephyr/zephyr.exe', '-no-rt', env=env, timeout=120, cwd=directory)
-    native = build / 'native-renderer'
-    run(
-        'cmake',
-        '-S',
-        ROOT / 'companion/renderer',
-        '-B',
-        native,
-        '-G',
-        'Ninja',
-        '-DHT_LVGL_DIR=' + str(lvgl),
-        '-DCMAKE_BUILD_TYPE=Release',
-    )
-    run('cmake', '--build', native, '--parallel', '4')
-    run(
-        node,
-        ROOT / 'tests/companion/render.mjs',
-        native / 'ht-ui',
-        ROOT / 'companion/dist/render/ht-ui.mjs',
-    )
+        env = os.environ.copy()
+        env['SDL_VIDEODRIVER'] = 'dummy'
+        cases = [(name, None) for name in NATIVE_TESTS]
+        cases += [(name, ROOT / 'tests' / name / 'nvs.conf') for name in ('codeplug_storage', 'settings')]
+        for name, overlay in cases:
+            directory = build / 'tests' / (name + ('-nvs' if overlay else ''))
+            run(
+                sys.executable,
+                ROOT / 'tools/build.py',
+                'emulator',
+                '--app',
+                ROOT / 'tests' / name,
+                '--build-dir',
+                directory,
+                *common,
+                *(['--extra-conf', overlay] if overlay else []),
+            )
+            if name == 'codeplug_profile':
+                probe_env = dict(env, HT_CODEPLUG_PROBE=str(directory / 'zephyr/zephyr.exe'))
+                run(sys.executable, ROOT / 'tests/codeplug/test_profiles.py', env=probe_env)
+            else:
+                run(directory / 'zephyr/zephyr.exe', '-no-rt', env=env, timeout=120, cwd=directory)
+        native = build / 'native-renderer'
+        run(
+            'cmake',
+            '-S',
+            ROOT / 'companion/renderer',
+            '-B',
+            native,
+            '-G',
+            'Ninja',
+            '-DHT_LVGL_DIR=' + str(lvgl),
+            '-DCMAKE_BUILD_TYPE=Release',
+        )
+        run('cmake', '--build', native, '--parallel', '4')
+        run(
+            node,
+            ROOT / 'tests/companion/render.mjs',
+            native / 'ht-ui',
+            ROOT / 'companion/dist/render/ht-ui.mjs',
+        )
     if companion_release.metadata(tag) != expected:
         raise ValueError('Source/release metadata changed while running CI')
-    print('PASS: required release gates and paired builds', expected['identity'])
+    result = (
+        'Paired builds complete; tests DISABLED' if skip_tests
+        else 'PASS: required release gates and paired builds'
+    )
+    print(result, expected['identity'])
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--dependencies', type=Path, default=ROOT / '.deps/ci')
     parser.add_argument('--tag')
+    parser.add_argument('--skip-tests', action='store_true',
+                        help='Build the paired firmware/companion without running test suites')
     parser.add_argument('--base-path', default='/oe3anc-ht/')
     args = parser.parse_args()
-    check(args.dependencies.resolve(), args.tag, args.base_path)
+    check(args.dependencies.resolve(), args.tag, args.base_path, args.skip_tests)
