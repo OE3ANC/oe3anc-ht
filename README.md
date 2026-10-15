@@ -145,8 +145,11 @@ nightly; no nightly GitHub Release or moving tag is created. Use the firmware
 and companion from the same build, since their exact identity is still checked.
 
 Only version-tag pushes create versioned release drafts. Publishing a tagged
-release preserves its archived companion and the latest nightly. Pages deployments
-are serialized and always build the current default branch, including release
+release automatically dispatches the Pages workflow on `main`, preserving its
+archived companion and the latest nightly. After deployment, live entrypoints
+and release metadata must
+match the staged site; stale or missing content fails the workflow after a bounded
+propagation wait. Pages deployments are serialized and always build the current default branch, including release
 publication/retries, so an older event cannot replace nightly with an older commit.
 The existing GitHub Pages environment must permit automatic deployment without
 required reviewers; the workflow itself has no approval or manual publish step.

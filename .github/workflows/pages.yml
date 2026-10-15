@@ -6,16 +6,40 @@ on:
   release:
     types: [published]
   workflow_dispatch:
+    inputs:
+      release_id:
+        description: Published release ID that must be included
+        type: string
+        required: false
+        default: ''
 permissions:
   contents: read
 concurrency:
   group: companion-pages
   cancel-in-progress: false
 jobs:
+  dispatch-release:
+    if: github.event_name == 'release'
+    runs-on: ubuntu-22.04
+    timeout-minutes: 5
+    permissions:
+      actions: write
+    steps:
+      # Release-event Pages deployments can report success while serving the old
+      # artifact: https://github.com/actions/deploy-pages/issues/383
+      - name: Dispatch Pages on the default branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          RELEASE_ID: ${{ github.event.release.id }}
+        run: gh workflow run pages.yml --repo "$GITHUB_REPOSITORY" --ref "$DEFAULT_BRANCH" -f release_id="$RELEASE_ID"
   assemble:
-    if: github.event_name == 'release' || github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    if: github.event_name != 'release' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
     runs-on: ubuntu-22.04
     timeout-minutes: 60
+    outputs:
+      checks: ${{ steps.verification.outputs.checks }}
+      source: ${{ steps.verification.outputs.source }}
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
@@ -28,22 +52,37 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_REPOSITORY: ${{ github.repository }}
-          PAGES_RELEASE_ID: ${{ github.event.release.id }}
+          PAGES_RELEASE_ID: ${{ inputs.release_id }}
         run: python3 companion/deploy_pages.py --repository "$RELEASE_REPOSITORY" --output build/pages --nightly-packages build/nightly
+      - name: Record expected live content
+        id: verification
+        run: |
+          python3 companion/verify_pages.py --site build/pages >> "$GITHUB_OUTPUT"
+          echo "source=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
       - uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3.0.1
         with:
           path: build/pages
   deploy:
     needs: assemble
     runs-on: ubuntu-22.04
-    timeout-minutes: 15
+    timeout-minutes: 25
     permissions:
+      contents: read
       pages: write
       id-token: write
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: ${{ needs.assemble.outputs.source }}
+          persist-credentials: false
       - name: Deploy companion
         id: deployment
         uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4.0.5
+      - name: Verify served companion content
+        env:
+          PAGES_URL: ${{ steps.deployment.outputs.page_url }}
+          PAGES_EXPECTED: ${{ needs.assemble.outputs.checks }}
+        run: python3 companion/verify_pages.py --url "$PAGES_URL"

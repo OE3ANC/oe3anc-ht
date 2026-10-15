@@ -19,6 +19,8 @@ import yaml
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / 'companion'))
 import deploy_pages
+import verify_pages
+from urllib.error import URLError
 
 
 class FakeGitHub:
@@ -368,12 +370,27 @@ class PagesChecks(unittest.TestCase):
         self.assertEqual(workflow['concurrency']['cancel-in-progress'], 'false')
         assemble, deploy = workflow['jobs']['assemble'], workflow['jobs']['deploy']
         self.assertNotIn('permissions', assemble)
+        dispatch = workflow['jobs']['dispatch-release']
+        self.assertEqual(dispatch['if'], "github.event_name == 'release'")
+        self.assertEqual(dispatch['permissions'], {'actions': 'write'})
+        step = dispatch['steps'][0]
+        self.assertEqual(step['env']['RELEASE_ID'], '${{ github.event.release.id }}')
+        self.assertIn('--ref "$DEFAULT_BRANCH" -f release_id="$RELEASE_ID"', step['run'])
+        self.assertIn("github.event_name != 'release' &&", assemble['if'])
+        stage = next(step for step in assemble['steps'] if 'Stage nightly' in step.get('name', ''))
+        self.assertEqual(stage['env']['PAGES_RELEASE_ID'], '${{ inputs.release_id }}')
+        self.assertEqual(workflow['on']['workflow_dispatch']['inputs']['release_id']['type'], 'string')
+        self.assertEqual(deploy['steps'][0]['with']['ref'], '${{ needs.assemble.outputs.source }}')
+        self.assertEqual(deploy['steps'][-1]['env']['PAGES_EXPECTED'],
+                         '${{ needs.assemble.outputs.checks }}')
+        self.assertIn('verify_pages.py --url', deploy['steps'][-1]['run'])
         self.assertIn('github.event.repository.default_branch', assemble['if'])
         checkout = assemble['steps'][0]
         self.assertEqual(checkout['with']['ref'], '${{ github.event.repository.default_branch }}')
         self.assertEqual(checkout['with']['persist-credentials'], 'false')
         self.assertEqual(deploy['needs'], 'assemble')
-        self.assertEqual(deploy['permissions'], {'pages': 'write', 'id-token': 'write'})
+        self.assertEqual(deploy['permissions'],
+                         {'contents': 'read', 'pages': 'write', 'id-token': 'write'})
         self.assertEqual(deploy['environment']['name'], 'github-pages')
         self.assertEqual(assemble['steps'][-1]['with']['path'], 'build/pages')
         for job in workflow['jobs'].values():
@@ -384,6 +401,44 @@ class PagesChecks(unittest.TestCase):
                 if 'run' in step:
                     self.assertNotIn('${{', step['run'])
                     subprocess.run(['bash', '-n'], input=step['run'], text=True, check=True)
+
+
+class LivePagesChecks(unittest.TestCase):
+    def test_staged_checks_cover_landing_archived_release_and_nightly(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / 'index.html').write_text('latest release')
+            with self.assertRaisesRegex(ValueError, 'No staged'):
+                verify_pages.expected_content(root)
+            expected = {'index.html': b'latest release'}
+            for version in ('oe3anc-ht/v1.3.9', 'nightly'):
+                for name in ('release.json', 'index.html', 'src/site.mjs'):
+                    path = root / version / name
+                    path.parent.mkdir(parents=True, exist_ok=True)
+                    path.write_text(version + name)
+                    expected[version + '/' + name] = (version + name).encode()
+            self.assertEqual(verify_pages.expected_content(root), {
+                path: hashlib.sha256(content).hexdigest() for path, content in expected.items()
+            })
+
+    def test_old_content_and_404_retry_until_correct_content_is_served(self):
+        digest = hashlib.sha256(b'new release').hexdigest()
+        with patch.object(verify_pages, 'urlopen', side_effect=[
+            io.BytesIO(b'old release'), URLError('404'), io.BytesIO(b'new release')
+        ]) as fetch, patch.object(verify_pages.time, 'sleep') as sleep:
+            verify_pages.verify('https://example.invalid/', {'v1.3.9/release.json': digest})
+        self.assertEqual(fetch.call_count, 3)
+        self.assertEqual(sleep.call_count, 2)
+        self.assertIn('/v1.3.9/release.json?verify=', fetch.call_args.args[0].full_url)
+
+    def test_success_report_cannot_hide_stale_site_or_missing_expectations(self):
+        digest = hashlib.sha256(b'new').hexdigest()
+        with patch.object(verify_pages, 'urlopen', return_value=io.BytesIO(b'old')), \
+             patch.object(verify_pages.time, 'monotonic', side_effect=[0, 0, 2]):
+            with self.assertRaisesRegex(RuntimeError, 'release.json'):
+                verify_pages.verify('https://example.invalid/', {'release.json': digest}, timeout=1)
+        with self.assertRaises(ValueError):
+            verify_pages.verify('https://example.invalid/', {})
 
 
 if __name__ == '__main__':
