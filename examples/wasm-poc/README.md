@@ -1,8 +1,9 @@
 # C62 WASM investigation and host proof of concept
 
 Investigated 2026-10-15 against project baseline `9e6345028e2439d90b9c2469aae50eb75d48ac73`.
-This example is independent of the firmware build. It does not enable a service,
-change audio routing, or access hardware.
+The original host example below is independent of the firmware build. An opt-in
+Development-menu loader and three embedded compatibility probes are now available;
+see the diagnostic-build section. Default firmware leaves the loader disabled.
 
 ## What the firmware contains
 
@@ -12,7 +13,7 @@ These are two different firmware families; do not interchange their DSP images.
 | --- | --- | --- |
 | Attached stock C62 full flash, 4,194,304 bytes | No `\0asm`, `\0aot`, `LSHD`, `WasmService`, `wasm_runtime_load`, `wamr_hifi4`, or `aot_loader.c` matches | No evidence that stock firmware uses WASM; absence of signatures cannot exclude stripped/compressed code |
 | Project original DSP image, 466,832 bytes | WASM service, WAMR HiFi4 source paths, AOT loader/runtime and native bindings | Includes WAMR-derived DSP runtime code; actual service execution remains untested |
-| Current project host firmware | `lsf_wasm` and `lsf_thinker` nodes disabled; old service wrappers are not included in the current project | Not currently wired up to load or call our WASM modules |
+| Default project host firmware | Old generic service nodes remain disabled | Opt-in diagnostic builds register the two required property groups directly |
 
 SHA-256 identities:
 
@@ -166,3 +167,69 @@ with level-matched bypass comparisons before claiming intelligibility gains.
 Remaining acceptance gate: a module executed on the actual pinned DSP, a proven
 PCM/result ABI, and measured processing deadlines under receive load. The host
 example intentionally does not pretend to satisfy that gate.
+
+## Development-menu diagnostic build
+
+Enable `config/wasm-loader.conf` using `tools/build.py c62 --extra-conf` alongside
+the normal pinned toolchain/dependency arguments. `HT_WASM_CLANG` is a CMake cache
+path to Clang with wasm32/wasm-ld; it defaults to the repository's existing emsdk.
+The CMake build generates three modules and a resource header in its `wasm-tests/`
+directory and embeds the modules in the application. No separate flash partition,
+file upload or companion protocol extension is needed. The pinned DSP is unchanged.
+
+Open **Development → WASM loader**, choose a program, and press **OK Load**:
+
+| Program | Work done by main | Expected result |
+| --- | --- | --- |
+| Arithmetic | Sum seven signed PCM values, including extrema | 11 |
+| PCM gain | Halve seven samples and compare against expected results | 22 |
+| Buffer checksum | FNV-1a over the little-endian bytes of seven PCM samples | 33 |
+
+These are synthetic self-tests, not live receive audio processing. `get_output_count()`
+starts at zero and returns the distinctive marker only after main's checks pass.
+The diagnostic queries service 1/property 3 for this marker. It never requests the
+nominal output buffers. This follows the existing Thinker scalar query interface;
+its compatibility with our DSP still needs a hardware test.
+
+The menu shows stopping-audio, loading, checking, PASS, error or timeout. PASS requires
+the expected scalar; a successful load RPC alone is insufficient. `-5` means a
+load/query transport failure; `-74` means invalid or unexpected output. A timeout
+means completion is unknown. The program's observed and expected values remain
+visible separately. Raw bytecode support is unverified: rejection may mean a
+matching Xtensa AOT compiler is required. **This build is a compatibility probe,
+not evidence that the closed DSP can execute these modules.**
+
+Before any attempt, Back restores receive operation. After an attempt, **one test
+per physical reboot** is enforced, even after success or failure. RX/TX remain
+stopped. Power-intent toggles and software radio restart cannot bypass this lock.
+The runtime's replacement/unload lifecycle is not proven, so this build does not
+claim hot swapping. Reboot separately to try each program.
+
+The radio controller admits a test only in exclusive diagnostics with PTT released.
+A dedicated worker waits for the normal audio worker to acknowledge silent routes,
+then registers LSF groups 2 and 1, loads the raw payload and checks the scalar result.
+The group IDs/property IDs match the old wrappers. The AP-only `LSHD` file header
+is unnecessary for embedded resources: the RPC takes the raw module bytes.
+Payload storage is writable, 32-byte-aligned AP PSRAM, retained until reboot; the
+pinned LSF marshaler translates its offset and handles cache handoff. No DSP heap,
+shared SRAM or stack reservation is changed.
+
+The vendor RPCs can wait forever. A 10-second overall deadline marks the UI result
+as timed out without aborting the worker or freeing borrowed storage. Late replies
+cannot become PASS. UI and radio shutdown do not wait on that worker. Hardware
+verification must still establish CPU/DSP execution, cache coherency and timing.
+
+Build and verify the three modules independently:
+
+```sh
+python3 examples/wasm-poc/build_tests.py
+node examples/wasm-poc/check_tests.mjs build/wasm-tests
+```
+
+The output directory includes each `.wasm`, its size/hash/result in `manifest.json`,
+and the generated header. Host checks run each actual module and require zero
+before main, the expected marker afterward, no imports and fixed 64 KiB memory.
+`tests/wasm_loader` uses a simulated DSP boundary to verify menu navigation, PTT
+and phase admission, audio-stop acknowledgement, success/failure/mismatch, a late
+reply after timeout, and the reboot-only lock. `tools/check_ci.py` runs all four
+scenarios; these simulator checks do not establish physical DSP compatibility.

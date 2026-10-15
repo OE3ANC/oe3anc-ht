@@ -32,6 +32,7 @@ int audio_start();
 int audio_route(const AudioRoutes &routes, AudioSession &session);
 void audio_cancel();        // Invalidates sessions and wakes waiters without RPC.
 AudioStatus audio_status(); // Latches a stalled worker as a reboot-only fault.
+bool audio_quiescent(); // Ready worker has acknowledged cancelled, silent routes.
 void audio_report_error(int error);
 
 // Copy exactly count samples (1..1920), or return a negative errno. Buffers

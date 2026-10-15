@@ -33,6 +33,14 @@ config HT_AUDIO
     depends on BOARD_C62 || ZTEST
     default y if BOARD_C62
 
+config HT_WASM_LOADER
+    bool "Experimental DSP WASM loader diagnostics"
+    depends on (BOARD_C62 && HT_AUDIO && HT_UI) || ZTEST
+    help
+      Bundle three bytecode compatibility probes in Development / WASM loader.
+      One attempt per physical reboot; RX/TX stay stopped after an attempt.
+      The closed DSP's bytecode support is not yet hardware-verified.
+
 config HT_POWER
     bool "Battery switch startup gate and inactive outputs"
     depends on HT_BATTERY && HT_RADIO

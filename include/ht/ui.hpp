@@ -214,6 +214,7 @@ class UiModel {
     uint8_t status_page_ = 0;
     char draft_[5] = {}; // At most four diagnostic hexadecimal digits.
     uint32_t diagnostic_ptt_sequence_ = 0;
+    bool wasm_diagnostics_ = false;
     TextEditor text_editor_;
     uint32_t text_ptt_sequence_ = 0;
     uint32_t vfo_step_hz_ = 12500, step_draft_ = 12500;

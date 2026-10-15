@@ -1,5 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include <ht/ui.hpp>
+#ifdef CONFIG_HT_WASM_LOADER
+#include <ht/wasm.hpp>
+#endif
 #include <errno.h>
 #include <stdio.h>
 #include <string.h>
@@ -13,6 +16,25 @@ void UiModel::cancel_diagnostic_edit() {
 }
 
 void UiModel::diagnostics(const UiInput &input) {
+#ifdef CONFIG_HT_WASM_LOADER
+    if (wasm_diagnostics_) {
+        if (input.key == UiKey::Up || input.key == UiKey::Down) {
+            selected_ = (selected_ + (input.key == UiKey::Down ? 1 : 3)) % 4;
+        } else if (input.key == UiKey::Enter || input.key == UiKey::Back) {
+            if (wasm_radio_locked() || radio_ptt_requested()) {
+                error_ = -EBUSY;
+                return;
+            }
+            RadioCommand command;
+            command.kind = input.key == UiKey::Back || selected_ == 3
+                               ? CommandKind::ExitDiagnostics
+                               : CommandKind::WasmTest;
+            command.wasm_program = selected_;
+            submit(command);
+        }
+        return;
+    }
+#endif
     if (editing_ && radio_ptt_press_sequence() != diagnostic_ptt_sequence_) {
         cancel_diagnostic_edit();
         return;
@@ -110,6 +132,56 @@ void UiModel::diagnostics(const UiInput &input) {
 void UiModel::diagnostic_page(UiListPage &page) const {
     page = {};
     page.ready = true;
+#ifdef CONFIG_HT_WASM_LOADER
+    if (wasm_diagnostics_) {
+        page.cursor = selected_;
+        page.count = 4;
+        strcpy(page.title, "WASM LOADER");
+        strcpy(page.rows[0].name, "1 Arithmetic");
+        strcpy(page.rows[1].name, "2 PCM gain");
+        strcpy(page.rows[2].name, "3 Buffer checksum");
+        strcpy(page.rows[3].name, "Exit before loading");
+        const auto status = wasm_status();
+        if (status.stage != WasmStage::Ready) {
+            static const char *const names[] = {"Arithmetic", "PCM gain", "Buffer checksum"};
+            snprintf(page.rows[0].name, sizeof(page.rows[0].name), "Test %u: %s",
+                     status.program + 1, names[status.program]);
+            snprintf(page.rows[1].name, sizeof(page.rows[1].name), "Expected %u",
+                     (status.program + 1) * 11);
+            snprintf(page.rows[2].name, sizeof(page.rows[2].name), "Observed %u",
+                     (unsigned)status.observed);
+            strcpy(page.rows[3].name, "Reboot to restore RF");
+        }
+        switch (status.stage) {
+        case WasmStage::Ready:
+            strcpy(page.detail, "RF off / one test per boot");
+            if (error_) {
+                snprintf(page.detail, sizeof(page.detail), "Request error %d", error_);
+            }
+            break;
+        case WasmStage::WaitingAudio:
+            strcpy(page.detail, "Stopping audio...");
+            break;
+        case WasmStage::Loading:
+            strcpy(page.detail, "Loading on DSP...");
+            break;
+        case WasmStage::Checking:
+            strcpy(page.detail, "Checking DSP result...");
+            break;
+        case WasmStage::Passed:
+            snprintf(page.detail, sizeof(page.detail), "PASS test %u: %u", status.program + 1,
+                     (unsigned)status.observed);
+            break;
+        case WasmStage::Failed:
+            snprintf(page.detail, sizeof(page.detail), "Load/query error %d", status.error);
+            break;
+        case WasmStage::TimedOut:
+            strcpy(page.detail, "DSP timeout / reboot");
+            break;
+        }
+        return;
+    }
+#endif
     page.cursor = selected_;
     page.count = 5;
     strcpy(page.title, editing_ ? selected_ == 0 ? "REGISTER ADDRESS" : "REGISTER VALUE"
@@ -152,6 +224,15 @@ void UiModel::diagnostic_actions(const char *(&actions)[4]) const {
     for (unsigned i = 0; i < 4; ++i) {
         actions[i] = "";
     }
+#ifdef CONFIG_HT_WASM_LOADER
+    if (wasm_diagnostics_) {
+        if (!pending_ && !radio_ptt_requested() && !wasm_radio_locked()) {
+            actions[0] = selected_ < 3 ? "OK Load" : "OK Exit";
+            actions[1] = "BACK Exit";
+        }
+        return;
+    }
+#endif
     if (pending_ || radio_ptt_requested()) {
         return;
     }

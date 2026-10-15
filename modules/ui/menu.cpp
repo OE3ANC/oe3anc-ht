@@ -12,7 +12,8 @@ static const MenuItem main_menu[] = {EditChannelItem, ChannelsItem,  BanksItem, 
 static const MenuItem radio_menu[] = {OperatingItem, VfoStepItem, CallsignItem, TransmitLimitItem};
 static const MenuItem development_menu[] = {DiagnosticsItem,  FmWeakFilterItem, FmAfDacGainItem,
                                             FmCtcssLevelItem, LnaPolarityItem,  CodecStatsItem,
-                                            RxPathItem,       RxGainItem,       RxSquelchItem};
+                                            RxPathItem,       RxGainItem,       RxSquelchItem,
+                                            WasmLoaderItem};
 
 unsigned menu_count(unsigned group) {
 #ifndef CONFIG_HT_CODEPLUG_STORAGE
@@ -48,6 +49,13 @@ unsigned menu_move(unsigned current, Mode mode, int direction, unsigned group) {
 }
 
 bool menu_available(unsigned item, Mode mode) {
+    if (item == WasmLoaderItem) {
+#ifdef CONFIG_HT_WASM_LOADER
+        return true;
+#else
+        return false;
+#endif
+    }
     if (item == CodecStatsItem) {
 #ifdef CONFIG_HT_CODEC2
         return true;
@@ -103,6 +111,9 @@ void menu_label(unsigned item, const RadioState &state, uint32_t step, char (&va
         break;
     case DevelopmentItem:
         strcpy(value, "Development");
+        break;
+    case WasmLoaderItem:
+        strcpy(value, "WASM loader");
         break;
     case CodecStatsItem:
         strcpy(value, "Codec2 statistics");

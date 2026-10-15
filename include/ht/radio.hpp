@@ -106,7 +106,8 @@ enum class CommandKind : uint8_t {
     FmCtcssLevel,    // Global CTCSS TX level; guarded by lifecycle/revision/selection.
     ApplyVfo,        // Guarded shared editor commit.
     ReceiveOverride, // Temporary listening mode; never written to settings.
-    FmRxControls     // Temporary RX-only fields; guarded by lifecycle/revision/selection.
+    FmRxControls,    // Temporary RX-only fields; guarded by lifecycle/revision/selection.
+    WasmTest        // Local diagnostic worker, never a companion wire command.
 };
 
 struct RadioCommand {
@@ -120,6 +121,7 @@ struct RadioCommand {
     uint8_t register_address = 0;
     uint16_t register_value = 0;
     FmRxControls fm_rx_controls;
+    uint8_t wasm_program = 0;
 };
 
 int validate_config(const RadioConfig &config);

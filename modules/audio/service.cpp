@@ -118,6 +118,17 @@ static int session_error_locked(uint32_t session) {
     return !session || session != revision || applied != revision ? -ECANCELED : 0;
 }
 
+bool audio_quiescent() {
+    k_mutex_lock(&mutex, K_FOREVER);
+    check_health_locked();
+    const bool idle = ready && !status.error && applied == revision &&
+                      !routes.input_rate[0] && !routes.input_rate[1] &&
+                      routes.output[0] == AudioSource::Silence &&
+                      routes.output[1] == AudioSource::Silence;
+    k_mutex_unlock(&mutex);
+    return idle;
+}
+
 static bool output_empty(unsigned channel) {
     // The last low-rate sample may already be popped but still need repeats.
     return !output_queue[channel].count && !output_phase[channel];

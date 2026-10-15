@@ -13,6 +13,7 @@ from build import ROOT
 
 # Required gates cover serial ownership, RF leases, shared input and settings/NVS.
 NATIVE_TESTS = (
+    'wasm_loader',
     'bk4819',
     'companion_cps',
     'companion_keys',
@@ -155,6 +156,10 @@ def check(dependencies, tag, base_path, skip_tests=False):
             if name == 'codeplug_profile':
                 probe_env = dict(env, HT_CODEPLUG_PROBE=str(directory / 'zephyr/zephyr.exe'))
                 run(sys.executable, ROOT / 'tests/codeplug/test_profiles.py', env=probe_env)
+            elif name == 'wasm_loader':
+                for scenario in ('pass', 'failure', 'mismatch', 'timeout'):
+                    run(directory / 'zephyr/zephyr.exe', '-no-rt',
+                        env=dict(env, HT_WASM_TEST_CASE=scenario), timeout=120, cwd=directory)
             else:
                 run(directory / 'zephyr/zephyr.exe', '-no-rt', env=env, timeout=120, cwd=directory)
         native = build / 'native-renderer'

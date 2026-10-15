@@ -258,7 +258,7 @@ void UiModel::sync(const RadioState &state) {
                 editing_ = false;
             } else if (screen_ == UiScreen::Diagnostics && state.phase == RadioPhase::Receiving) {
                 screen_ = UiScreen::Menu;
-                selected_ = DiagnosticsItem;
+                selected_ = wasm_diagnostics_ ? WasmLoaderItem : DiagnosticsItem;
                 editing_ = false;
             }
             if (pending_kind_ == CommandKind::ReadRegister) {
@@ -482,6 +482,11 @@ void UiModel::menu(int direction) {
         }
         return;
     case DiagnosticsItem:
+        wasm_diagnostics_ = false;
+        command.kind = CommandKind::EnterDiagnostics;
+        break;
+    case WasmLoaderItem:
+        wasm_diagnostics_ = true;
         command.kind = CommandKind::EnterDiagnostics;
         break;
     case AppearanceItem:

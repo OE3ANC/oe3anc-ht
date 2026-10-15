@@ -105,6 +105,10 @@ filtering and squelch bypassed. Transmit frequency and restrictions stay unchang
 | Status | Radio, mode, activity, battery and storage |
 | Development | BK4819 diagnostics, FM tuning, LNA polarity, Codec2 statistics and RX register pages |
 
+Experimental builds can add a [WASM loader](examples/wasm-poc/README.md#development-menu-diagnostic-build)
+with three DSP compatibility tests. It permits one test per reboot and keeps RF
+stopped afterward; DSP execution support is still being verified.
+
 **Up/Down** selects a row, or changes a value after **OK** starts editing.
 **OK** accepts the field; **Back** cancels it. **P1/P2** always mean previous/next
 page. In text fields, Up/Down moves the cursor, **\*** erases and **#** finishes

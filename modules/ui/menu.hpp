@@ -36,6 +36,7 @@ enum MenuItem {
     RxPathItem,
     RxGainItem,
     RxSquelchItem,
+    WasmLoaderItem,
     MenuCount
 };
 

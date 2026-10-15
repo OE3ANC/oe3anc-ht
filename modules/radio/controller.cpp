@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include <errno.h>
 #include <ht/backend.hpp>
+#ifdef CONFIG_HT_WASM_LOADER
+#include <ht/wasm.hpp>
+#endif
 #ifdef CONFIG_HT_COMPANION
 #include <ht/companion.h>
 #endif
@@ -155,6 +158,11 @@ int RadioController::start(const RadioConfig &config, bool power_active,
         state_.phase = RadioPhase::Inactive;
         return 0;
     }
+#ifdef CONFIG_HT_WASM_LOADER
+    if (wasm_radio_locked()) {
+        return fail(-EBUSY);
+    }
+#endif
     error = backend_init(state_.config);
     if (error) {
         return fail(error);
@@ -354,6 +362,12 @@ int RadioController::execute(const RadioCommand &command) {
             }
             break;
         case CommandKind::ExitDiagnostics:
+#ifdef CONFIG_HT_WASM_LOADER
+            if (wasm_radio_locked()) {
+                error = -EBUSY;
+                break;
+            }
+#endif
             if (state_.phase != RadioPhase::Diagnostics || ptt_) {
                 error = -EBUSY;
             } else {
@@ -364,6 +378,17 @@ int RadioController::execute(const RadioCommand &command) {
                     error = configure(state_.config, state_.fm_rx_controls);
                 }
             }
+            break;
+        case CommandKind::WasmTest:
+#ifdef CONFIG_HT_WASM_LOADER
+            if (state_.phase != RadioPhase::Diagnostics || ptt_ || radio_ptt_requested()) {
+                error = -EBUSY;
+            } else {
+                error = wasm_start(command.wasm_program);
+            }
+#else
+            error = -ENOTSUP;
+#endif
             break;
         case CommandKind::ReadRegister:
         case CommandKind::WriteRegister:
@@ -526,6 +551,12 @@ void RadioController::set_power(bool active) {
         fail(state_.fault);
         return;
     }
+#ifdef CONFIG_HT_WASM_LOADER
+    if (wasm_radio_locked()) {
+        fail(-EBUSY);
+        return;
+    }
+#endif
     const int error = backend_init(state_.config);
     if (error) {
         fail(error);
