@@ -15,7 +15,8 @@ static int uart_companion_pins_config;
 static bool ready = true, physical_ptt, rx_on, err_on, uart_pins;
 static int pin_error, callback_error, gpio_error, read_error;
 static uart_irq_callback_user_data_t callback;
-static unsigned configure_count;
+static unsigned configure_count, gpio_samples;
+static int mux_read_error, mux_gpio_error, mux_restore_error;
 static bool late_ready;
 
 static void delayed_sleep(k_timeout_t timeout) {
@@ -50,11 +51,36 @@ static int set_callback(uart_irq_callback_user_data_t next) {
     return 0;
 }
 
+static int sample_gpio() {
+    ++gpio_samples;
+    // With UART selected, DATAIN no longer tracks the PTT pad.
+    return read_error ? read_error : uart_pins ? 0 : int(physical_ptt);
+}
+
+#include "fakes/IOMuxManager.h"
+
+int32_t IOMuxManager_GetConfig(uint8_t pad, uint8_t pin, uint32_t *function) {
+    zassert_equal(pad, CSK_IOMUX_PAD_A);
+    zassert_equal(pin, 15);
+    *function = uart_pins ? 3 : CSK_IOMUX_FUNC_DEFAULT;
+    return mux_read_error;
+}
+
+int32_t IOMuxManager_PinConfigure(uint8_t pad, uint8_t pin, uint32_t function) {
+    zassert_equal(pad, CSK_IOMUX_PAD_A);
+    zassert_equal(pin, 15);
+    const int error = function == CSK_IOMUX_FUNC_DEFAULT ? mux_gpio_error : mux_restore_error;
+    if (!error) {
+        uart_pins = function != CSK_IOMUX_FUNC_DEFAULT;
+    }
+    return error;
+}
+
 #undef GPIO_DT_SPEC_GET
-#define GPIO_DT_SPEC_GET(node, prop) {}
+#define GPIO_DT_SPEC_GET(node, prop) {nullptr, 15, 0}
 #define gpio_is_ready_dt(spec) ready
 #define gpio_pin_configure_dt(spec, flags) gpio_error
-#define gpio_pin_get_dt(spec) (read_error ? read_error : int(physical_ptt))
+#define gpio_pin_get_dt(spec) sample_gpio()
 #undef DT_NODELABEL
 #define DT_NODELABEL(node) node
 #undef DT_REG_ADDR
@@ -89,6 +115,8 @@ static void before(void *) {
     tx_ready = true;
     late_ready = false;
     line_error = 0;
+    mux_read_error = mux_gpio_error = mux_restore_error = 0;
+    gpio_samples = 0;
     zassert_ok(ht_companion_restore_console());
 }
 
@@ -171,6 +199,8 @@ ZTEST(c62_companion, test_valid_data_resets_hold_even_when_every_sample_is_low) 
         k_sleep(K_MSEC(5));
         zassert_equal(c62_uart_ptt_read(), 0);
     }
+    k_sleep(K_MSEC(UART_QUIET_MS));
+    zassert_equal(c62_uart_ptt_read(), 0);
     k_sleep(K_MSEC(300));
     zassert_equal(c62_uart_ptt_read(), 1, "A subsequent sustained low is physical PTT");
 }
@@ -194,6 +224,50 @@ ZTEST(c62_companion, test_plain_low_needs_no_break_and_short_pulses_do_not_accum
     receive(1);
     uint8_t byte;
     zassert_equal(ht_companion_read(&byte, 1), 1, "UART still works after PTT release");
+}
+
+ZTEST(c62_companion, test_mux_sample_restores_uart_and_propagates_failures) {
+    arm();
+    physical_ptt = true;
+    zassert_equal(sample_gpio(), 0, "Old UART-muxed read cannot see the press");
+    zassert_equal(c62_uart_ptt_read(), 0);
+    zassert_true(uart_pins);
+    k_sleep(K_MSEC(300));
+    zassert_equal(c62_uart_ptt_read(), 1);
+    zassert_true(uart_pins);
+    read_error = -EIO;
+    zassert_equal(c62_uart_ptt_read(), -EIO);
+    zassert_true(uart_pins, "Restore UART even when the GPIO read fails");
+    read_error = 0;
+    mux_gpio_error = -1;
+    zassert_equal(c62_uart_ptt_read(), -EIO);
+    zassert_true(uart_pins);
+    mux_gpio_error = 0;
+    mux_read_error = -1;
+    zassert_equal(c62_uart_ptt_read(), -EIO);
+    zassert_true(uart_pins);
+    mux_read_error = 0;
+    mux_restore_error = -1;
+    zassert_equal(c62_uart_ptt_read(), -EIO);
+}
+
+ZTEST(c62_companion, test_active_uart_burst_is_not_probed_as_gpio) {
+    arm();
+    physical_ptt = true;
+    const unsigned samples = gpio_samples;
+    for (unsigned i = 0; i < 80; ++i) {
+        receive(1);
+        zassert_equal(c62_uart_ptt_read(), 0);
+        zassert_true(uart_pins && rx_on && err_on);
+    }
+    zassert_equal(gpio_samples, samples);
+    received_at = k_uptime_get() - (UART_QUIET_MS - 1);
+    zassert_equal(c62_uart_ptt_read(), 0);
+    zassert_equal(gpio_samples, samples);
+    received_at = k_uptime_get() - UART_QUIET_MS;
+    zassert_equal(c62_uart_ptt_read(), 0);
+    zassert_equal(gpio_samples, samples + 1);
+    zassert_true(uart_pins && rx_on && err_on);
 }
 
 ZTEST(c62_companion, test_threshold_and_pending_uart_byte) {

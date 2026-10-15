@@ -15,7 +15,7 @@
     };
 
     /* The console leaves A15 alone. The companion backend configures its pull
-     * and then owns UART2 RX continuously, including physical PTT detection.
+     * and selects UART2 RX between brief GPIO samples for physical PTT.
      */
 
     /* SPIC alternate function */

@@ -29,13 +29,16 @@ Shorter pulses are treated as UART activity. A valid received byte proves a stop
 bit occurred and resets the low timer, even when GPIO polling misses that high
 level. Break/framing indications neither start nor reset the timer. A released
 interval of 20 ms arms detection at startup; startup holds are consumed. Release
-is immediate at the next controls sample. UART remains muxed throughout.
+is immediate at the next controls sample. C62 briefly selects GPIO to read the
+shared pad, then immediately restores UART RX. GPIO samples are deferred until
+20 ms after valid serial input; queued UART bytes also defer the sample. The
+UART peripheral and RX interrupts remain enabled. The GPIO settle wait is 1 us;
+actual mux timing and serial burst-start overlap require bench verification.
 
 CLOSE, expiry and UART errors revoke remote intent without suppressing physical
 PTT. Physical PTT takes priority over remote PTT and cancels its hold; remote
 expiry/release cannot stop physical TX or resume TX after physical release.
-The C62 bench must verify GPIO DATAIN visibility with UART muxed and the actual
-cable. A continuous cable-driven low is electrically indistinguishable from a
+The C62 bench must verify mux sampling, UART reception and the actual cable. A continuous cable-driven low is electrically indistinguishable from a
 PTT hold. UART reception stays enabled, but bytes cannot be received on a wire
 physically held low; framing/session recovery follows release.
 

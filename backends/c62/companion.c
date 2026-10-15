@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 #include "ui_io.h"
+#include <IOMuxManager.h>
 #include <errno.h>
 #include <ht/companion.h>
 #include <uart.h>
@@ -21,9 +22,10 @@ static bool initialized;
 static const struct gpio_dt_spec ptt = GPIO_DT_SPEC_GET(DT_NODELABEL(button_ptt), gpios);
 /* rx_lock owns the detector as well as all reads of the clear-on-read LSR. */
 static bool ptt_armed, invalid_byte;
-static int64_t released_at = -1, low_at = -1;
+static int64_t released_at = -1, low_at = -1, received_at = -1;
 #define PTT_HOLD_MS 300
 #define PTT_RELEASE_MS 20
+#define UART_QUIET_MS 20
 
 static void disarm_ptt(void) {
     ptt_armed = false;
@@ -62,6 +64,7 @@ static void receive_irq(const struct device *dev, void *user_data) {
         } else {
             /* Even bytes sampled low by the controls thread cancel PTT. */
             low_at = -1;
+            received_at = k_uptime_get();
             if (ring_buf_put(&rx, &byte, 1) != 1) {
                 rx_error = -EOVERFLOW;
             }
@@ -83,9 +86,7 @@ static int normal_uart(void) {
     return error ? error : uart_configure(uart, &config);
 }
 
-/* owner_lock held. Configure GPIO input/pull once, then leave A15 on UART RX.
- * DATAIN observes the pad without gpio_pin_configure stealing the UART mux.
- */
+/* owner_lock held. Configure GPIO input/pull once, then select UART RX. */
 static int initialize(void) {
     if (initialized) {
         return 0;
@@ -108,6 +109,7 @@ static int initialize(void) {
     k_spinlock_key_t key = k_spin_lock(&rx_lock);
     disarm_ptt();
     invalid_byte = false;
+    received_at = -1;
     initialized = true;
     k_spin_unlock(&rx_lock, key);
     uart_irq_rx_enable(uart);
@@ -122,19 +124,45 @@ int ht_companion_restore_console(void) {
     return error;
 }
 
+/* rx_lock held. GPIO DATAIN cannot be used as a pad monitor with UART selected.
+ * Select GPIO only for the sample, then restore the UART function even on error.
+ * The HAL changes only FSEL, preserving input direction, pull and TX pin setup.
+ */
+static int sample_ptt(void) {
+    uint32_t function;
+    if (IOMuxManager_GetConfig(CSK_IOMUX_PAD_A, ptt.pin, &function)) {
+        return -EIO;
+    }
+    const int error =
+        IOMuxManager_PinConfigure(CSK_IOMUX_PAD_A, ptt.pin, CSK_IOMUX_FUNC_DEFAULT);
+    int down = -EIO;
+    if (!error) {
+        k_busy_wait(1); // Allow the GPIO input synchronizer to observe the selected pad.
+        down = gpio_pin_get_dt(&ptt);
+    }
+    if (IOMuxManager_PinConfigure(CSK_IOMUX_PAD_A, ptt.pin, function)) {
+        return -EIO;
+    }
+    return down;
+}
+
 int c62_uart_ptt_read(void) {
     k_spinlock_key_t key = k_spin_lock(&rx_lock);
     int result = 0;
     if (initialized) {
         const uint32_t status = line_status();
-        if ((status & UARTC_LSR_RDR) && !invalid_byte) {
-            low_at = -1; // A pending valid byte also proves an intervening stop bit.
-        }
-        const int down = gpio_pin_get_dt(&ptt);
         const int64_t now = k_uptime_get();
+        if (((status & UARTC_LSR_RDR) && !invalid_byte) ||
+            (received_at >= 0 && now - received_at < UART_QUIET_MS)) {
+            // Do not disturb an active serial burst with GPIO mux probes.
+            low_at = -1;
+            k_spin_unlock(&rx_lock, key);
+            return 0;
+        }
+        const int down = sample_ptt();
         if (down < 0) {
             disarm_ptt();
-            result = down < 0 ? down : 0;
+            result = down;
         } else if (!down) {
             low_at = -1;
             if (released_at < 0) {
