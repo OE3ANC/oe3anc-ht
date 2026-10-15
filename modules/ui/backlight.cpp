@@ -66,6 +66,8 @@ void UiModel::open_light() {
         return;
     }
     settings_ui_preferences(light_draft_, &light_revision_);
+    preference_original_ = light_draft_;
+    field_editing_ = false;
     light_cursor_ = 0;
     screen_ = UiScreen::Backlight;
 #endif
@@ -80,10 +82,17 @@ void UiModel::cancel_light(bool interruption) {
 void UiModel::backlight_input(const UiInput &input) {
 #ifdef CONFIG_HT_CODEPLUG_STORAGE
     if (input.key == UiKey::Back) {
-        cancel_light();
-    } else if (input.key == UiKey::Left) {
-        light_cursor_ = (light_cursor_ + 1) % 3;
+        if (field_editing_) {
+            light_draft_ = field_preferences_;
+            field_editing_ = false;
+        } else {
+            cancel_light();
+        }
     } else if (input.key == UiKey::Up || input.key == UiKey::Down) {
+        if (!field_editing_) {
+            light_cursor_ = (light_cursor_ + (input.key == UiKey::Down ? 1 : 3)) % 4;
+            return;
+        }
         static const uint8_t active[] = {25, 50, 75, 100}, idle[] = {0, 15, 30, 60},
                              dim[] = {10, 20, 30};
         auto &value = light_cursor_ == 0   ? light_draft_.brightness_percent
@@ -97,6 +106,15 @@ void UiModel::backlight_input(const UiInput &input) {
         }
         value = choices[(index + count + (input.key == UiKey::Up ? 1 : -1)) % count];
     } else if (input.key == UiKey::Enter) {
+        if (field_editing_) {
+            field_editing_ = false;
+            return;
+        }
+        if (light_cursor_ < 3) {
+            field_preferences_ = light_draft_;
+            field_editing_ = true;
+            return;
+        }
         if (!next_id_) {
             error_ = -EOVERFLOW;
             return;
@@ -113,7 +131,7 @@ void UiModel::backlight_input(const UiInput &input) {
 
 void UiModel::backlight_lines(char (&text)[8][32]) const {
     strcpy(text[0], "BACKLIGHT");
-    strcpy(text[1], "Explicit Apply / no preview");
+    strcpy(text[1], field_editing_ ? "Editing / Up-Down changes" : "Select field");
     snprintf(text[2], 32, "%c Active: %u%%", light_cursor_ == 0 ? '>' : ' ',
              light_draft_.brightness_percent);
     if (light_draft_.idle_s) {
@@ -123,6 +141,6 @@ void UiModel::backlight_lines(char (&text)[8][32]) const {
         snprintf(text[3], 32, "%c Idle dim: Never", light_cursor_ == 1 ? '>' : ' ');
     }
     snprintf(text[4], 32, "%c Dim: %u%%", light_cursor_ == 2 ? '>' : ' ', light_draft_.dim_percent);
-    strcpy(text[5], "  Dim capped by active");
+    strcpy(text[5], "> Apply");
 }
 } // namespace ht

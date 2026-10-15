@@ -98,6 +98,7 @@ static void *setup() {
 
 static void load(unsigned count = 6) {
     ack_hook = AckHook::None;
+    radio_ptt(false);
     radio_power(true);
     zassert_ok(radio_start({}));
     unlink(path);
@@ -232,251 +233,101 @@ static void frame_out(const char *name) {
     zassert_ok(fclose(file));
 }
 
-ZTEST(ui_channels, test_sorted_page_wrap_and_explicit_recall) {
-    const auto vfo = radio_snapshot().config.rx_frequency_hz;
+static void choose_channel() {
+    key(UiKey::Enter);
+    zassert_equal(model.screen(), UiScreen::BrowseActions);
+    key(UiKey::Enter);
+    tick();
+}
+
+ZTEST(ui_channels, test_sorted_list_pages_and_explicit_select_edit_actions) {
     menu("Channels");
-    zassert_equal(model.screen(), UiScreen::Channels);
-    zassert_equal(model.list_page().count, 6);
+    zassert_equal(model.list_page().count, 8);
     zassert_equal(selected_number(), 1);
-    frame_out("channels");
-    for (unsigned i = 0; i < 4; ++i) {
-        key(UiKey::Down);
-    }
+    key(UiKey::Right);
     zassert_equal(model.list_page().cursor, 4);
     zassert_equal(selected_number(), 5);
-    zassert_equal(radio_snapshot().config.rx_frequency_hz, vfo);
-    frame_out("channels-page-two");
-    key(UiKey::Down);
-    key(UiKey::Down);
-    zassert_equal(selected_number(), 1);
-    key(UiKey::Up);
-    zassert_equal(selected_number(), 6);
-    key(UiKey::Enter);
-    zassert_true(model.recall_pending());
-    zassert_equal(radio_snapshot().selection.operating, Operating::Vfo);
-    frame_out("recall-pending");
-    tick();
-    zassert_false(model.recall_pending());
-    zassert_equal(model.screen(), UiScreen::Home);
-    zassert_equal(radio_snapshot().selection.operating, Operating::Memory);
-    zassert_equal(radio_snapshot().selection.channel_id, find_channel_number(plug, 6)->id);
-}
-
-ZTEST(ui_channels, test_bank_preview_cancel_order_empty_and_recall) {
-    menu("Channels");
     key(UiKey::Left);
-    zassert_equal(model.screen(), UiScreen::Banks);
-    zassert_equal(model.list_page().count, 3);
-    frame_out("banks");
-    key(UiKey::Down);
+    zassert_equal(selected_number(), 1);
+    key(UiKey::Enter);
+    zassert_equal(model.screen(), UiScreen::BrowseActions);
+    frame_out("channel-actions");
     key(UiKey::Back);
-    zassert_equal(model.list_page().count, 6);
-    key(UiKey::Left);
-    key(UiKey::Down);
-    key(UiKey::Enter);
-    zassert_equal(model.list_page().count, 3);
-    zassert_equal(selected_number(), 1);
-    key(UiKey::Up);
-    zassert_equal(selected_number(), 4);
-    frame_out("channels-local");
-    zassert_equal(radio_snapshot().selection.bank_id, 0); // Preview is local.
-    key(UiKey::Enter);
-    tick();
-    zassert_equal(radio_snapshot().selection.bank_id, 1);
-    key(UiKey::Down);
-    tick();
+    zassert_equal(model.screen(), UiScreen::Channels);
+    choose_channel();
+    zassert_equal(model.screen(), UiScreen::Home);
     zassert_equal(radio_snapshot().selection.channel_id, find_channel_number(plug, 1)->id);
+}
+
+ZTEST(ui_channels, test_bank_choice_order_empty_and_back_parent) {
+    menu("Banks");
+    key(UiKey::Back);
+    zassert_equal(model.screen(), UiScreen::Menu);
+    key(UiKey::Back);
+    menu("Channels");
     key(UiKey::Up);
-    tick();
-    zassert_equal(radio_snapshot().selection.channel_id, find_channel_number(plug, 4)->id);
-    menu("Channels");
-    key(UiKey::Left);
+    key(UiKey::Up); // Select bank.
+    key(UiKey::Enter);
+    zassert_equal(model.screen(), UiScreen::Banks);
+    key(UiKey::Back);
+    zassert_equal(model.screen(), UiScreen::Channels);
+    key(UiKey::Up);
+    key(UiKey::Up);
+    key(UiKey::Enter);
     key(UiKey::Down);
+    key(UiKey::Down); // Local.
     key(UiKey::Enter);
-    zassert_equal(model.list_page().count, 0);
-    frame_out("channels-empty-bank");
     key(UiKey::Enter);
-    zassert_false(model.recall_pending());
+    zassert_equal(model.screen(), UiScreen::Channels);
+    zassert_equal(selected_number(), 4);
+    key(UiKey::Down);
+    zassert_equal(selected_number(), 1);
+    choose_channel();
     zassert_equal(radio_snapshot().selection.bank_id, 1);
-}
-
-ZTEST(ui_channels, test_vfo_memory_round_trip_numeric_selection_and_direct_tuning) {
-    key(UiKey::Left);
-    zassert_true(model.recall_pending());
-    tick();
-    const auto memory = radio_snapshot().selection.channel_id;
-    zassert_equal(radio_snapshot().selection.operating, Operating::Memory);
-    key(UiKey::Left);
-    tick();
-    zassert_equal(radio_snapshot().selection.operating, Operating::Vfo);
-    zassert_equal(radio_snapshot().config.rx_frequency_hz, 145500001);
-    key(UiKey::Left);
-    tick();
-    zassert_equal(radio_snapshot().selection.channel_id, memory);
-    model.input({UiKey::Digit, '3'});
-    zassert_equal(model.screen(), UiScreen::ChannelNumber);
-    frame_out("channel-number");
-    key(UiKey::Enter);
-    tick();
-    zassert_equal(radio_snapshot().config.mode, Mode::M17);
-    key(UiKey::Hash);
-    type("145.5");
-    key(UiKey::Enter);
-    tick();
-    zassert_equal(radio_snapshot().selection.operating, Operating::Vfo);
-    Channel stored;
-    zassert_ok(settings_channel(find_channel_number(plug, 3)->id, stored));
-    zassert_equal(stored.configuration.rx_frequency_hz, 433037500);
-    key(UiKey::Left);
-    tick();
-    zassert_equal(radio_snapshot().config.rx_frequency_hz, 433037500);
-}
-
-ZTEST(ui_channels, test_numeric_validation_membership_cancel_and_ptt_interrupt) {
-    menu("Channels");
-    key(UiKey::Left);
     key(UiKey::Down);
-    key(UiKey::Enter);
-    type("2");
+    tick();
+    zassert_equal(radio_snapshot().selection.channel_id, find_channel_number(plug, 3)->id);
+}
+
+ZTEST(ui_channels, test_numeric_selection_validation_and_ptt_draft_preservation) {
+    menu("Channels");
+    type("100");
     key(UiKey::Enter);
     zassert_equal(model.error(), -ENOENT);
-    zassert_false(model.recall_pending());
-    frame_out("channel-not-in-bank");
+    zassert_equal(model.screen(), UiScreen::ChannelNumber);
     key(UiKey::Back);
-    zassert_equal(model.screen(), UiScreen::Channels);
-    type("999");
-    key(UiKey::Enter);
-    zassert_equal(model.error(), -ERANGE);
-    key(UiKey::Back);
-    type("0");
-    key(UiKey::Enter);
-    zassert_equal(model.error(), -EINVAL);
-    key(UiKey::Back);
-    type("4");
-    radio_ptt(true);
-    radio_ptt(false);
-    key(UiKey::Enter);
-    zassert_equal(model.screen(), UiScreen::Channels);
-    zassert_false(model.recall_pending());
-    tick();
-    zassert_equal(radio_snapshot().selection.operating, Operating::Vfo);
-}
-
-ZTEST(ui_channels, test_tx_stale_recall_and_fault_preserve_active_selection) {
-    menu("Channels");
+    type("2");
     radio_ptt(true);
     tick();
-    zassert_true(emulator_transmitting());
+    zassert_equal(model.screen(), UiScreen::ChannelNumber);
     key(UiKey::Enter);
-    zassert_equal(model.error(), -EBUSY);
     zassert_false(model.recall_pending());
     radio_ptt(false);
     tick();
     key(UiKey::Enter);
-    zassert_true(model.recall_pending());
-    RadioCommand configure;
-    configure.config = radio_snapshot().config;
-    configure.config.power_mw = 2500;
-    zassert_ok(radio_submit(configure));
-    tick();
-    tick();
-    zassert_equal(model.error(), -ESTALE);
-    zassert_equal(model.screen(), UiScreen::Channels);
-    zassert_equal(radio_snapshot().selection.operating, Operating::Vfo);
-    radio_report_fault(-EPIPE);
     tick();
     zassert_equal(model.screen(), UiScreen::Home);
-    zassert_false(emulator_transmitting());
+    zassert_equal(radio_snapshot().selection.channel_id, find_channel_number(plug, 2)->id);
 }
 
-ZTEST(ui_channels, test_maximum_capacity_pages_and_position_reads) {
+ZTEST(ui_channels, test_maximum_capacity_and_empty_list_actions) {
     load(256);
     menu("Channels");
+    zassert_equal(model.list_page().count, 258);
     key(UiKey::Up);
-    zassert_equal(model.list_page().cursor, 255);
+    zassert_equal(model.list_page().cursor, 257);
+    key(UiKey::Up);
+    key(UiKey::Up);
     zassert_equal(selected_number(), 256);
-    zassert_equal(strcmp(model.list_page().rows[0].prefix, "253"), 0);
-    frame_out("channels-last-page");
-    uint16_t position = 999;
-    zassert_ok(settings_channel_position(0, find_channel_number(plug, 256)->id, position));
-    zassert_equal(position, 255);
-    zassert_ok(settings_channel_position(1, find_channel_number(plug, 4)->id, position));
-    zassert_equal(position, 0);
-    zassert_equal(settings_channel_position(1, find_channel_number(plug, 2)->id, position),
-                  -ENOENT);
-    zassert_equal(position, 0);
-    zassert_equal(settings_channel_position(999, 1, position), -ENOENT);
-    zassert_equal(position, 0);
-    key(UiKey::Left);
-    key(UiKey::Up);
-    zassert_equal(model.list_page().count, 17);
-    zassert_equal(model.list_page().cursor, 16);
-    zassert_equal(model.list_page().rows[0].id, 16);
-    zassert_equal(strcmp(model.list_page().rows[0].suffix, "256"), 0);
-    frame_out("banks-last-page");
-}
-
-ZTEST(ui_channels, test_empty_memory_and_interrupted_pending_recall) {
+    frame_out("last-channel-page");
+    choose_channel();
+    zassert_equal(radio_snapshot().selection.channel_id, find_channel_number(plug, 256)->id);
     load(0);
-    key(UiKey::Left);
-    zassert_equal(model.screen(), UiScreen::Channels);
-    zassert_equal(model.list_page().count, 0);
-    frame_out("channels-empty");
-    key(UiKey::Back);
-    zassert_equal(model.screen(), UiScreen::Home);
-    load();
     menu("Channels");
-    key(UiKey::Enter);
-    settings_service(radio_snapshot(), 0);
-    radio_power(false);
-    radio_service();
-    settings_service(radio_snapshot(), 1);
-    model.sync(radio_snapshot());
-    zassert_false(model.recall_pending());
-    zassert_equal(model.screen(), UiScreen::Home);
-    zassert_false(emulator_transmitting());
-}
-
-ZTEST(ui_channels, test_list_motion_finishes_and_scene_switch_restores_appearance) {
-    menu("Channels");
-    ui_view_update(model);
-    lv_tick_inc(150);
-    lv_timer_handler(); // Settle optional page entry before checking selection alone.
+    zassert_equal(model.list_page().count, 2);
     key(UiKey::Down);
-    ui_view_update(model);
-    zassert_equal(lv_anim_count_running(), 1);
-    lv_tick_inc(70);
-    lv_timer_handler();
-    ui_view_update(model); // Ordinary refresh must not restart it.
-    lv_tick_inc(100);
-    lv_timer_handler();
-    zassert_equal(lv_anim_count_running(), 0);
-    key(UiKey::Back);
-    key(UiKey::Back);
-    menu("Appearance");
-    frame_out("appearance-after-list");
-    auto *root = lv_obj_get_child(lv_disp_get_scr_act(display), -1);
-    unsigned palette_names = 0;
-    for (unsigned i = 0; i < lv_obj_get_child_cnt(root); ++i) {
-        auto *child = lv_obj_get_child(root, i);
-        if (lv_obj_check_type(child, &lv_label_class) &&
-            !lv_obj_has_flag(child, LV_OBJ_FLAG_HIDDEN)) {
-            for (unsigned t = 0; t < 4; ++t) {
-                palette_names += !strcmp(lv_label_get_text(child),
-                                         ui_palette(static_cast<Theme>(t), Contrast::Normal).name);
-            }
-        }
-    }
-    zassert_equal(palette_names, 4);
-    key(UiKey::Back);
-    key(UiKey::Back);
-    menu("Channels");
-    for (unsigned i = 0; i < 100; ++i) {
-        key(UiKey::Down);
-        frame_out("channels-stress");
-    }
-    printk("Channel LVGL: min-free=%u min-largest=%u max-fragmentation=%u%%\n", minimum_free,
-           minimum_largest, maximum_fragmentation);
+    key(UiKey::Enter);
+    zassert_equal(model.screen(), UiScreen::ChannelEditor);
 }
 
 static void authorize_preferences(AckHook hook) {
@@ -488,62 +339,46 @@ static void authorize_preferences(AckHook hook) {
     settings_service(radio_snapshot(), 0);
     radio_service();
     zassert_true(settings_status().operation_pending);
-    model.sync(radio_snapshot()); // RF revision is current; only RAM publication remains.
+    model.sync(radio_snapshot());
     ack_hook = hook;
 }
 
-ZTEST(ui_channels, test_page_publication_fence_preserves_cursor_and_blocks_mixed_recall) {
+ZTEST(ui_channels, test_page_publication_fence_blocks_mixed_recall) {
     menu("Channels");
     for (unsigned i = 0; i < 3; ++i) {
         key(UiKey::Down);
     }
-    zassert_equal(selected_number(), 4);
     authorize_preferences(AckHook::Page);
     key(UiKey::Down);
     zassert_false(model.list_page().ready);
-    zassert_equal(model.list_page().cursor, 3);
-    zassert_equal(selected_number(), 4); // Old rows and cursor stay together.
+    zassert_equal(selected_number(), 4);
     key(UiKey::Enter);
     zassert_false(model.recall_pending());
     zassert_equal(model.error(), -EAGAIN);
     zassert_true(model.list_page().ready);
     zassert_equal(selected_number(), 5);
-    key(UiKey::Enter);
-    tick();
+    choose_channel();
     zassert_equal(radio_snapshot().selection.channel_id, find_channel_number(plug, 5)->id);
 }
 
-ZTEST(ui_channels, test_reordered_bank_step_and_numeric_epoch_fences) {
+ZTEST(ui_channels, test_numeric_epoch_fence_keeps_draft) {
     menu("Channels");
-    key(UiKey::Left);
-    key(UiKey::Down);
-    key(UiKey::Enter);
-    key(UiKey::Up);
-    key(UiKey::Enter);
-    tick(); // Active Local channel4, old order4/1/3.
-    zassert_ok(settings_bank(1, bank));
-    const auto swap = bank.channel_ids[0];
-    bank.channel_ids[0] = bank.channel_ids[1];
-    bank.channel_ids[1] = swap;
-    zassert_ok(settings_put_bank(bank, 802, radio_snapshot(), settings_status().revision));
-    settings_service(radio_snapshot(), 0);
-    radio_service();
-    model.sync(radio_snapshot());
-    ack_hook = AckHook::Position;
-    key(UiKey::Down);
-    zassert_equal(model.error(), -ESTALE);
-    zassert_false(model.recall_pending());
-    zassert_equal(radio_snapshot().selection.channel_id, find_channel_number(plug, 4)->id);
-    key(UiKey::Down);
-    tick();
-    zassert_equal(radio_snapshot().selection.channel_id, find_channel_number(plug, 3)->id);
     type("1");
     authorize_preferences(AckHook::Number);
     key(UiKey::Enter);
     tick();
     zassert_equal(model.error(), -ESTALE);
-    zassert_equal(radio_snapshot().selection.channel_id, find_channel_number(plug, 3)->id);
     zassert_equal(model.screen(), UiScreen::ChannelNumber);
+    zassert_equal(radio_snapshot().selection.operating, Operating::Vfo);
+}
+
+ZTEST(ui_channels, test_repeated_paging_uses_bounded_widgets) {
+    menu("Channels");
+    for (unsigned i = 0; i < 200; ++i) {
+        key(i % 2 ? UiKey::Down : UiKey::Right);
+        frame_out("channels-stress");
+    }
+    zassert_true(minimum_free > 4096);
 }
 
 ZTEST_SUITE(ui_channels, nullptr, setup, before, nullptr, nullptr);

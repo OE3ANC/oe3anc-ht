@@ -4,6 +4,7 @@
 #include <ht/emulator.hpp>
 #include <ht/settings.hpp>
 #include <ht/ui.hpp>
+#include "../../ui_navigation.hpp"
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -145,16 +146,7 @@ static void type(const char *value) {
 }
 
 static void open() {
-    key(UiKey::Enter);
-    for (unsigned i = 0; i < 32; ++i) {
-        UiListPage page;
-        model.menu_page(page);
-        if (!strcmp(page.rows[page.cursor % 4].name, "BK4819 diagnostics")) {
-            key(UiKey::Enter);
-            break;
-        }
-        key(UiKey::Down);
-    }
+    ui_test_menu(model, "BK4819 diagnostics");
     zassert_true(model.command_pending());
     tick();
     zassert_equal(model.screen(), UiScreen::Diagnostics);
@@ -232,7 +224,7 @@ ZTEST(ui_diagnostic, test_complete_physical_hex_write_read_and_no_persistence) {
     key(UiKey::Enter);
     zassert_true(model.diagnostic_editing());
     render("hex-empty");
-    label("P2 Add");
+
     label("BACK Cancel");
     key(UiKey::Enter);
     zassert_equal(model.error(), -EINVAL);
@@ -240,11 +232,11 @@ ZTEST(ui_diagnostic, test_complete_physical_hex_write_read_and_no_persistence) {
     for (unsigned i = 0; i < 4; ++i) {
         key(UiKey::Up);
     }
-    key(UiKey::Right);
+    key(UiKey::Hash);
     for (unsigned i = 0; i < 4; ++i) {
         key(UiKey::Down);
     }
-    key(UiKey::Right);
+    key(UiKey::Hash);
     zassert_equal(strcmp(model.diagnostic_text(), "40"), 0);
     render("hex-address");
     key(UiKey::Enter);
@@ -253,23 +245,23 @@ ZTEST(ui_diagnostic, test_complete_physical_hex_write_read_and_no_persistence) {
     for (unsigned i = 0; i < 11; ++i) {
         key(UiKey::Up);
     }
-    key(UiKey::Right);
+    key(UiKey::Hash);
     for (unsigned i = 0; i < 3; ++i) {
         key(UiKey::Up);
     }
-    key(UiKey::Right);
-    key(UiKey::Right);
+    key(UiKey::Hash);
+    key(UiKey::Hash);
     key(UiKey::Up);
-    key(UiKey::Right);
+    key(UiKey::Hash);
     zassert_equal(strcmp(model.diagnostic_text(), "BEEF"), 0);
-    key(UiKey::Left);
-    key(UiKey::Right);
+    key(UiKey::Star);
+    key(UiKey::Hash);
     render("hex-value");
     const auto idle = flush_count;
     ui_view_update(model);
     lv_refr_now(display);
     zassert_equal(flush_count, idle);
-    key(UiKey::Right);
+    key(UiKey::Hash);
     zassert_equal(model.error(), -ENOSPC);
     zassert_equal(strcmp(model.diagnostic_text(), "BEEF"), 0);
     key(UiKey::Enter);
@@ -472,7 +464,7 @@ ZTEST(ui_diagnostic, test_all_themes_contrasts_editor_geometry_and_bounded_heap)
             key(UiKey::Back);
             tick();
             ui_view_update(model);
-            label("MENU");
+            label("DEVELOPMENT");
             label("OK Select");
         }
     }

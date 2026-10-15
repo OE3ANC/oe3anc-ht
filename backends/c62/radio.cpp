@@ -27,6 +27,9 @@ static bool transmitting;
 static bool audible;
 static bool digital_activity;
 static bool monitor;
+static bool chime;
+static AudioSession chime_session;
+static uint32_t chime_sample, chime_phase;
 static int peripheral_error;
 static Bk4819RxStatus rx_registers;
 
@@ -53,6 +56,7 @@ void backend_stop() {
     if (radio_ready) {
         remember_error(bk4819_af(false));
     }
+    chime = false;
     audio_cancel();
     m17_cancel();
     receiving = transmitting = audible = digital_activity = false;
@@ -170,6 +174,51 @@ int backend_receive() {
         receiving = true;
     }
     return finish(error);
+}
+
+int backend_startup_chime() {
+    backend_stop();
+    AudioRoutes routes;
+    routes.output[0] = AudioSource::Buffer;
+    routes.output_rate[0] = 16000;
+    int error = audio_route(routes, chime_session);
+    if (!error) {
+        error = c62_speaker(true);
+    }
+    if (!error) {
+        chime = true;
+        chime_sample = chime_phase = 0;
+    }
+    return finish(error);
+}
+
+static int chime_poll() {
+    // DMG-style 50% pulse: 131072/(2048-0x783), then ...0x7c1.
+    // Generate a quiet, decaying two-note chime; never route it to the radio DAC.
+    if (chime_sample >= 9600) {
+        return 0;
+    }
+    int16_t samples[160];
+    uint32_t phase = chime_phase;
+    for (unsigned i = 0; i < 160; ++i) {
+        const uint32_t position = chime_sample + i;
+        const bool second = position >= 1600;
+        const uint32_t age = second ? position - 1600 : position;
+        const uint32_t duration = second ? 8000 : 1600;
+        const int amplitude = 2200 * (duration - age) / duration;
+        const uint32_t frequency = second ? 2080508 : 1048576; // milli-Hz
+        phase = (phase + frequency) % 16000000;
+        samples[i] = phase < 8000000 ? amplitude : -amplitude;
+    }
+    const int error = audio_write(chime_session, AudioOutput::Speaker, samples, 160, 0);
+    if (error == -EAGAIN) {
+        return 0;
+    }
+    if (!error) {
+        chime_sample += 160;
+        chime_phase = phase;
+    }
+    return error;
 }
 
 int backend_transmit(int64_t &started_ms) {
@@ -310,6 +359,12 @@ static int receive_audio(bool enabled) {
 BackendStatus backend_status() {
     BackendStatus status;
     status.error = health();
+    if (chime) {
+        if (!status.error) {
+            status.error = chime_poll();
+        }
+        return status;
+    }
     if (!status.error && receiving) {
         status.error = bk4819_rssi(&status.rssi_dbm);
         bool tone = false;

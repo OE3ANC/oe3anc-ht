@@ -16,6 +16,9 @@ Layout layout(const UiPresentation &v) {
         return Layout::Home;
     }
     const auto s = v.screen;
+    if (s == UiScreen::Startup) {
+        return Layout::List;
+    }
     if (s == UiScreen::Menu) {
         return Layout::Menu;
     }
@@ -23,7 +26,7 @@ Layout layout(const UiPresentation &v) {
         return Layout::Status;
     }
     if (s == UiScreen::Appearance) {
-        return Layout::Appearance;
+        return Layout::Form;
     }
     if (s == UiScreen::Diagnostics) {
         return v.diagnostic_editing ? Layout::Hex : Layout::List;
@@ -36,8 +39,9 @@ Layout layout(const UiPresentation &v) {
         s == UiScreen::BankMembers || s == UiScreen::BankAdd) {
         return Layout::List;
     }
-    if (channel_programming(s) || bank_programming(s) || s == UiScreen::VfoStep ||
-        s == UiScreen::QuickControls || s == UiScreen::Backlight || s == UiScreen::TransmitLimit) {
+    if (channel_programming(s) || bank_programming(s) || s == UiScreen::Discard ||
+        s == UiScreen::BrowseActions || s == UiScreen::VfoStep || s == UiScreen::QuickControls ||
+        s == UiScreen::Backlight || s == UiScreen::TransmitLimit) {
         return Layout::Form;
     }
     return Layout::None;
@@ -175,8 +179,8 @@ template <typename View, typename Codec> bool strings(View &v, Layout kind, Code
 }
 
 bool valid(const UiPresentation &v, Layout kind) {
-    if (unsigned(v.screen) > companion::UI_SCREEN_COMPANION_EXIT ||
-        unsigned(v.list_return) > companion::UI_SCREEN_COMPANION_EXIT ||
+    if (unsigned(v.screen) > companion::UI_SCREEN_DISCARD ||
+        unsigned(v.list_return) > companion::UI_SCREEN_DISCARD ||
         v.preferences.theme > Theme::TerminalIce || v.preferences.contrast > Contrast::Maximum ||
         (v.system_visible && v.home.visible) || v.form_cursor > 3 ||
         (v.motion && !v.preferences.animations)) {
@@ -196,7 +200,7 @@ bool valid(const UiPresentation &v, Layout kind) {
         }
     }
     if (kind == Layout::Menu || kind == Layout::List || kind == Layout::Hex) {
-        if (v.list.count > 256 ||
+        if (v.list.count > 258 ||
             (v.list.count ? v.list.cursor >= v.list.count : v.list.cursor != 0)) {
             return false;
         }
@@ -230,7 +234,7 @@ int ui_encode_presentation(const UiPresentation &v, uint8_t *bytes, size_t capac
         ((v.screen == UiScreen::Diagnostics && v.diagnostic_editing) << 6) |
         ((v.screen == UiScreen::QuickControls && v.quick_available) << 7) |
         ((kind == Layout::Text && v.text.pending) << 8) | (v.preferences.animations << 9);
-    w.number(1, 1);
+    w.number(2, 1);
     w.number(unsigned(v.screen), 1);
     w.number(unsigned(v.preferences.theme), 1);
     w.number(unsigned(v.preferences.contrast), 1);
@@ -274,7 +278,7 @@ int ui_decode_presentation(const uint8_t *bytes, size_t length, UiPresentation &
     }
     Reader r{bytes, length};
     v = {};
-    if (r.number(1) != 1) {
+    if (r.number(1) != 2) {
         return -EINVAL;
     }
     v.screen = static_cast<UiScreen>(r.number(1));

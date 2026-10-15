@@ -13,7 +13,7 @@ export class RemoteKeys {
     }
 
     set(key, pressed) {
-        if (!Number.isInteger(key) || key < 0 || key > C.UI_KEY_DIGIT_9) {
+        if (!Number.isInteger(key) || key < 0 || key > C.UI_KEY_QUICK) {
             return;
         }
         const bit = 1 << key;
@@ -322,8 +322,6 @@ export class VirtualKeypad {
                 String(!!(this.keys.held & (1 << Number(button.dataset.key))))
             );
         }
-        this.status.textContent = available
-            ? 'Keypad ready'
-            : 'Keypad paused';
+        this.status.textContent = available ? 'Keypad ready' : 'Keypad paused';
     }
 }

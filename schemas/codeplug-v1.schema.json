@@ -111,6 +111,10 @@
                 "dim_percent"
               ],
               "additionalProperties": false
+            },
+            "startup_animation": {
+              "type": "boolean",
+              "default": true
             }
           },
           "required": [
@@ -136,7 +140,10 @@
             100000
           ]
         },
-        "lna_inverted": {"type": "boolean", "default": false},
+        "lna_inverted": {
+          "type": "boolean",
+          "default": false
+        },
         "fm_ctcss_level": {
           "type": "integer",
           "minimum": 0,

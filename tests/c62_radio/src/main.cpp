@@ -78,7 +78,7 @@ extern "C" int c62_speaker(bool enabled) {
         return -EIO;
     }
     if (enabled) {
-        zassert_equal(atomic_get(&audio_running), 3, "speaker enabled before audio readiness");
+        zassert_true(atomic_get(&audio_running) & 2, "speaker enabled before playback readiness");
     }
     speaker = enabled;
     return 0;
@@ -231,6 +231,28 @@ static void configure(const RadioConfig &config) {
     RadioCommand command;
     command.config = config;
     zassert_ok(controller.execute(command));
+}
+
+ZTEST(c62_radio, test_startup_chime_only_reaches_speaker_and_ptt_interrupts) {
+    controller.startup_chime(true);
+    zassert_true(speaker);
+    for (unsigned i = 0; i < 65; ++i) {
+        controller.poll();
+        k_sleep(K_MSEC(10));
+    }
+    k_mutex_lock(&io_mutex, K_FOREVER);
+    zassert_true(speaker_nonzero > 0);
+    zassert_equal(radio_nonzero, 0);
+    k_mutex_unlock(&io_mutex);
+    zassert_equal(atomic_get(&pa_keys), 0);
+    controller.startup_chime(false);
+    zassert_equal(controller.state().phase, RadioPhase::Receiving);
+    zassert_ok(controller.start({}));
+    controller.startup_chime(true);
+    set_ptt(true);
+    zassert_equal(controller.state().phase, RadioPhase::Transmitting);
+    set_ptt(false);
+    zassert_equal(controller.state().phase, RadioPhase::Receiving);
 }
 
 ZTEST(c62_radio, test_rx_register_snapshot_is_read_only_bounded_and_refreshed_after_retune) {

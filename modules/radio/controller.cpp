@@ -62,8 +62,10 @@ int validate_config(const RadioConfig &config) {
 }
 
 int RadioController::fail(int error) {
+    chime_active_ = false;
     backend_stop();
     state_.monitor_active = false;
+    state_.receive_override = ReceiveOverride::Normal;
     tx_deadline_ms_ = 0;
     state_.tx_remaining_s = 0;
     state_.tx_warning = state_.tx_timed_out = false;
@@ -86,7 +88,7 @@ int RadioController::receive() {
     tx_deadline_ms_ = 0;
     state_.tx_remaining_s = 0;
     state_.tx_warning = false;
-    const int error = backend_receive();
+    const int error = apply_receive_override();
     if (error) {
         return fail(error);
     }
@@ -96,6 +98,28 @@ int RadioController::receive() {
     state_.m17_quality = {};
     memset(state_.received_callsign, 0, sizeof(state_.received_callsign));
     return 0;
+}
+
+int RadioController::apply_receive_override() {
+    // Only the backend sees the temporary RX frequency. The authoritative
+    // configuration (including TX and persisted VFO/channel data) stays intact.
+    RadioConfig receive_config = state_.config;
+    if (state_.receive_override == ReceiveOverride::ListenTx) {
+        receive_config.rx_frequency_hz = receive_config.tx_frequency_hz;
+    }
+    int error = state_.receive_override == ReceiveOverride::ListenTx
+                    ? backend_configure(receive_config, state_.fm_rx_controls)
+                    : 0;
+    if (!error) {
+        error = backend_receive();
+    }
+    const bool monitor =
+        state_.receive_override != ReceiveOverride::Normal && state_.config.mode == Mode::Fm;
+    if (!error && monitor) {
+        error = backend_monitor(true);
+    }
+    state_.monitor_active = !error && monitor;
+    return error;
 }
 
 int RadioController::start(const RadioConfig &config, bool power_active,
@@ -108,6 +132,8 @@ int RadioController::start(const RadioConfig &config, bool power_active,
     state_.shutdown_ms = shutdown_ms;
     state_.generation = generation;
     state_.power_active = power_active;
+    chime_active_ = false;
+    chime_deadline_ = 0;
     ptt_ = false;
     remote_ptt_ = false;
     ptt_armed_ = power_active;
@@ -145,16 +171,18 @@ int RadioController::configure(const RadioConfig &config, const FmRxControls &co
     if (validation) {
         return validation;
     }
+    chime_active_ = false;
     state_.monitor_active = false;
     backend_stop();
     const int error = backend_configure(config, controls);
     if (error) {
         return fail(error);
     }
+    state_.config = config;
+    state_.fm_rx_controls = controls;
+    state_.receive_override = ReceiveOverride::Normal;
     const int result = receive();
     if (result == 0) {
-        state_.config = config;
-        state_.fm_rx_controls = controls;
         ++state_.configuration_revision;
     }
     return result;
@@ -168,6 +196,23 @@ int RadioController::execute(const RadioCommand &command) {
         error = state_.fault;
     } else {
         switch (command.kind) {
+        case CommandKind::ApplyVfo:
+            if (command.expected_generation != state_.generation ||
+                command.expected_revision != state_.configuration_revision ||
+                !same_selection(command.selection, state_.selection)) {
+                error = -ESTALE;
+                break;
+            }
+            if (state_.phase != RadioPhase::Receiving || ptt_ || radio_ptt_requested()) {
+                error = -EBUSY;
+                break;
+            }
+            if (state_.selection.operating != Operating::Vfo) {
+                error = -EINVAL;
+                break;
+            }
+            error = configure(command.config, state_.fm_rx_controls);
+            break;
         case CommandKind::Configure: {
             const bool changed = !same_operating(state_.config, command.config);
             error = state_.phase == RadioPhase::Receiving
@@ -196,6 +241,24 @@ int RadioController::execute(const RadioCommand &command) {
                         ++state_.configuration_revision;
                     }
                 }
+            }
+            break;
+        case CommandKind::ReceiveOverride:
+            if (command.expected_generation != state_.generation ||
+                command.expected_revision != state_.configuration_revision ||
+                !same_selection(command.selection, state_.selection)) {
+                error = -ESTALE;
+            } else if (command.receive_override > ReceiveOverride::ListenTx) {
+                error = -EINVAL;
+            } else if (state_.phase != RadioPhase::Receiving || ptt_ || radio_ptt_requested()) {
+                error = -EBUSY;
+            } else if (command.receive_override == ReceiveOverride::Monitor &&
+                       (state_.config.mode != Mode::Fm || !backend_capabilities().fm_monitor)) {
+                error = -ENOTSUP;
+            } else {
+                state_.receive_override = command.receive_override;
+                error = backend_configure(state_.config, state_.fm_rx_controls);
+                error = error ? fail(error) : receive();
             }
             break;
         case CommandKind::QuickControls: {
@@ -351,7 +414,10 @@ void RadioController::apply_ptt(bool pressed, bool remote) {
         remote_ptt_ = remote;
     }
     if (pressed) {
-        cancel_monitor();
+        startup_chime(false);
+        if (state_.receive_override == ReceiveOverride::Normal) {
+            cancel_monitor();
+        }
     }
     state_.ptt_error = 0;
     if (!pressed) {
@@ -396,9 +462,18 @@ void RadioController::apply_ptt(bool pressed, bool remote) {
             state_.ptt_error = -EADDRNOTAVAIL;
             return;
         }
+        cancel_monitor();
+        if (state_.fault) {
+            return;
+        }
         backend_stop();
         int64_t started_ms = 0;
-        const int error = backend_transmit(started_ms);
+        int error = state_.receive_override == ReceiveOverride::ListenTx
+                        ? backend_configure(state_.config, state_.fm_rx_controls)
+                        : 0;
+        if (!error) {
+            error = backend_transmit(started_ms);
+        }
         if (error == -ECANCELED) {
             backend_stop();
             if (!radio_power_requested()) {
@@ -436,6 +511,7 @@ void RadioController::set_power(bool active) {
         state_.shutdown_ms = k_uptime_get();
     }
     state_.monitor_active = false;
+    state_.receive_override = ReceiveOverride::Normal;
     monitor_pressed_ = true; // Auxiliary hold also needs a fresh release/repress.
     tx_deadline_ms_ = 0;
     state_.tx_remaining_s = 0;
@@ -494,7 +570,9 @@ void RadioController::set_monitor(bool pressed) {
 
 void RadioController::interrupt_monitor(bool held) {
     monitor_pressed_ = held;
-    cancel_monitor();
+    if (state_.receive_override == ReceiveOverride::Normal) {
+        cancel_monitor();
+    }
 }
 
 void RadioController::expire_transmit() {
@@ -504,6 +582,26 @@ void RadioController::expire_transmit() {
     if (!receive()) {
         state_.tx_timed_out = ptt_;
         state_.ptt_error = ptt_ ? -ETIMEDOUT : 0;
+    }
+}
+
+void RadioController::startup_chime(bool enabled) {
+    enabled = enabled && state_.power_active && !state_.fault && !ptt_ &&
+              state_.phase == RadioPhase::Receiving;
+    if (chime_active_ && (!enabled || k_uptime_get() >= chime_deadline_)) {
+        chime_active_ = false;
+        backend_stop();
+        if (state_.power_active && !state_.fault && state_.phase == RadioPhase::Receiving) {
+            receive();
+        }
+    } else if (enabled && !chime_active_ && !chime_deadline_) {
+        chime_deadline_ = k_uptime_get() + 1000;
+        const int error = backend_startup_chime();
+        if (error) {
+            fail(error);
+        } else {
+            chime_active_ = true;
+        }
     }
 }
 

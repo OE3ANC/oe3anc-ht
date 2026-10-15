@@ -30,7 +30,7 @@ static void expire(int64_t now) {
 }
 
 int ui_queue_input(const UiInput &input) {
-    if (input.key > UiKey::Digit || input.remote_generation) {
+    if ((input.key > UiKey::Digit && input.key != UiKey::Monitor) || input.remote_generation) {
         return -EINVAL;
     }
     const auto key = k_spin_lock(&input_lock);
@@ -70,7 +70,8 @@ void ui_remote_clear() {
 }
 
 int ui_remote_key(UiInput input, unsigned wire_key) {
-    if (wire_key > companion::UI_KEY_DIGIT_9 || input.key > UiKey::Digit) {
+    if (wire_key > companion::UI_KEY_QUICK ||
+        (input.key > UiKey::Digit && input.key != UiKey::Monitor)) {
         return -EINVAL;
     }
     const auto key = k_spin_lock(&input_lock);

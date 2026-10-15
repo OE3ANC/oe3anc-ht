@@ -60,9 +60,14 @@ int TextEditor::begin(TextKind kind, const char *initial) {
         }
     }
     checked[length] = 0;
+    if (kind == TextKind::Frequency && !length) {
+        strcpy(checked, "000.000000");
+        length = 10;
+    }
     memcpy(text_, checked, length + 1);
     kind_ = kind;
-    length_ = cursor_ = length;
+    length_ = length;
+    cursor_ = kind == TextKind::Frequency ? 0 : length;
     finish();
     return 0;
 }
@@ -82,6 +87,23 @@ int TextEditor::literal(char character) {
         return -EINVAL;
     }
     finish();
+    if (kind_ == TextKind::Frequency && strchr(text_, '.')) {
+        if (character == '.') {
+            cursor_ = strchr(text_, '.') - text_ + 1;
+            return 0;
+        }
+        if (cursor_ < length_ && text_[cursor_] == '.') {
+            ++cursor_;
+        }
+        if (cursor_ >= length_) {
+            return -ENOSPC;
+        }
+        text_[cursor_++] = character;
+        if (cursor_ < length_ && text_[cursor_] == '.') {
+            ++cursor_;
+        }
+        return 0;
+    }
     return insert(character);
 }
 
@@ -132,6 +154,16 @@ void TextEditor::move(int direction) {
 
 void TextEditor::erase() {
     finish();
+    if (kind_ == TextKind::Frequency && strchr(text_, '.')) {
+        if (cursor_) {
+            --cursor_;
+        }
+        if (text_[cursor_] == '.' && cursor_) {
+            --cursor_;
+        }
+        text_[cursor_] = '0';
+        return;
+    }
     if (cursor_) {
         memmove(text_ + cursor_ - 1, text_ + cursor_, length_ - cursor_ + 1);
         --cursor_;

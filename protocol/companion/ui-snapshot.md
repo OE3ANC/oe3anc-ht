@@ -1,4 +1,4 @@
-# Read-only UI snapshots, schema 1
+# Read-only UI snapshots, schema 2
 
 This document, `contract.json` and `ui-fixtures.json` are normative for companion
 protocol 1.1. The payload is presentation data for the existing shared LVGL
@@ -60,13 +60,13 @@ Omitted internal fields are reset to their default values by the renderer decode
 
 | Offset | Type | Meaning |
 | --- | --- | --- |
-| 0 | u8 | Schema, exactly 1 |
-| 1 | u8 | Screen ID from `ui_screens` in `contract.json` (0..28) |
+| 0 | u8 | Schema, exactly 2 |
+| 1 | u8 | Screen ID from `ui_screens` in `contract.json` (0..31) |
 | 2 | u8 | Theme: Midnight=0, Nord=1, SolarizedDark=2, Darcula=3, TerminalGreen=4, TerminalAmber=5, TerminalIce=6 |
 | 3 | u8 | Contrast: Normal=0, High=1, Maximum=2 |
 | 4 | u16 | Flags below |
 | 6 | u8 | Form cursor, 0..3 |
-| 7 | u8 | List-return screen ID, 0..28 |
+| 7 | u8 | List-return screen ID, 0..31 |
 | 8 | u32 | Animation interruption sequence |
 | 12 | u32 | PTT presentation sequence |
 | 16 | u32 | Monitor presentation sequence |
@@ -83,11 +83,11 @@ Sequence values affect rendering only and grant no input/RF permission.
 Layout selection has priority: system-visible → System; home-visible → Home;
 Screen ID 28 (CompanionExit) is retained for wire numbering but no longer emitted.
 Otherwise select by screen: Menu → Menu; Status → Status;
-Appearance → Appearance; Diagnostics → Hex if editing, otherwise List;
+Appearance → Form; Diagnostics → Hex if editing, otherwise List;
 Frequency/Callsign/ChannelNumber/ChannelField/BankName → Text;
-Channels/Banks/ChannelBank/BankMembers/BankAdd → List;
+Channels/Banks/ChannelBank/BankMembers/BankAdd/Startup → List;
 remaining ChannelEditor..ChannelSaved and BankEditor..BankSaved screens, plus
-VfoStep/QuickControls/Backlight/TransmitLimit → Form; otherwise None.
+VfoStep/QuickControls/Backlight/TransmitLimit/BrowseActions/Discard → Form; otherwise None.
 Numeric screen IDs are frozen in the machine-readable contract; generation
 checks their agreement with the firmware's `UiScreen` enum.
 
@@ -97,13 +97,12 @@ checks their agreement with the firmware's `UiScreen` enum.
 | Home | identity(15), name(24), context(31), frequency(15), settings(31), activity(31), battery(11), mode(3) | status:u8, contextColor:u8, batteryColor:u8, bars:u8 |
 | Menu, List | list title(24), detail(31), four rows each name(24)/prefix(4)/suffix(4), line 6(31) | cursor:u16, count:u16, ready:u8 |
 | Hex | list title(24), detail(31), four rows each name(24)/prefix(4)/suffix(4), diagnostic text(4) | cursor:u16, count:u16, ready:u8 |
-| Appearance | line 1(31), line 6(31) | None |
 | Text | line 1(31), line 6(31), line 0(31), line 4(31), text value(24) | text kind:u8, cursor:u8 |
 | Form | line 1(31), line 6(31), line 0(31), lines 2/3/4/5(31 each) | None |
 | None | None | None |
 
 Color/status values are Muted=0, Accent=1, Amber=2, Red=3. Home mode is exactly
-`FM` or `M17`; bars are 0..5. List count is 0..256; cursor must be below a
+`FM` or `M17`; bars are 0..5. List count is 0..258; cursor must be below a
 positive count, or zero for count zero. Ready is exactly 0 or 1. Text kinds are
 Name=0, Callsign=1, Frequency=2, ChannelNumber=3 with value limits 24/9/11/3;
 cursor is 0..value length. This exposes a copied shared draft rather than an
@@ -129,3 +128,10 @@ No screen IDs, payload fields, limits or codeplug formats change.
 Requested power is displayed in watts in radio presentation strings and the CPS
 editor (for example, `2.5 W`). CPS converts decimal watts to integer milliwatts;
 the stored and binary `power_mw` fields retain their existing units and limits.
+
+Schema 2 adds generic Appearance fields, BrowseActions and Discard forms, and a
+Startup screen. Startup uses List scalars: count 81 and cursor 0..80 encode the
+vertical animation position (label top = cursor - 24 pixels). Its text is
+OE3ANC-HT. The radio advances and cancels the animation; the browser only renders
+snapshots and never plays sound. PTT presentation still takes precedence. The
+former Appearance-specific layout is no longer emitted or accepted.

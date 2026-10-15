@@ -16,8 +16,11 @@ export function presentationKind(v) {
     if ([S('STATUS'), S('COMPANION_EXIT')].includes(s)) {
         return 'status';
     }
+    if (s === S('STARTUP')) {
+        return 'list';
+    }
     if (s === S('APPEARANCE')) {
-        return 'appearance';
+        return 'form';
     }
     if (s === S('DIAGNOSTICS')) {
         return v.flags & 64 ? 'hex' : 'list';
@@ -41,7 +44,15 @@ export function presentationKind(v) {
     if (
         (s >= S('CHANNEL_EDITOR') && s <= S('CHANNEL_SAVED')) ||
         (s >= S('BANK_EDITOR') && s <= S('BANK_SAVED')) ||
-        [S('VFO_STEP'), S('QUICK_CONTROLS'), S('BACKLIGHT'), S('TRANSMIT_LIMIT')].includes(s)
+        [
+            S('DISCARD'),
+            S('BROWSE_ACTIONS'),
+            S('STARTUP'),
+            S('VFO_STEP'),
+            S('QUICK_CONTROLS'),
+            S('BACKLIGHT'),
+            S('TRANSMIT_LIMIT')
+        ].includes(s)
     ) {
         return 'form';
     }
@@ -130,8 +141,8 @@ function scalars(v, number) {
 function valid(v) {
     const kind = presentationKind(v);
     if (
-        v.screen > S('COMPANION_EXIT') ||
-        v.listReturn > S('COMPANION_EXIT') ||
+        v.screen > S('DISCARD') ||
+        v.listReturn > S('DISCARD') ||
         v.theme >= THEMES.length ||
         v.contrast > 2 ||
         v.flags > 1023 ||
@@ -154,7 +165,7 @@ function valid(v) {
     }
     if (
         ['menu', 'list', 'hex'].includes(kind) &&
-        (v.list.count > 256 ||
+        (v.list.count > 258 ||
             (v.list.count ? v.list.cursor >= v.list.count : v.list.cursor !== 0) ||
             v.list.ready > 1)
     ) {
@@ -216,7 +227,7 @@ export function decodePresentation(bytes) {
         offset += size;
         return String.fromCharCode(...value);
     };
-    if (number(0, 1) !== 1) {
+    if (number(0, 1) !== 2) {
         throw new Error('Unsupported presentation schema');
     }
     const v = {};
@@ -233,7 +244,7 @@ export function decodePresentation(bytes) {
 }
 export function encodePresentation(document) {
     const v = structuredClone(document);
-    const bytes = [1];
+    const bytes = [2];
     const number = (value, count) => {
         if (!Number.isInteger(value) || value < 0 || value >= 2 ** (count * 8)) {
             throw new Error('Invalid presentation integer');

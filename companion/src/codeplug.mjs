@@ -178,7 +178,16 @@ export function validate(document) {
     choice(g.transmit_limit_s, [0, 60, 120, 180], '$.global.transmit_limit_s');
     boolean(Object.hasOwn(g, 'lna_inverted') ? g.lna_inverted : false, '$.global.lna_inverted');
     const ui = g.ui;
-    fields(ui, 'theme contrast animations backlight', '$.global.ui');
+    fields(
+        ui,
+        'theme contrast animations backlight' +
+            (Object.hasOwn(ui, 'startup_animation') ? ' startup_animation' : ''),
+        '$.global.ui'
+    );
+    boolean(
+        Object.hasOwn(ui, 'startup_animation') ? ui.startup_animation : true,
+        '$.global.ui.startup_animation'
+    );
     choice(ui.theme, THEMES, '$.global.ui.theme');
     choice(ui.contrast, ['normal', 'high', 'maximum'], '$.global.ui.contrast');
     boolean(ui.animations, '$.global.ui.animations');
@@ -250,7 +259,15 @@ export function validate(document) {
     ) {
         fail('$.selection.channel_id', 'selected channel is outside the selected bank');
     }
-    return { ...document, global: { fm_ctcss_level: 74, lna_inverted: false, ...g } };
+    return {
+        ...document,
+        global: {
+            fm_ctcss_level: 74,
+            lna_inverted: false,
+            ...g,
+            ui: { startup_animation: true, ...g.ui }
+        }
+    };
 }
 export function parse(text) {
     return validate(parseJson(text, MAX_BYTES));
@@ -294,6 +311,7 @@ export function fresh() {
                 theme: 'midnight',
                 contrast: 'normal',
                 animations: true,
+                startup_animation: true,
                 backlight: { brightness_percent: 100, idle_s: 15, dim_percent: 10 }
             }
         },

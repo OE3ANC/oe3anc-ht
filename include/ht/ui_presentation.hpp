@@ -33,7 +33,10 @@ enum class UiScreen : uint8_t {
     Backlight,
     TransmitLimit,
     Status,
-    CompanionExit
+    CompanionExit,
+    BrowseActions,
+    Startup,
+    Discard
 };
 
 inline bool channel_programming(UiScreen screen) {

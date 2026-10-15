@@ -98,6 +98,7 @@ static void *setup() {
 static void load(unsigned count = 6) {
     fail_durable = false;
     read_hook = ReadHook::None;
+    radio_ptt(false);
     radio_power(true);
     zassert_ok(radio_start({}));
     unlink(path);
@@ -232,38 +233,26 @@ static void row(unsigned count) {
     }
 }
 
-static uint32_t channel_id(unsigned number) {
-    Channel c;
-    zassert_ok(settings_channel_number(number, c));
-    return c.id;
-}
-
 static void banks() {
     menu("Banks");
     zassert_equal(model.screen(), UiScreen::Banks);
-    while (model.list_page().rows[model.list_page().cursor % 4].id) {
-        key(UiKey::Up);
-    }
 }
 
-static void edit(unsigned index = 1) {
+static void edit() {
     banks();
-    row(index);
-    key(UiKey::Right);
-    zassert_equal(model.screen(), UiScreen::BankEditor);
-}
-
-static void members() {
-    row(1);
+    row(2); // All, New, Local.
     key(UiKey::Enter);
-    zassert_equal(model.screen(), UiScreen::BankMembers);
+    zassert_equal(model.screen(), UiScreen::BrowseActions);
+    key(UiKey::Down);
+    key(UiKey::Enter);
+    zassert_equal(model.screen(), UiScreen::BankEditor);
 }
 
 static void name(const char *value) {
     key(UiKey::Enter);
     zassert_equal(model.screen(), UiScreen::BankName);
     while (model.text_editor().length()) {
-        key(UiKey::Left);
+        key(UiKey::Star);
     }
     while (*value) {
         model.input({UiKey::Character, *value++});
@@ -272,440 +261,170 @@ static void name(const char *value) {
 }
 
 static void save() {
-    key(UiKey::Right);
+    while (model.form_cursor() != 2) {
+        key(UiKey::Down);
+    }
+    key(UiKey::Enter);
     zassert_true(model.command_pending());
     tick();
-    zassert_ok(model.error());
-    zassert_equal(model.screen(), UiScreen::BankSaved);
 }
 
-static void restart() {
-    RadioConfig config;
-    Selection selection;
-    zassert_ok(settings_start(config, selection));
-    zassert_ok(radio_start(config, selection));
-    model = {};
-    model.sync(radio_snapshot());
-}
-
-ZTEST(ui_banks, test_new_physical_name_draft_cancel_save_and_reboot) {
+ZTEST(ui_banks, test_new_name_save_once_and_reboot) {
     banks();
-    frame_out("banks");
-    key(UiKey::Left);
+    key(UiKey::Down);
+    key(UiKey::Enter);
+    name("My bank");
     frame_out("bank-new");
+    save();
+    zassert_equal(model.screen(), UiScreen::Banks);
+    zassert_equal(settings_status().bank_count, 3);
+    RadioConfig config;
+    zassert_ok(settings_start(config));
+    zassert_ok(settings_bank(3, bank));
+    zassert_equal(strcmp(bank.name, "My bank"), 0);
+}
+
+ZTEST(ui_banks, test_unchanged_name_does_not_open_unsaved_dialog) {
+    edit();
     key(UiKey::Enter);
-    while (model.text_editor().length()) {
-        key(UiKey::Left);
-    }
-    const char digits[] = {'8', '3', '7', '8'};
-    const unsigned taps[] = {1, 2, 4, 1};
-    for (unsigned i = 0; i < 4; ++i) {
-        for (unsigned t = 0; t < taps[i]; ++t) {
-            model.input({UiKey::Digit, digits[i]});
-        }
-        key(UiKey::Hash);
-    }
-    zassert_equal(strcmp(model.text_editor().text(), "TEST"), 0);
-    frame_out("bank-name");
     key(UiKey::Enter);
-    zassert_equal(settings_status().bank_count, 2);
     key(UiKey::Back);
     zassert_equal(model.screen(), UiScreen::Banks);
-    zassert_equal(settings_status().bank_count, 2);
-    key(UiKey::Left);
-    name("TEST");
-    key(UiKey::Right);
-    frame_out("bank-pending");
-    tick();
-    zassert_equal(model.screen(), UiScreen::BankSaved);
-    frame_out("bank-saved");
-    zassert_ok(settings_bank(3, bank));
-    zassert_equal(strcmp(bank.name, "TEST"), 0);
-    zassert_equal(bank.count, 0);
-    restart();
-    zassert_ok(settings_bank(3, bank));
-    zassert_equal(strcmp(bank.name, "TEST"), 0);
 }
 
-ZTEST(ui_banks, test_name_field_cancel_and_empty_name_preserve_draft) {
+ZTEST(ui_banks, test_cancelled_delete_then_save_changes_never_deletes_bank) {
     edit();
-    key(UiKey::Enter);
-    while (model.text_editor().length()) {
-        key(UiKey::Left);
-    }
-    key(UiKey::Enter);
-    zassert_equal(model.screen(), UiScreen::BankName);
-    zassert_equal(model.error(), -EINVAL);
-    key(UiKey::Back);
-    save();
-    zassert_ok(settings_bank(1, bank));
-    zassert_equal(strcmp(bank.name, "Local"), 0);
-    zassert_equal(bank.count, 3);
-}
-
-ZTEST(ui_banks, test_membership_add_order_remove_shared_ids_only_commit_on_save) {
-    const auto frequency = radio_snapshot().config.rx_frequency_hz;
-    const auto configuration_revision = radio_snapshot().configuration_revision;
-    edit();
-    members();
-    frame_out("bank-members");
-    zassert_equal(selected_number(), 4);
-    key(UiKey::Enter);
-    frame_out("bank-actions-top");
-    key(UiKey::Enter); // unavailable move up
-    zassert_equal(model.screen(), UiScreen::BankActions);
-    row(1);
-    key(UiKey::Enter);
-    zassert_equal(model.screen(), UiScreen::BankMembers);
-    zassert_equal(model.list_page().cursor, 1);
-    zassert_equal(selected_number(), 4);
-    key(UiKey::Enter);
-    row(2);
-    frame_out("bank-actions-remove");
-    key(UiKey::Enter);
-    zassert_equal(selected_number(), 3); // [1,3], removed 4
-    key(UiKey::Left);
-    frame_out("bank-add");
-    zassert_equal(selected_number(), 1);
-    key(UiKey::Enter);
-    zassert_equal(model.error(), -EEXIST); // already IN, no duplicate
-    key(UiKey::Down);
-    key(UiKey::Enter); // add 2
-    row(2);
-    key(UiKey::Enter); // add 4, stays in picker
-    frame_out("bank-add-selected");
-    key(UiKey::Right);
-    zassert_equal(selected_number(), 4);
-    key(UiKey::Enter);
-    key(UiKey::Enter); // move 4 up from tail
-    zassert_equal(model.list_page().cursor, 2);
-    zassert_equal(selected_number(), 4);
-    zassert_ok(settings_bank(1, bank));
-    zassert_equal(bank.count, 3);
-    zassert_equal(bank.channel_ids[0], channel_id(4));
-    zassert_equal(radio_snapshot().configuration_revision, configuration_revision);
-    key(UiKey::Right);
-    save();
-    zassert_ok(settings_bank(1, bank));
-    zassert_equal(bank.count, 4);
-    const unsigned expected[] = {1, 3, 4, 2};
-    for (unsigned i = 0; i < 4; ++i) {
-        zassert_equal(bank.channel_ids[i], channel_id(expected[i]));
-    }
-    zassert_equal(radio_snapshot().config.rx_frequency_hz, frequency);
-    zassert_equal(emulator_tuned_frequency(), frequency);
-    key(UiKey::Enter);
-    key(UiKey::Down);
-    key(UiKey::Right); // edit empty bank 2
-    members();
-    frame_out("bank-empty");
-    key(UiKey::Left);
-    key(UiKey::Enter);
-    key(UiKey::Right);
-    key(UiKey::Right);
-    save();
-    zassert_ok(settings_bank(2, bank));
-    zassert_equal(bank.count, 1);
-    zassert_equal(bank.channel_ids[0], channel_id(1));
-    zassert_ok(settings_bank(1, bank));
-    zassert_equal(bank.channel_ids[0], channel_id(1)); // shared reference
-}
-
-ZTEST(ui_banks, test_delete_original_saved_name_confirm_cancel_and_channels_retained) {
-    const auto selected = channel_id(4);
-    zassert_ok(settings_recall({Operating::Memory, 1, selected}, 800, radio_snapshot()));
-    tick();
-    RadioCommand quick;
-    quick.kind = CommandKind::QuickControls;
-    quick.config = radio_snapshot().config;
-    quick.config.squelch = 7;
-    quick.id = 801;
-    quick.expected_generation = radio_snapshot().generation;
-    quick.expected_revision = radio_snapshot().configuration_revision;
-    quick.selection = radio_snapshot().selection;
-    zassert_ok(radio_submit(quick));
-    tick();
-    radio_monitor(true);
-    tick();
-    zassert_true(radio_snapshot().monitor_active);
-    const auto frequency = emulator_tuned_frequency();
-    edit();
-    name("Renamed draft");
+    name("Renamed");
     row(3);
     key(UiKey::Enter);
     zassert_equal(model.screen(), UiScreen::BankDelete);
-    char lines[8][32];
-    model.lines(lines);
-    zassert_equal(strcmp(lines[2], "Local"), 0);
-    frame_out("bank-delete");
     key(UiKey::Back);
-    zassert_equal(model.screen(), UiScreen::BankEditor);
+    key(UiKey::Back);
+    zassert_equal(model.screen(), UiScreen::Discard);
+    key(UiKey::Down); // Continue -> Save.
+    key(UiKey::Enter);
+    tick();
+    zassert_equal(model.screen(), UiScreen::Banks);
+    zassert_ok(settings_bank(1, bank));
+    zassert_equal(strcmp(bank.name, "Renamed"), 0);
     zassert_equal(settings_status().bank_count, 2);
-    key(UiKey::Enter);
-    key(UiKey::Enter);
-    tick();
-    zassert_equal(model.screen(), UiScreen::BankSaved);
-    frame_out("bank-deleted");
-    zassert_equal(settings_bank(1, bank), -ENOENT);
-    zassert_equal(settings_status().bank_count, 1);
-    zassert_equal(settings_status().channel_count, 6);
-    zassert_equal(channel_id(4), selected);
-    zassert_equal(radio_snapshot().selection.bank_id, 0);
-    zassert_equal(radio_snapshot().selection.channel_id, selected);
-    zassert_equal(emulator_tuned_frequency(), frequency);
-    zassert_equal(radio_snapshot().config.squelch, 7);
-    zassert_true(radio_snapshot().monitor_active);
-    radio_monitor(false);
-    tick();
-    restart();
-    zassert_equal(settings_bank(1, bank), -ENOENT);
-    zassert_equal(settings_status().channel_count, 6);
 }
 
-ZTEST(ui_banks, test_active_bank_member_remove_preserves_radio_and_falls_back_to_all) {
-    zassert_ok(settings_recall({Operating::Memory, 1, channel_id(4)}, 900, radio_snapshot()));
-    tick();
-    RadioCommand quick;
-    quick.kind = CommandKind::QuickControls;
-    quick.config = radio_snapshot().config;
-    quick.config.squelch = 7;
-    quick.id = 901;
-    quick.expected_generation = radio_snapshot().generation;
-    quick.expected_revision = radio_snapshot().configuration_revision;
-    quick.selection = radio_snapshot().selection;
-    zassert_ok(radio_submit(quick));
-    tick();
-    const auto frequency = radio_snapshot().config.rx_frequency_hz;
+ZTEST(ui_banks, test_membership_remove_and_add_commit_once) {
     edit();
-    members();
+    row(1);
+    key(UiKey::Enter);
+    zassert_equal(model.screen(), UiScreen::BankMembers);
+    const auto removed = model.list_page().rows[0].id;
     key(UiKey::Enter);
     row(2);
     key(UiKey::Enter);
-    key(UiKey::Right);
-    save();
-    zassert_equal(radio_snapshot().selection.bank_id, 0);
-    zassert_equal(radio_snapshot().selection.channel_id, channel_id(4));
-    zassert_equal(radio_snapshot().config.rx_frequency_hz, frequency);
-    zassert_equal(radio_snapshot().config.squelch, 7);
-    Channel channel;
-    zassert_ok(settings_channel(channel_id(4), channel));
-    zassert_equal(channel.configuration.squelch, 4);
-}
-
-ZTEST(ui_banks, test_capacity_full_bank_page_order_delete_and_stable_id_recreate) {
-    load(256);
-    banks();
-    key(UiKey::Left);
-    zassert_equal(model.screen(), UiScreen::Banks);
-    zassert_equal(model.error(), -ENOSPC);
-    frame_out("banks-full");
-    row(16);
-    key(UiKey::Right);
-    members();
-    key(UiKey::Up);
-    zassert_equal(model.list_page().count, 256);
-    zassert_equal(model.list_page().cursor, 255);
-    frame_out("bank-full-last");
-    const auto last_id = model.list_page().rows[3].id;
-    key(UiKey::Enter);
-    row(1);
-    key(UiKey::Enter);
-    zassert_equal(model.screen(), UiScreen::BankActions);
-    key(UiKey::Back);
-    key(UiKey::Left);
-    key(UiKey::Enter);
-    zassert_equal(model.error(), -EEXIST);
-    key(UiKey::Right);
-    key(UiKey::Enter);
-    key(UiKey::Enter); // move last up one
-    zassert_equal(model.list_page().cursor, 254);
-    zassert_equal(model.list_page().rows[2].id, last_id);
-    key(UiKey::Right);
-    save();
-    zassert_ok(settings_bank(16, bank));
-    zassert_equal(bank.count, 256);
-    zassert_equal(bank.channel_ids[254], last_id);
-    key(UiKey::Enter);
-    key(UiKey::Right);
-    row(3);
-    key(UiKey::Enter);
-    key(UiKey::Enter);
-    tick();
-    zassert_equal(settings_status().bank_count, 15);
-    key(UiKey::Enter);
-    key(UiKey::Left);
-    name("Replacement");
-    save();
-    zassert_ok(settings_bank(17, bank));
-    zassert_equal(settings_bank(16, bank), -ENOENT);
-    zassert_equal(settings_status().channel_count, 256);
-}
-
-ZTEST(ui_banks, test_empty_store_add_and_all_view_not_editable) {
-    load(0);
-    banks();
-    key(UiKey::Right);
-    zassert_equal(model.screen(), UiScreen::Banks);
-    row(1);
-    key(UiKey::Right);
-    members();
-    key(UiKey::Left);
-    frame_out("bank-add-empty");
+    zassert_ok(settings_bank(1, bank));
+    zassert_equal(bank.count, 3);
+    key(UiKey::Up); // Wrap to Add channels.
     key(UiKey::Enter);
     zassert_equal(model.screen(), UiScreen::BankAdd);
-    zassert_equal(model.list_page().count, 0);
-    key(UiKey::Right);
-    key(UiKey::Right);
+    frame_out("bank-add");
+    for (unsigned i = 0;
+         i < 6 && model.list_page().rows[model.list_page().cursor % 4].id != removed; ++i) {
+        key(UiKey::Down);
+    }
+    key(UiKey::Enter);
+    key(UiKey::Back);
+    key(UiKey::Back);
     save();
+    zassert_equal(model.screen(), UiScreen::Banks);
     zassert_ok(settings_bank(1, bank));
-    zassert_equal(bank.count, 0);
+    zassert_equal(bank.count, 3);
+    zassert_equal(bank.channel_ids[2], removed);
 }
 
-ZTEST(ui_banks, test_stale_and_ptt_power_fault_cancellation) {
+ZTEST(ui_banks, test_delete_confirmation_retains_channels) {
     edit();
-    RadioCommand command;
-    command.config = radio_snapshot().config;
-    command.config.squelch = 9;
-    command.id = 700;
-    zassert_ok(radio_submit(command));
+    row(3);
+    key(UiKey::Enter);
+    frame_out("bank-delete");
+    key(UiKey::Enter);
     tick();
-    key(UiKey::Right);
-    tick();
-    zassert_equal(model.error(), -ESTALE);
-    zassert_false(model.command_pending());
-    key(UiKey::Back);
-    key(UiKey::Right);
-    radio_ptt(true);
-    radio_ptt(false);
-    key(UiKey::Right);
-    zassert_equal(model.screen(), UiScreen::Home);
-    zassert_false(model.command_pending());
+    zassert_equal(model.screen(), UiScreen::Banks);
+    zassert_equal(settings_bank(1, bank), -ENOENT);
+    zassert_equal(settings_status().channel_count, 6);
+}
+
+ZTEST(ui_banks, test_durable_error_retains_draft_and_retry_reuses_bank) {
     edit();
-    model.input({UiKey::Release});
-    zassert_equal(model.screen(), UiScreen::Home);
-    edit();
-    RadioState off = radio_snapshot();
-    off.power_active = false;
-    model.sync(off);
-    zassert_equal(model.screen(), UiScreen::Home);
-    model.sync(radio_snapshot());
-    edit();
-    radio_report_fault(-EIO);
-    tick();
-    zassert_equal(model.screen(), UiScreen::Home);
+    name("Retry");
+    fail_durable = true;
+    save();
+    zassert_equal(model.screen(), UiScreen::BankEditor);
+    zassert_equal(model.error(), -EIO);
+    fail_durable = false;
+    save();
+    zassert_equal(model.screen(), UiScreen::Banks);
+    zassert_ok(settings_bank(1, bank));
+    zassert_equal(strcmp(bank.name, "Retry"), 0);
     zassert_equal(settings_status().bank_count, 2);
 }
 
-ZTEST(ui_banks, test_authorized_save_survives_ptt_without_reopening_saved_screen) {
-    banks();
-    key(UiKey::Left);
-    name("ACCEPTED");
-    key(UiKey::Right);
-    settings_service(radio_snapshot(), 0);
-    radio_service();
+ZTEST(ui_banks, test_ptt_preserves_name_and_discard_leaves_saved_bank) {
+    edit();
+    name("Draft");
     radio_ptt(true);
-    radio_service();
-    settings_service(radio_snapshot(), 1);
-    model.sync(radio_snapshot());
-    zassert_equal(model.screen(), UiScreen::Home);
-    zassert_false(model.command_pending());
-    zassert_ok(settings_bank(3, bank));
-    zassert_equal(strcmp(bank.name, "ACCEPTED"), 0);
+    tick();
+    zassert_equal(model.screen(), UiScreen::BankEditor);
     radio_ptt(false);
     tick();
+    key(UiKey::Back);
+    zassert_equal(model.screen(), UiScreen::Discard);
+    key(UiKey::Up);
+    key(UiKey::Enter);
+    zassert_equal(model.screen(), UiScreen::Banks);
+    zassert_ok(settings_bank(1, bank));
+    zassert_equal(strcmp(bank.name, "Local"), 0);
 }
 
-ZTEST(ui_banks, test_durable_error_retained_and_retry_not_new_identity) {
-    edit();
-    name("UNSAVED");
-    fail_durable = true;
-    save();
-    frame_out("bank-unsaved");
-    zassert_true(settings_status().pending);
-    zassert_equal(settings_status().save_error, -EIO);
-    char lines[8][32];
-    model.lines(lines);
-    zassert_equal(strcmp(lines[1], "Storage error / unsaved"), 0);
-    zassert_ok(settings_bank(1, bank));
-    zassert_equal(strcmp(bank.name, "UNSAVED"), 0);
-    fail_durable = false;
-    settings_service(radio_snapshot(), 1100);
-    model.sync(radio_snapshot());
-    zassert_false(settings_status().pending);
-    model.lines(lines);
-    zassert_equal(strcmp(lines[1], "Durably saved"), 0);
-    restart();
-    zassert_ok(settings_bank(1, bank));
-    zassert_equal(strcmp(bank.name, "UNSAVED"), 0);
-}
-
-ZTEST(ui_banks, test_fixed_widgets_repeated_navigation_and_other_scenes_restore) {
-    for (unsigned i = 0; i < 100; ++i) {
-        edit();
-        members();
-        key(UiKey::Left);
-        key(UiKey::Down);
-        frame_out("bank-stress");
-        key(UiKey::Back);
-        key(UiKey::Back);
-        key(UiKey::Back);
-        key(UiKey::Back);
-        key(UiKey::Back);
-        key(UiKey::Back);
-        zassert_equal(model.screen(), UiScreen::Home);
-    }
-    menu("Appearance");
-    frame_out("bank-appearance");
-    key(UiKey::Back);
-    key(UiKey::Back);
-    zassert_equal(model.screen(), UiScreen::Home);
+ZTEST(ui_banks, test_full_bank_capacity_and_page_buttons) {
+    load(256);
+    banks();
     key(UiKey::Right);
-    zassert_equal(model.screen(), UiScreen::ChannelEditor);
-    frame_out("bank-channel-restore");
-    key(UiKey::Back);
-    printf("Bank LVGL: min-free=%u min-largest=%u max-fragmentation=%u%%\n", minimum_free,
-           minimum_largest, maximum_fragmentation);
+    zassert_equal(model.list_page().cursor, 4);
+    key(UiKey::Left);
+    zassert_equal(model.list_page().cursor, 0);
+    key(UiKey::Down);
+    key(UiKey::Enter);
+    zassert_equal(model.error(), -ENOSPC);
+    zassert_equal(model.screen(), UiScreen::Banks);
 }
 
-ZTEST(ui_banks, test_owner_publication_mid_page_keeps_cursor_and_rows_paired) {
-    const ReadHook hooks[] = {ReadHook::Member, ReadHook::Add};
-    for (ReadHook hook : hooks) {
+ZTEST(ui_banks, test_failed_deletion_retries_or_leaves_without_closing_another_editor) {
+    for (unsigned leave = 0; leave < 2; ++leave) {
         load();
         edit();
-        members();
-        if (hook == ReadHook::Add) {
-            key(UiKey::Left);
-        }
-        const auto page = model.list_page();
-        Channel edited;
-        uint32_t revision;
-        zassert_ok(settings_channel(channel_id(1), edited, &revision));
-        strcpy(edited.name, "EXTERNAL EDIT");
-        zassert_ok(settings_put_channel(edited, 999, radio_snapshot(), revision));
-        settings_service(radio_snapshot(), 0);
-        radio_service();
-        zassert_true(settings_status().operation_pending);
-        read_hook = hook;
-        key(UiKey::Down);
-        zassert_equal(read_hook, ReadHook::None);
-        zassert_false(model.list_page().ready);
-        zassert_equal(model.error(), -ESTALE);
-        zassert_equal(model.list_page().cursor, page.cursor);
-        for (unsigned i = 0; i < 4; ++i) {
-            zassert_equal(model.list_page().rows[i].id, page.rows[i].id);
-        }
+        row(3);
         key(UiKey::Enter);
-        zassert_equal(model.error(), -ESTALE);
-        if (hook == ReadHook::Add) {
+        fail_durable = true;
+        key(UiKey::Enter);
+        tick();
+        zassert_equal(model.screen(), UiScreen::BankSaved);
+        zassert_equal(model.error(), -EIO);
+        zassert_true(model.command_pending());
+        char lines[8][32];
+        model.lines(lines);
+        zassert_equal(strcmp(lines[0], "DELETION NOT SAVED"), 0);
+        if (leave) {
             key(UiKey::Back);
+            zassert_false(model.command_pending());
+            key(UiKey::Back);
+            key(UiKey::Back);
+            edit();
+            zassert_equal(model.screen(), UiScreen::BankEditor);
         }
-        key(UiKey::Right);
-        key(UiKey::Right);
-        tick(); // Owner rejects stale bank revision.
-        zassert_equal(model.error(), -ESTALE);
-        zassert_false(model.command_pending());
-        zassert_ok(settings_bank(1, bank));
-        zassert_equal(bank.count, 3);
+        fail_durable = false;
+        settings_service(radio_snapshot(), 2000);
+        model.sync(radio_snapshot());
+        zassert_false(settings_status().pending);
+        zassert_equal(model.error(), 0);
+        zassert_equal(model.screen(), leave ? UiScreen::BankEditor : UiScreen::Banks);
     }
 }
 

@@ -109,7 +109,7 @@ static void *setup() {
     }
     zassert_equal(model.screen(), UiScreen::Status);
     for (unsigned i = 0; i < 3; ++i) {
-        model.input({UiKey::Left});
+        model.input({UiKey::Right});
     }
     UiStatus status;
     model.status(status);
@@ -203,35 +203,148 @@ static void key(UiKey button) {
 }
 
 static void find(const char *name) {
+    if (model.screen() == UiScreen::Status) {
+        key(UiKey::Back);
+    }
     if (model.screen() != UiScreen::Menu) {
         key(UiKey::Enter);
     }
     zassert_equal(model.screen(), UiScreen::Menu);
-    for (unsigned i = 0; i < 32; ++i) {
-        UiListPage page;
-        model.menu_page(page);
-        if (strstr(page.rows[page.cursor % 4].name, name)) {
-            return;
-        }
-        key(UiKey::Down);
+    UiListPage page;
+    model.menu_page(page);
+    if (strcmp(page.title, "MENU")) {
+        key(UiKey::Back);
     }
-    zassert_unreachable("Menu item not found: %s", name);
+    const char *group = strstr(name, "FM ") || strstr(name, "LNA") || strstr(name, "RX ") ||
+                                strstr(name, "Codec") || strstr(name, "BK4819")
+                            ? "Development"
+                        : strstr(name, "TX limit") || strstr(name, "callsign") ||
+                                strstr(name, "VFO step") || strstr(name, "VFO / Memory")
+                            ? "Radio"
+                            : nullptr;
+    for (unsigned pass = 0; pass < (group ? 2U : 1U); ++pass) {
+        const char *target = group && pass == 0 ? group : name;
+        bool found = false;
+        for (unsigned i = 0; i < 32; ++i) {
+            model.menu_page(page);
+            if (strstr(page.rows[page.cursor % 4].name, target)) {
+                found = true;
+                break;
+            }
+            key(UiKey::Down);
+        }
+        zassert_true(found, "Missing menu: %s", target);
+        if (group && pass == 0) {
+            key(UiKey::Enter);
+        }
+    }
+}
+
+static void adjust(int direction) {
+    key(UiKey::Enter);
+    key(direction > 0 ? UiKey::Up : UiKey::Down);
+    key(UiKey::Enter);
 }
 
 static void status(unsigned page = 0) {
-    find("Status");
+    if (page >= 5) {
+        const char *names[] = {"Codec2", "RX Path", "RX Gain", "RX Squelch"};
+        find(names[page - 5]);
+    } else {
+        find("Status");
+    }
     key(UiKey::Enter);
     zassert_equal(model.screen(), UiScreen::Status);
-    for (unsigned i = 0; i < page; ++i) {
-        key(UiKey::Left);
+    if (page < 5) {
+        for (unsigned i = 0; i < page; ++i) {
+            key(UiKey::Right);
+        }
     }
+}
+
+ZTEST(ui_menu, test_quick_toggle_draft_ptt_and_discard) {
+    key(UiKey::Monitor);
+    zassert_equal(model.screen(), UiScreen::QuickControls);
+    key(UiKey::Monitor);
+    zassert_equal(model.screen(), UiScreen::Home);
+    key(UiKey::Monitor);
+    key(UiKey::Enter);
+    zassert_equal(model.screen(), UiScreen::ChannelEditor);
+    key(UiKey::Monitor);
+    zassert_equal(model.screen(), UiScreen::ChannelEditor);
+    key(UiKey::Right); // Mode / inhibit / power page.
+    key(UiKey::Down);
+    key(UiKey::Down);
+    key(UiKey::Enter);
+    key(UiKey::Up);
+    key(UiKey::Enter);
+    const auto applied = radio_snapshot().config.power_mw;
+    radio_ptt(true);
+    tick();
+    zassert_equal(model.screen(), UiScreen::ChannelEditor);
+    UiHome home;
+    model.home(home);
+    zassert_true(home.visible && home.transmitting);
+    zassert_equal(radio_snapshot().config.power_mw, applied);
+    key(UiKey::Right); // TX cannot move the hidden editor.
+    radio_ptt(false);
+    tick();
+    char lines[8][32];
+    model.lines(lines);
+    zassert_not_null(strstr(lines[4], "2.5"));
+    key(UiKey::Back);
+    zassert_equal(model.screen(), UiScreen::Discard);
+    render("discard-draft");
+    key(UiKey::Enter); // Default is Continue editing.
+    zassert_equal(model.screen(), UiScreen::ChannelEditor);
+    key(UiKey::Right);
+    key(UiKey::Right);
+    key(UiKey::Enter); // Apply, once.
+    tick();
+    zassert_equal(model.screen(), UiScreen::Home);
+    zassert_equal(radio_snapshot().config.power_mw, 2500);
+}
+
+ZTEST(ui_menu, test_startup_position_skip_ptt_and_saved_switch) {
+    model.begin_startup(100);
+    zassert_equal(model.screen(), UiScreen::Startup);
+    render("startup-top");
+    model.advance(1100);
+    UiPresentation view;
+    ui_capture_presentation(model, view);
+    zassert_equal(view.list.cursor, 80);
+    render("startup-center");
+    key(UiKey::Enter);
+    zassert_equal(model.screen(), UiScreen::Home); // Skip consumes the ordinary key.
+    model.begin_startup(2000);
+    radio_ptt(true);
+    model.advance(2001);
+    zassert_false(model.startup_visible());
+    radio_ptt(false);
+    tick();
+    find("Appearance");
+    key(UiKey::Enter);
+    key(UiKey::Down);
+    key(UiKey::Down);
+    key(UiKey::Down);
+    key(UiKey::Enter);
+    key(UiKey::Up);
+    key(UiKey::Enter);
+    key(UiKey::Down);
+    key(UiKey::Enter);
+    tick();
+    UiPreferences preferences;
+    settings_ui_preferences(preferences);
+    zassert_false(preferences.startup_animation);
+    model.begin_startup(3000);
+    zassert_false(model.startup_visible());
 }
 
 ZTEST(ui_menu, test_workflow_order_wrap_capabilities_and_physical_actions) {
     key(UiKey::Enter);
     UiListPage page;
     model.menu_page(page);
-    const char *first[] = {"Channels", "Save VFO as channel", "Edit / select channel", "Banks"};
+    const char *first[] = {"VFO Settings", "Channels", "Banks", "Radio"};
     for (unsigned i = 0; i < 4; ++i) {
         zassert_equal(strcmp(page.rows[i].name, first[i]), 0);
     }
@@ -241,14 +354,14 @@ ZTEST(ui_menu, test_workflow_order_wrap_capabilities_and_physical_actions) {
     lv_refr_now(display);
     zassert_equal(flush_count, idle);
     zassert_equal(lv_obj_get_x(label("OK Select")), 8);
-    zassert_equal(lv_obj_get_x(label("BACK Home")), 82);
+    zassert_equal(lv_obj_get_x(label("BACK")), 82);
     const auto revision = radio_snapshot().configuration_revision;
     key(UiKey::Left);
     key(UiKey::Right);
     zassert_equal(model.screen(), UiScreen::Menu);
     zassert_equal(radio_snapshot().configuration_revision, revision);
     const auto count = page.count;
-    zassert_equal(count, 24); // No generic gain or companion-mode toggle.
+    zassert_equal(count, 8); // No generic gain or companion-mode toggle.
     for (unsigned i = 0; i < count; ++i) {
         key(UiKey::Down);
     }
@@ -256,13 +369,15 @@ ZTEST(ui_menu, test_workflow_order_wrap_capabilities_and_physical_actions) {
     zassert_equal(page.cursor, 0);
     key(UiKey::Up);
     model.menu_page(page);
-    zassert_equal(strcmp(page.rows[page.cursor % 4].name, "BK4819 diagnostics"), 0);
+    zassert_equal(strcmp(page.rows[page.cursor % 4].name, "Development"), 0);
     render("menu-last");
     key(UiKey::Back);
     load(false, Mode::M17);
     key(UiKey::Enter);
     model.menu_page(page);
-    zassert_equal(page.count, count - 8);
+    zassert_equal(page.count, count);
+    find("Invert LNA GPIOs");
+    model.menu_page(page);
     bool has_lna_polarity = false;
     for (unsigned i = 0; i < page.count; ++i) {
         UiListPage digital;
@@ -281,7 +396,7 @@ ZTEST(ui_menu, test_lna_polarity_is_global_saved_and_locked_during_tx) {
     load(true);
     const auto selection = radio_snapshot().selection;
     find("Invert LNA GPIOs");
-    key(UiKey::Right);
+    adjust(1);
     tick();
     zassert_equal(radio_snapshot().config.lna_inverted, true);
     zassert_true(same_selection(selection, radio_snapshot().selection));
@@ -289,8 +404,8 @@ ZTEST(ui_menu, test_lna_polarity_is_global_saved_and_locked_during_tx) {
     render("lna-polarity");
     radio_ptt(true);
     radio_service();
-    key(UiKey::Right);
-    zassert_equal(model.error(), -EBUSY);
+    adjust(1);
+    zassert_false(model.command_pending());
     radio_ptt(false);
     tick(10000);
     tick(10001);
@@ -305,7 +420,7 @@ ZTEST(ui_menu, test_ctcss_level_is_global_saved_and_locked_during_tx) {
     load(true);
     const auto selection = radio_snapshot().selection;
     find("FM CTCSS level");
-    key(UiKey::Right);
+    adjust(1);
     tick();
     zassert_equal(radio_snapshot().config.fm_ctcss_level, 75);
     zassert_true(same_selection(selection, radio_snapshot().selection));
@@ -313,8 +428,8 @@ ZTEST(ui_menu, test_ctcss_level_is_global_saved_and_locked_during_tx) {
     render("fm-ctcss-level");
     radio_ptt(true);
     radio_service();
-    key(UiKey::Right);
-    zassert_equal(model.error(), -EBUSY);
+    adjust(1);
+    zassert_false(model.command_pending());
     radio_ptt(false);
     tick(10000);
     tick(10001);
@@ -334,30 +449,30 @@ ZTEST(ui_menu, test_fm_rx_menu_controls_are_bounded_temporary_and_preserve_memor
     model.menu_page(page);
     zassert_equal(strcmp(page.rows[page.cursor % 4].name, "FM weak BW: 3.40k"), 0);
     zassert_equal(strcmp(page.detail, "FM RX test / until reboot"), 0);
-    key(UiKey::Right);
+    adjust(1);
     tick();
     zassert_equal(radio_snapshot().fm_rx_controls.weak_filter, 1);
     model.menu_page(page);
     zassert_equal(strcmp(page.rows[page.cursor % 4].name, "FM weak BW: 4.00k"), 0);
     render("fm-rx-controls");
     for (unsigned i = 0; i < 10; ++i) {
-        key(UiKey::Right);
+        adjust(1);
         tick();
     }
     zassert_equal(radio_snapshot().fm_rx_controls.weak_filter, 7);
     for (unsigned i = 0; i < 10; ++i) {
-        key(UiKey::Left);
+        adjust(-1);
         tick();
     }
     zassert_equal(radio_snapshot().fm_rx_controls.weak_filter, 0);
     find("FM AF DAC");
-    key(UiKey::Enter);
+    adjust(1);
     tick();
     zassert_equal(radio_snapshot().fm_rx_controls.af_dac_gain, 2);
     radio_ptt(true);
     radio_service();
-    key(UiKey::Right); // Producer PTT guards even a stale UI snapshot.
-    zassert_equal(model.error(), -EBUSY);
+    adjust(1); // Producer PTT guards even a stale UI snapshot.
+    zassert_false(model.command_pending());
     tick();
     zassert_equal(radio_snapshot().fm_rx_controls.af_dac_gain, 2);
     radio_ptt(false);
@@ -371,29 +486,25 @@ ZTEST(ui_menu, test_fm_rx_menu_controls_are_bounded_temporary_and_preserve_memor
 }
 
 ZTEST(ui_menu, test_radio_controls_helpers_pending_and_apply) {
-    find("Power:");
-    render("menu-power");
-    label("OK Change");
-    label("P1 Prev");
-    label("P2 Next");
+    find("VFO Settings");
+    key(UiKey::Enter);
     key(UiKey::Right);
+    key(UiKey::Down);
+    key(UiKey::Down);
+    key(UiKey::Enter);
+    key(UiKey::Up);
+    key(UiKey::Enter);
+    zassert_equal(radio_snapshot().config.power_mw, 1000);
+    key(UiKey::Right);
+    key(UiKey::Right);
+    key(UiKey::Enter);
     zassert_true(model.command_pending());
-    render("menu-applying");
     tick();
     zassert_equal(radio_snapshot().config.power_mw, 2500);
-    key(UiKey::Left);
-    tick();
-    zassert_equal(radio_snapshot().config.power_mw, 1000);
-    find("Appearance");
-    key(UiKey::Right);
-    key(UiKey::Left);
     zassert_equal(model.screen(), UiScreen::Menu);
+    find("Appearance");
     key(UiKey::Enter);
     zassert_equal(model.screen(), UiScreen::Appearance);
-    key(UiKey::Back);
-    find("Quick controls");
-    key(UiKey::Enter);
-    zassert_equal(model.screen(), UiScreen::QuickControls);
     key(UiKey::Back);
     find("TX limit:");
     key(UiKey::Enter);
@@ -416,7 +527,7 @@ ZTEST(ui_menu, test_codec_statistics_page_reset_and_navigation) {
     status(5);
     UiStatus page;
     model.status(page);
-    zassert_equal(strcmp(page.title, "CODEC2 / 6 OF 9"), 0);
+    zassert_equal(strcmp(page.title, "CODEC2"), 0);
     zassert_equal(strcmp(page.rows[0], "Enc avg/max --/-- ms"), 0);
     zassert_not_null(strstr(page.detail, "heap0"));
     render("codec2-empty");
@@ -439,11 +550,11 @@ ZTEST(ui_menu, test_codec_statistics_page_reset_and_navigation) {
     model.status(page);
     zassert_equal(strcmp(page.rows[2], "Frames E0 D0"), 0);
     zassert_equal(settings_status().revision, revision);
-    key(UiKey::Down);
+    key(UiKey::Right);
     model.status(page);
-    zassert_equal(strcmp(page.title, "RX PATH / 7 OF 9"), 0);
+    zassert_equal(strcmp(page.title, "RX PATH"), 0);
     zassert_false(model.codec_statistics_page());
-    key(UiKey::Up);
+    key(UiKey::Left);
     zassert_true(model.codec_statistics_page());
 }
 #endif
@@ -459,7 +570,7 @@ ZTEST(ui_menu, test_status_exact_config_modes_activity_and_no_mutation) {
     zassert_equal(strcmp(view.rows[1], "TX 144.900001 MHz"), 0);
     zassert_not_null(strstr(view.rows[2], "Requested power"));
     render("status-radio");
-    key(UiKey::Left);
+    key(UiKey::Right);
     model.status(view);
     zassert_equal(strcmp(view.rows[0], "25 kHz / SQL 4"), 0);
     render("status-fm");
@@ -490,7 +601,7 @@ ZTEST(ui_menu, test_status_exact_config_modes_activity_and_no_mutation) {
     zassert_equal(strcmp(view.rows[0], "Destination OE1DEST"), 0);
     zassert_equal(strcmp(view.rows[1], "CAN 15 / RX filter on"), 0);
     render("status-m17");
-    key(UiKey::Left);
+    key(UiKey::Right);
     digital.rx_active = true;
     strcpy(digital.received_callsign, "OE3VOICE");
     digital.rssi_dbm = -93;
@@ -518,21 +629,21 @@ ZTEST(ui_menu, test_rx_register_pages_show_samples_without_commands_or_stale_tx_
     }
     model.sync(state);
     model.status(view);
-    zassert_equal(strcmp(view.title, codec ? "RX PATH / 7 OF 9" : "RX PATH / 6 OF 8"), 0);
+    zassert_equal(strcmp(view.title, "RX PATH"), 0);
     zassert_false(model.codec_statistics_page());
     UiPresentation presentation;
     ui_capture_presentation(model, presentation);
     zassert_not_equal(strcmp(presentation.actions[0], "OK Reset"), 0);
     zassert_equal(strcmp(view.rows[0], "30:A030  33:A033"), 0);
     render("rx-path");
-    key(UiKey::Left);
+    key(UiKey::Right);
     model.status(view);
-    zassert_equal(strcmp(view.title, codec ? "RX GAIN / 8 OF 9" : "RX GAIN / 7 OF 8"), 0);
+    zassert_equal(strcmp(view.title, "RX GAIN"), 0);
     zassert_equal(strcmp(view.rows[3], "7B:A07B  7E:A07E"), 0);
     render("rx-gain");
-    key(UiKey::Left);
+    key(UiKey::Right);
     model.status(view);
-    zassert_equal(strcmp(view.title, codec ? "RX SQUELCH / 9 OF 9" : "RX SQUELCH / 8 OF 8"), 0);
+    zassert_equal(strcmp(view.title, "RX SQUELCH"), 0);
     zassert_equal(strcmp(view.rows[3], "4F:A04F  78:A078"), 0);
     render("rx-squelch");
     key(UiKey::Enter);
@@ -547,9 +658,9 @@ ZTEST(ui_menu, test_rx_register_pages_show_samples_without_commands_or_stale_tx_
     model.sync(state);
     model.status(view);
     zassert_equal(view.color, UiStatusColor::Amber);
-    key(UiKey::Left);
+    key(UiKey::Right);
     model.status(view);
-    zassert_equal(strcmp(view.title, codec ? "RADIO / 1 OF 9" : "RADIO / 1 OF 8"), 0);
+    zassert_equal(strcmp(view.title, "CODEC2"), 0);
 }
 
 ZTEST(ui_menu, test_battery_page_fresh_charger_stale_error_age_recovery) {
@@ -586,10 +697,11 @@ ZTEST(ui_menu, test_battery_page_fresh_charger_stale_error_age_recovery) {
 }
 
 ZTEST(ui_menu, test_storage_dirty_error_clean_and_read_only_reporting) {
-    find("Power:");
-    key(UiKey::Enter);
+    RadioCommand changed;
+    changed.config = radio_snapshot().config;
+    changed.config.power_mw = 2500;
+    zassert_ok(radio_submit(changed));
     tick();
-    key(UiKey::Back);
     status(4);
     UiStatus view;
     model.status(view);
@@ -632,28 +744,18 @@ ZTEST(ui_menu, test_storage_dirty_error_clean_and_read_only_reporting) {
 }
 
 ZTEST(ui_menu, test_menu_status_ptt_focus_warning_timeout_fault_priority) {
-    find("Power:");
+    status();
     radio_ptt(true);
     tick();
-    render("menu-tx");
-    const char *actions[4];
-    model.menu_actions(actions);
-    zassert_equal(strcmp(actions[0], ""), 0);
-    zassert_equal(strcmp(actions[2], ""), 0);
-    find("Status");
-    model.menu_actions(actions);
-    zassert_equal(strcmp(actions[0], "OK View"), 0);
-    key(UiKey::Enter);
-    zassert_equal(model.screen(), UiScreen::Status);
-    UiStatus view;
-    model.status(view);
-    zassert_not_null(strstr(view.detail, "/ TX"));
     render("status-tx");
-    key(UiKey::Release);
+    UiPresentation presentation;
+    ui_capture_presentation(model, presentation);
+    zassert_true(presentation.home.visible && presentation.home.transmitting);
+    key(UiKey::Right);
     radio_ptt(false);
     tick();
-    zassert_false(emulator_transmitting());
     zassert_equal(model.screen(), UiScreen::Status);
+    UiStatus view;
     auto state = radio_snapshot();
     state.phase = RadioPhase::Transmitting;
     state.tx_warning = true;
@@ -683,7 +785,7 @@ ZTEST(ui_menu, test_menu_status_ptt_focus_warning_timeout_fault_priority) {
 }
 
 ZTEST(ui_menu, test_hidden_tx_actions_cannot_apply_after_release) {
-    find("Power:");
+    find("VFO Settings");
     const auto original = radio_snapshot();
     const auto stored = settings_status();
     // Check both a physical press before controller service and settled TX.
@@ -750,7 +852,7 @@ ZTEST(ui_menu, test_selection_animation_not_restarted_motion_off_and_style_resto
     find("Appearance");
     key(UiKey::Enter);
     ui_view_update(model);
-    label("Midnight");
+    label("Theme: Midnight");
     key(UiKey::Back);
     status();
     render("status-after-appearance");

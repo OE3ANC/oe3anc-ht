@@ -46,6 +46,12 @@ static void hold_input(HoldInput &state, bool down, int64_t now, void (*submit)(
     }
 }
 
+static void quick_button(bool pressed) {
+    if (pressed) {
+        (void)ui_queue_input({UiKey::Monitor});
+    }
+}
+
 static void controls(void *, void *, void *) {
 #ifdef CONFIG_THREAD_NAME
     k_thread_name_set(k_current_get(), "controls");
@@ -79,7 +85,7 @@ static void controls(void *, void *, void *) {
             radio_report_fault(side);
             return;
         }
-        hold_input(monitor, side != 0, now, radio_monitor);
+        hold_input(monitor, side != 0, now, quick_button);
         uint32_t current;
         const int error = c62_keys_read(&current);
         if (error) {

@@ -347,11 +347,11 @@ ZTEST(channels, test_vfo_step_wire_defaults_and_validation) {
         plug.global.vfo_step_hz = step;
         zassert_ok(make_manifest(plug, manifest));
         zassert_ok(encode_manifest(manifest, 1, bytes, sizeof(bytes), written));
-        zassert_equal(bytes[4], 3);
+        zassert_equal(bytes[4], 4);
         zassert_ok(decode_manifest(bytes, written, 1, manifest));
         zassert_equal(manifest.global.vfo_step_hz, step);
     }
-    sys_put_le32(0, bytes + written - 6);
+    sys_put_le32(0, bytes + written - 7);
     checksum();
     const auto previous = manifest.global.vfo_step_hz;
     zassert_equal(decode_manifest(bytes, written, 1, manifest), -EBADMSG);
@@ -366,12 +366,12 @@ ZTEST(channels, test_ctcss_level_manifest_versions_and_validation) {
     zassert_ok(encode_manifest(manifest, 1, bytes, sizeof(bytes), written));
     zassert_ok(decode_manifest(bytes, written, 1, manifest));
     zassert_equal(manifest.global.fm_ctcss_level, 127);
-    bytes[written - 2] = 128;
+    bytes[written - 3] = 128;
     checksum();
     zassert_equal(decode_manifest(bytes, written, 1, manifest), -EBADMSG);
     zassert_equal(manifest.global.fm_ctcss_level, 127);
     // Public v1 ended after VFO step. Loading must preserve it and default the new field.
-    written -= 2;
+    written -= 3;
     bytes[4] = 1;
     sys_put_le16(written, bytes + 6);
     checksum();
@@ -388,16 +388,33 @@ ZTEST(channels, test_lna_polarity_manifest_and_v2_default) {
     zassert_ok(encode_manifest(manifest, 1, bytes, sizeof(bytes), written));
     zassert_ok(decode_manifest(bytes, written, 1, manifest));
     zassert_true(manifest.global.lna_inverted);
-    bytes[written - 1] = 2;
+    bytes[written - 2] = 2;
     checksum();
     zassert_equal(decode_manifest(bytes, written, 1, manifest), -EBADMSG);
     zassert_true(manifest.global.lna_inverted);
-    --written;
+    written -= 2;
     bytes[4] = 2;
     sys_put_le16(written, bytes + 6);
     checksum();
     zassert_ok(decode_manifest(bytes, written, 1, manifest));
     zassert_false(manifest.global.lna_inverted);
+}
+
+ZTEST(channels, test_startup_switch_roundtrip_and_public_storage_defaults) {
+    plug.global.ui.startup_animation = false;
+    zassert_ok(make_manifest(plug, manifest));
+    zassert_ok(encode_manifest(manifest, 1, bytes, sizeof(bytes), written));
+    zassert_ok(decode_manifest(bytes, written, 1, manifest));
+    zassert_false(manifest.global.ui.startup_animation);
+    bytes[written - 1] = 2;
+    checksum();
+    zassert_equal(decode_manifest(bytes, written, 1, manifest), -EBADMSG);
+    --written;
+    bytes[4] = 3;
+    sys_put_le16(written, bytes + 6);
+    checksum();
+    zassert_ok(decode_manifest(bytes, written, 1, manifest));
+    zassert_true(manifest.global.ui.startup_animation);
 }
 
 ZTEST_SUITE(channels, nullptr, nullptr, before, nullptr, nullptr);

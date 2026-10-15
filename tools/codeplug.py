@@ -161,7 +161,8 @@ def validate(document):
     integer(global_settings['gain'], 0, 15, '$.global.gain')
     choice(global_settings['transmit_limit_s'], (0, 60, 120, 180), '$.global.transmit_limit_s')
     ui = global_settings['ui']
-    fields(ui, 'theme contrast animations backlight', '$.global.ui')
+    fields(ui, 'theme contrast animations backlight' + (' startup_animation' if 'startup_animation' in ui else ''), '$.global.ui')
+    boolean(ui.get('startup_animation', True), '$.global.ui.startup_animation')
     choice(ui['theme'], THEMES, '$.global.ui.theme')
     choice(ui['contrast'], ('normal', 'high', 'maximum'), '$.global.ui.contrast')
     boolean(ui['animations'], '$.global.ui.animations')
@@ -220,7 +221,7 @@ def validate(document):
     if selection['bank_id'] is not None and selection['channel_id'] is not None:
         if selection['channel_id'] not in banks[selection['bank_id']]['channel_ids']:
             fail('$.selection.channel_id', 'selected channel is outside the selected bank')
-    return {**document, "global": {"fm_ctcss_level": 74, "lna_inverted": False, **global_settings}}
+    return {**document, "global": {"fm_ctcss_level": 74, "lna_inverted": False, **global_settings, "ui": {"startup_animation": True, **ui}}}
 
 
 def load(path):

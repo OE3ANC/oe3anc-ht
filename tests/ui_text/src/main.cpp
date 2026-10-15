@@ -90,7 +90,7 @@ ZTEST(ui_text, test_bounds_normalization_and_transactional_begin) {
     zassert_equal(editor.literal('a'), -EINVAL);
     zassert_ok(editor.digit('2', 100));
     zassert_ok(editor.digit('2', 110));
-    zassert_equal(strcmp(editor.text(), "22"), 0);
+    zassert_equal(strcmp(editor.text(), "220.000000"), 0);
     zassert_false(editor.pending());
     zassert_ok(editor.begin(TextKind::ChannelNumber));
     zassert_ok(editor.digit('2', 100));

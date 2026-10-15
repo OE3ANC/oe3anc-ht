@@ -65,7 +65,7 @@ class ProfileTests(unittest.TestCase):
             with self.subTest(length=len(data)), self.assertRaises(codeplug.InvalidCodeplug):
                 wire.decode(data)
         # Recompute the CRC to reach deeper validation rather than only its checksum guard.
-        for position, value in ((4, 4), (5, 2), (8, 0), (16 + 26, 2), (16 + 25, 99), (16 + 30, 2)):
+        for position, value in ((4, 5), (5, 2), (8, 0), (16 + 26, 2), (16 + 25, 99), (16 + 30, 2)):
             data = bytearray(original)
             (length,) = struct.unpack_from('<H', data, 6)
             data[position] = value
@@ -80,7 +80,7 @@ class ProfileTests(unittest.TestCase):
         original = wire.encode(self.example(), 1)
         length = struct.unpack_from('<H', original, 6)[0]
         header = bytearray(original[:12])
-        header[4] = 4
+        header[4] = 5
         struct.pack_into('<H', header, 6, length - 4)
         payload = original[16 : length - 4]
         old = (
@@ -95,7 +95,7 @@ class ProfileTests(unittest.TestCase):
         self.assertEqual(generation, 1)
         for step in (0, 1, 0xFFFFFFFF):
             damaged = bytearray(original)
-            struct.pack_into('<I', damaged, length - 6, step)
+            struct.pack_into('<I', damaged, length - 7, step)
             struct.pack_into('<I', damaged, 12, zlib.crc32(damaged[:12] + damaged[16:length]))
             with self.assertRaisesRegex(codeplug.InvalidCodeplug, 'vfo_step_hz'):
                 wire.decode(damaged)
@@ -107,12 +107,13 @@ class ProfileTests(unittest.TestCase):
         length = struct.unpack_from('<H', original, 6)[0]
         header = bytearray(original[:12])
         header[4] = 1
-        struct.pack_into('<H', header, 6, length - 2)
-        payload = original[16:length - 2]
+        struct.pack_into('<H', header, 6, length - 3)
+        payload = original[16:length - 3]
         legacy = bytes(header) + struct.pack('<I', zlib.crc32(header + payload)) + payload + original[length:]
         decoded, generation = wire.decode(legacy)
         self.assertEqual(generation, 1)
         self.assertEqual(decoded['global']['fm_ctcss_level'], 74)
+        self.assertTrue(decoded['global']['ui']['startup_animation'])
         self.assertEqual(decoded['channels'], self.example()['channels'])
         decoded['global']['fm_ctcss_level'] = 0
         self.assertEqual(wire.decode(wire.encode(decoded, 2))[0]['global']['fm_ctcss_level'], 0)

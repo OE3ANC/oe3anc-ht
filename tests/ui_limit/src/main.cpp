@@ -3,6 +3,7 @@
 #include <ht/emulator.hpp>
 #include <ht/settings.hpp>
 #include <ht/ui.hpp>
+#include "../../ui_navigation.hpp"
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -100,7 +101,15 @@ static void before(void *) {
 }
 
 static void key(UiKey key) {
+    const auto before = model.screen();
     model.input({key});
+    if (key == UiKey::Back && model.screen() == UiScreen::Discard) {
+        model.input({UiKey::Up});
+        model.input({UiKey::Enter});
+    }
+    if (key == UiKey::Back && before == UiScreen::Menu && model.screen() == UiScreen::Menu) {
+        model.input({UiKey::Back});
+    }
 }
 
 static void tick(int64_t now = 0) {
@@ -113,25 +122,7 @@ static void tick(int64_t now = 0) {
 }
 
 static void open(const char *name = "TX limit") {
-    if (model.screen() == UiScreen::Menu) {
-        key(UiKey::Back);
-    }
-    zassert_equal(model.screen(), UiScreen::Home);
-    key(UiKey::Enter);
-    for (unsigned i = 0; i < 32; ++i) {
-        char lines[8][32];
-        model.lines(lines);
-        bool found = false;
-        for (const auto &line : lines) {
-            found |= line[0] == '>' && strstr(line, name);
-        }
-        if (found) {
-            key(UiKey::Enter);
-            return;
-        }
-        key(UiKey::Down);
-    }
-    zassert_unreachable("Menu entry not found");
+    ui_test_menu(model, name);
 }
 
 static void render(const char *name) {
@@ -201,7 +192,7 @@ ZTEST(ui_limit, test_all_draft_values_cancel_and_explicit_persistent_apply) {
     zassert_true(settings_status().pending);
     tick(999);
     zassert_true(settings_status().pending);
-    tick(1000);
+    tick(10000);
     zassert_false(settings_status().pending);
     RadioConfig config;
     Selection selected;
@@ -234,7 +225,7 @@ ZTEST(ui_limit, test_global_limit_preserves_memory_temporary_squelch_and_vfo) {
     zassert_true(same_operating(before.config, after.config));
     zassert_true(after.monitor_active);
     zassert_equal(after.config.squelch, 9);
-    tick(1000);
+    tick(10000);
     uint32_t generation;
     zassert_ok(codeplug_load(restored, generation));
     zassert_equal(restored.global.transmit_limit_s, 120);
@@ -267,36 +258,25 @@ ZTEST(ui_limit, test_noop_and_m17_edits_keep_stream_configuration_and_selection)
     zassert_equal(after.config.mode, Mode::M17);
 }
 
-ZTEST(ui_limit, test_ptt_focus_fault_power_and_restart_cancel_drafts) {
+ZTEST(ui_limit, test_ptt_preserves_draft_and_fault_power_cancel) {
     open();
     key(UiKey::Down);
     radio_ptt(true);
-    radio_ptt(false);
+    tick();
+    zassert_equal(model.screen(), UiScreen::TransmitLimit);
     key(UiKey::Enter);
-    zassert_equal(model.screen(), UiScreen::Home);
     zassert_false(model.command_pending());
-    tick();
-    zassert_equal(radio_snapshot().config.transmit_limit_s, 180);
-    open();
-    model.input({UiKey::Release});
-    zassert_equal(model.screen(), UiScreen::Home);
-    open();
-    radio_ptt(true);
-    tick();
-    zassert_equal(model.screen(), UiScreen::Home);
-    zassert_true(emulator_transmitting());
     radio_ptt(false);
     tick();
+    key(UiKey::Enter);
+    tick();
+    zassert_equal(radio_snapshot().config.transmit_limit_s, 120);
     open();
     radio_power(false);
     tick();
     zassert_equal(model.screen(), UiScreen::Home);
     radio_power(true);
     tick();
-    open();
-    zassert_ok(radio_start(radio_snapshot().config));
-    model.sync(radio_snapshot());
-    zassert_equal(model.screen(), UiScreen::Home);
     open();
     radio_report_fault(-EIO);
     tick();
@@ -332,7 +312,7 @@ ZTEST(ui_limit, test_queued_apply_guards_stale_state_and_never_reopens_after_can
     model.input({UiKey::Ptt});
     radio_ptt(true);
     tick();
-    zassert_equal(model.screen(), UiScreen::Home);
+    zassert_equal(model.screen(), UiScreen::TransmitLimit);
     zassert_equal(radio_snapshot().config.transmit_limit_s, 120);
     zassert_true(emulator_transmitting());
     radio_ptt(false);
@@ -364,12 +344,12 @@ ZTEST(ui_limit, test_queue_busy_and_storage_failure_are_explicit_and_retryable) 
     key(UiKey::Enter);
     tick();
     fail_durable = true;
-    tick(1000);
+    tick(10000);
     zassert_equal(settings_status().save_error, -EIO);
     zassert_true(settings_status().pending);
     zassert_equal(radio_snapshot().config.transmit_limit_s, 120);
     fail_durable = false;
-    tick(2000);
+    tick(11000);
     zassert_false(settings_status().pending);
     uint32_t generation;
     zassert_ok(codeplug_load(restored, generation));

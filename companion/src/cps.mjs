@@ -477,7 +477,8 @@ export class CpsEditor {
         form.append(display);
         add('Theme', 'ui.theme', THEMES);
         add('Contrast', 'ui.contrast', ['normal', 'high', 'maximum']);
-        add('Animations', 'ui.animations');
+        add('Menu motion', 'ui.animations');
+        add('Startup animation and sound', 'ui.startup_animation');
         add(
             'Active brightness',
             'ui.backlight.brightness_percent',

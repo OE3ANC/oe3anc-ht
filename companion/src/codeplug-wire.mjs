@@ -204,7 +204,7 @@ function readOperating(r) {
 function record(kind, payload) {
     const w = new Writer(16 + payload.length);
     w.append(Uint8Array.of(72, 84, 68, 66));
-    w.u8(kind === 1 ? 3 : 1);
+    w.u8(kind === 1 ? 4 : 1);
     w.u8(kind);
     w.u16(w.bytes.length);
     // Transfer records use generation 1; the radio assigns the stored generation.
@@ -223,7 +223,7 @@ function record(kind, payload) {
 export function encodeCodeplug(document) {
     const plug = JSON.parse(canonical(validate(document)));
     const records = [];
-    const m = new Writer(85 + 4 * (plug.channels.length + plug.banks.length));
+    const m = new Writer(86 + 4 * (plug.channels.length + plug.banks.length));
     m.u32(plug.allocation.channel_id_high_water);
     m.u32(plug.allocation.bank_id_high_water);
     m.u16(plug.channels.length);
@@ -250,6 +250,7 @@ export function encodeCodeplug(document) {
     m.u32(g.vfo_step_hz);
     m.u8(g.fm_ctcss_level);
     m.u8(g.lna_inverted);
+    m.u8(ui.startup_animation);
     records.push(record(1, m.bytes));
     for (const channel of plug.channels) {
         const w = new Writer(71);
@@ -291,11 +292,11 @@ export function decodeCodeplug(bytes) {
             reject('invalid magic');
         }
         h.at = 4;
-        if (h.u8() !== (kind === 1 ? 3 : 1) || h.u8() !== kind) {
+        if (h.u8() !== (kind === 1 ? 4 : 1) || h.u8() !== kind) {
             reject('unknown record version/kind');
         }
         const size = h.u16();
-        if (size < 16 || size > 1189 || h.u32() !== 1) {
+        if (size < 16 || size > 1190 || h.u32() !== 1) {
             reject('invalid record length/generation');
         }
         const checksum = h.u32();
@@ -341,6 +342,7 @@ export function decodeCodeplug(bytes) {
     const vfo_step_hz = m.u32();
     const fm_ctcss_level = m.u8();
     const lna_inverted = m.bool();
+    const startup_animation = m.bool();
     m.done();
     for (const expected of channelIds) {
         const r = next(2);
@@ -384,7 +386,7 @@ export function decodeCodeplug(bytes) {
             fm_ctcss_level,
             lna_inverted,
             vfo_step_hz,
-            ui: { theme, contrast, animations, backlight }
+            ui: { theme, contrast, animations, startup_animation, backlight }
         },
         selection,
         vfo,

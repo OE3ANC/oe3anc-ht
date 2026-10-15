@@ -37,9 +37,10 @@ void UiModel::advance_signal(int64_t now) {
 void UiModel::home(UiHome &view) const {
     view = {};
     view.visible =
-        state_.power_active && !state_.fault &&
+        !startup_visible() && state_.power_active && !state_.fault &&
         (state_.phase == RadioPhase::Receiving || state_.phase == RadioPhase::Transmitting) &&
-        (screen_ == UiScreen::Home || state_.tx_warning || state_.tx_timed_out);
+        (screen_ == UiScreen::Home || state_.phase == RadioPhase::Transmitting ||
+         state_.tx_warning || state_.tx_timed_out);
     if (!view.visible) {
         return;
     }
@@ -80,7 +81,10 @@ void UiModel::home(UiHome &view) const {
             strcpy(view.context, view.transmitting ? "TX / RX stats --" : "BER~-- / no fresh RX");
         }
     }
-    const uint32_t frequency = view.transmitting ? config.tx_frequency_hz : config.rx_frequency_hz;
+    const uint32_t frequency =
+        (view.transmitting || state_.receive_override == ReceiveOverride::ListenTx)
+            ? config.tx_frequency_hz
+            : config.rx_frequency_hz;
     snprintf(view.frequency, sizeof(view.frequency), "%u.%06u", frequency / 1000000,
              frequency % 1000000);
     // Trim only zero digits: retain at least 3 decimals and every integer Hz.
@@ -110,9 +114,16 @@ void UiModel::home(UiHome &view) const {
     if (config.mode == Mode::M17 && state_.rx_active && state_.received_callsign[0]) {
         snprintf(view.activity, sizeof(view.activity), "RX %.9s", state_.received_callsign);
     }
-    if (state_.monitor_active) {
-        strcpy(view.activity, "FM monitor / held");
+    if (!view.transmitting &&
+        (state_.monitor_active || state_.receive_override == ReceiveOverride::ListenTx)) {
+        strcpy(view.activity,
+               state_.receive_override == ReceiveOverride::ListenTx
+                   ? (config.mode == Mode::Fm ? "Listen on TX / open" : "Listen on TX")
+                   : "MON / squelch open");
         view.status = UiStatusColor::Accent;
+    }
+    if (notice_until_ > k_uptime_get()) {
+        strcpy(view.context, notice_);
     }
     if (storage_pending_) {
         strcpy(view.context, "Settings pending");
@@ -168,13 +179,7 @@ void UiModel::home(UiHome &view) const {
             view.actions[1] = "to unlock";
         } else {
             view.actions[0] = "OK Menu";
-            view.actions[1] = "BACK Quick";
-#ifdef CONFIG_HT_CODEPLUG_STORAGE
-            view.actions[2] =
-                state_.selection.operating == Operating::Memory ? "P1 VFO" : "P1 Memory";
-            view.actions[3] =
-                state_.selection.operating == Operating::Memory ? "P2 Edit" : "P2 Save";
-#endif
+            view.actions[1] = "PTT2 Quick";
         }
     }
 }

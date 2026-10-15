@@ -10,6 +10,11 @@ namespace ht {
 static RadioController controller;
 static K_MUTEX_DEFINE(state_mutex);
 K_MSGQ_DEFINE(commands, sizeof(RadioCommand), 8, 4);
+static atomic_t startup_chime_requested;
+
+void radio_startup_chime(bool enabled) {
+    atomic_set(&startup_chime_requested, enabled);
+}
 static atomic_t ptt_pressed;
 static atomic_t ptt_released;
 static atomic_t ptt_activity;
@@ -143,6 +148,7 @@ int radio_start(const RadioConfig &config, const Selection &selection) {
     atomic_clear(&ptt_activity);
     atomic_clear(&monitor_pressed);
     atomic_clear(&monitor_released);
+    atomic_clear(&startup_chime_requested);
     atomic_clear(&peripheral_fault);
     atomic_clear(&power_off);
     const int result = controller.start(config, radio_power_requested(), selection);
@@ -163,6 +169,7 @@ void radio_service() {
     controller.set_power(radio_power_requested());
     const bool resumed = controller.state().power_active && (stopped || !previous.power_active);
     const bool interrupted = atomic_cas(&ptt_activity, 1, 0);
+    controller.startup_chime(atomic_get(&startup_chime_requested) && !radio_ptt_requested());
     controller.poll();
     // Physical PTT takes priority. Cancel remote intent so its expiry/release
     // cannot stop a physical hold, and it cannot resume after physical release.

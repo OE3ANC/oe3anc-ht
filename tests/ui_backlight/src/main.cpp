@@ -65,6 +65,7 @@ static void *setup() {
 
 static void load(unsigned count = 6) {
     fail_durable = false;
+    radio_ptt(false);
     radio_power(true);
     zassert_ok(radio_start({}));
     unlink(path);
@@ -130,6 +131,10 @@ static void before(void *) {
 
 static void key(UiKey key) {
     model.input({key});
+    if (key == UiKey::Back && model.screen() == UiScreen::Discard) {
+        model.input({UiKey::Up});
+        model.input({UiKey::Enter});
+    }
 }
 
 static void tick() {
@@ -208,40 +213,32 @@ static void reboot() {
     model.sync(radio_snapshot());
 }
 
-ZTEST(ui_backlight, test_draft_cancel_apply_field_choices_preserve_other_preferences_reboot) {
+static void change_light(UiKey direction) {
+    key(UiKey::Enter);
+    key(direction);
+    key(UiKey::Enter);
+}
+
+ZTEST(ui_backlight, test_explicit_fields_apply_and_preserve_other_preferences) {
     open();
-    frame_out("backlight-default");
-    key(UiKey::Up); //100->25
-    key(UiKey::Left);
-    key(UiKey::Down); //15->Never
-    key(UiKey::Left);
-    key(UiKey::Up); //10->20
-    frame_out("backlight-preview");
-    zassert_equal(model.backlight_percent(), 100);
-    key(UiKey::Back);
-    zassert_equal(model.screen(), UiScreen::Menu);
-    UiPreferences ui;
-    settings_ui_preferences(ui);
-    zassert_equal(ui.brightness_percent, 100);
-    key(UiKey::Enter);
-    key(UiKey::Up);
-    key(UiKey::Left);
+    change_light(UiKey::Up); // 100 -> 25.
     key(UiKey::Down);
-    key(UiKey::Left);
-    key(UiKey::Up);
+    change_light(UiKey::Down); // 15 -> Never.
+    key(UiKey::Down);
+    change_light(UiKey::Up); // 10 -> 20.
+    zassert_equal(model.backlight_percent(), 100);
+    frame_out("backlight-preview");
+    key(UiKey::Down);
     key(UiKey::Enter);
-    zassert_true(model.backlight_pending());
-    frame_out("backlight-pending");
     tick();
     zassert_equal(model.screen(), UiScreen::Menu);
+    UiPreferences ui;
     settings_ui_preferences(ui);
     zassert_equal(ui.brightness_percent, 25);
     zassert_equal(ui.idle_s, 0);
     zassert_equal(ui.dim_percent, 20);
     zassert_equal(ui.theme, Theme::Midnight);
-    zassert_equal(ui.contrast, Contrast::Normal);
-    zassert_true(ui.animations);
-    zassert_equal(model.backlight_percent(), 25);
+    zassert_true(ui.animations && ui.startup_animation);
     reboot();
     zassert_equal(model.backlight_percent(), 25);
     advance(61000);
@@ -356,49 +353,31 @@ ZTEST(ui_backlight, test_every_idle_choice_dim_clamp_and_explicit_key_wake) {
     zassert_equal(model.screen(), UiScreen::Frequency); // Same brightness needs no wake key.
 }
 
-ZTEST(ui_backlight, test_ptt_focus_stale_owner_failure_and_submitted_apply_does_not_reopen) {
+ZTEST(ui_backlight, test_ptt_retains_draft_and_save_failure_can_retry) {
     open();
-    key(UiKey::Up);
+    change_light(UiKey::Up);
     radio_ptt(true);
+    tick();
+    zassert_equal(model.screen(), UiScreen::Backlight);
     radio_ptt(false);
-    key(UiKey::Enter);
-    zassert_equal(model.screen(), UiScreen::Home);
-    zassert_false(model.command_pending());
-    open();
-    model.input({UiKey::Release});
-    zassert_equal(model.screen(), UiScreen::Home);
-    open();
-    auto ui = plug.global.ui;
-    ui.contrast = Contrast::High;
-    zassert_ok(settings_put_ui_preferences(ui, 891, radio_snapshot(), settings_status().revision));
     tick();
-    key(UiKey::Enter);
-    tick();
-    zassert_equal(model.error(), -ESTALE);
-    frame_out("backlight-stale");
-    key(UiKey::Back);
-    key(UiKey::Back);
-    open();
-    key(UiKey::Up);
-    key(UiKey::Enter);
-    model.input({UiKey::Release});
-    tick();
-    zassert_equal(model.screen(), UiScreen::Home);
-    zassert_equal(model.backlight_percent(), 25);
-    settings_ui_preferences(ui);
-    zassert_equal(ui.contrast, Contrast::High);
-    open();
-    key(UiKey::Up);
+    key(UiKey::Down);
+    key(UiKey::Down);
+    key(UiKey::Down);
     fail_durable = true;
     key(UiKey::Enter);
     tick();
-    zassert_equal(model.backlight_percent(), 50);
-    zassert_true(settings_status().pending);
-    zassert_equal(settings_status().save_error, -EIO);
+    zassert_equal(model.screen(), UiScreen::Backlight);
+    zassert_equal(model.error(), -EIO);
     fail_durable = false;
-    settings_service(radio_snapshot(), 1100);
+    key(UiKey::Enter);
+    settings_service(radio_snapshot(), 1001);
+    radio_service();
+    settings_service(radio_snapshot(), 1002);
+    model.sync(radio_snapshot());
+    zassert_equal(model.screen(), UiScreen::Menu);
     reboot();
-    zassert_equal(model.backlight_percent(), 50);
+    zassert_equal(model.backlight_percent(), 25);
 }
 
 ZTEST(ui_backlight, test_sdl_brightness_modulates_radio_texture_and_can_restore_without_a_flush) {

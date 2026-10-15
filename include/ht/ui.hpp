@@ -35,6 +35,15 @@ struct UiHome : UiHomeContent {
 class UiModel {
   public:
     void sync(const RadioState &state);
+    void begin_startup(int64_t now_ms);
+
+    bool startup_visible() const {
+        return startup_started_ >= 0;
+    }
+
+    uint16_t startup_position() const {
+        return startup_position_;
+    }
     // Target producers also publish Star levels/cancellation outside the queue.
     void input(const UiInput &input, bool external_pending = false);
 
@@ -54,7 +63,8 @@ class UiModel {
 
     bool command_pending() const {
         return pending_ != 0 || recall_pending_ != 0 || edit_pending_ != 0 || bank_pending_ != 0 ||
-               step_pending_ != 0 || light_pending_ != 0;
+               step_pending_ != 0 || light_pending_ != 0 || awaiting_channel_save_ ||
+               awaiting_bank_save_ || awaiting_preferences_save_;
     }
 
     bool recall_pending() const {
@@ -95,7 +105,7 @@ class UiModel {
     }
 
     UiScreen screen() const {
-        return screen_;
+        return startup_visible() ? UiScreen::Startup : discard_open_ ? UiScreen::Discard : screen_;
     }
 
     int error() const {
@@ -119,10 +129,26 @@ class UiModel {
     }
 
     bool appearance_pending() const {
-        return appearance_pending_ != 0;
+        return appearance_pending_ != 0 || awaiting_preferences_save_;
     }
 
+    bool discard_open() const {
+        return discard_open_;
+    }
+
+    bool value_editing() const {
+        return field_editing_ || channel_editing_ || tone_editing_;
+    }
     uint8_t form_cursor() const {
+        if (discard_open_) {
+            return discard_cursor_;
+        }
+        if (screen_ == UiScreen::BrowseActions) {
+            return browse_action_;
+        }
+        if (screen_ == UiScreen::Appearance) {
+            return appearance_cursor_ % 4;
+        }
         return screen_ == UiScreen::Backlight       ? light_cursor_
                : screen_ == UiScreen::QuickControls ? quick_cursor()
                : bank_programming(screen_)          ? bank_form_cursor_
@@ -164,12 +190,27 @@ class UiModel {
 #endif
     static constexpr uint8_t status_page_count = rx_status_first_page + 3;
     RadioState state_;
+    int64_t startup_started_ = -1;
+    uint16_t startup_position_ = 0;
+    bool startup_sound_ = false;
+    uint32_t startup_ptt_ = 0;
+    void stop_startup();
     uint32_t motion_interruptions_ = 0;
     uint8_t signal_bars_ = 0;
     int64_t signal_step_ms_ = -1;
     void advance_signal(int64_t now_ms);
     UiScreen screen_ = UiScreen::Home;
     uint8_t selected_ = 0;
+    uint8_t menu_group_ = 0;
+    bool discard_open_ = false;
+    uint8_t discard_cursor_ = 2, appearance_cursor_ = 0;
+    UiPreferences preference_original_, field_preferences_;
+    bool editor_dirty() const;
+    void discard_input(const UiInput &input);
+    void save_editor();
+    bool field_editing_ = false;
+    RadioConfig field_config_;
+    FmRxControls field_controls_;
     uint8_t status_page_ = 0;
     char draft_[5] = {}; // At most four diagnostic hexadecimal digits.
     uint32_t diagnostic_ptt_sequence_ = 0;
@@ -183,6 +224,8 @@ class UiModel {
     void step_input(const UiInput &input);
     uint8_t quick_gain_ = 0, quick_squelch_ = 0;
     bool quick_gain_field_ = false;
+    uint8_t quick_selected_ = 0;
+    bool quick_editing_ = false;
     uint32_t quick_generation_ = 0, quick_revision_ = 0, quick_ptt_sequence_ = 0;
     Selection quick_selection_;
     UiScreen quick_return_ = UiScreen::Home;
@@ -222,7 +265,11 @@ class UiModel {
     UiListPage list_;
     uint32_t browse_bank_ = 0, browse_channel_ = 0, browse_revision_ = 0;
     uint32_t recall_pending_ = 0;
+    bool browse_action_bank_ = false;
+    uint8_t browse_action_ = 0;
+    UiScreen browse_origin_ = UiScreen::Channels;
     uint16_t browse_cursor_ = 0; // Staged cursor; published only with its rows.
+    UiScreen banks_return_ = UiScreen::Menu;
     UiScreen list_return_ = UiScreen::Menu, number_return_ = UiScreen::Home;
     void refresh_list();
     void open_channels(UiScreen return_screen);
@@ -246,6 +293,19 @@ class UiModel {
     enum class ChannelField : uint8_t { Name, Number, Rx, Tx, Station, ToneValue };
     ChannelField channel_field_ = ChannelField::Name;
     void open_channel(uint32_t id, UiScreen return_screen);
+    void open_current_editor(UiScreen return_screen);
+    bool editing_vfo_ = false;
+    Channel original_channel_;
+    uint32_t original_bank_ = 0;
+    RadioState edit_state_;
+    OperatingConfig channel_field_original_;
+    Tone tone_original_;
+    bool channel_editing_ = false, tone_editing_ = false, awaiting_channel_save_ = false,
+         awaiting_bank_save_ = false, awaiting_preferences_save_ = false;
+    int64_t notice_until_ = 0;
+    char notice_[25] = {};
+    bool channel_row_available(unsigned position) const;
+    void change_channel_value(int direction);
     void cancel_channel(bool interruption = false);
     void channel_input(const UiInput &input);
     void channel_field(const UiInput &input);
@@ -259,7 +319,7 @@ class UiModel {
     uint16_t bank_cursor_ = 0,
              bank_add_cursor_ = 0; // Desired cursors; list_ is published separately.
     uint8_t bank_form_cursor_ = 0;
-    bool bank_deleting_ = false;
+    bool bank_deleting_ = false, bank_dirty_ = false;
     void open_bank(uint32_t id);
     void cancel_bank(bool interruption = false);
     void bank_input(const UiInput &input);

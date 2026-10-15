@@ -8,6 +8,7 @@
 #include <zephyr/ztest.h>
 using namespace ht;
 static atomic_t observed_lock;
+static atomic_t observed_screen;
 static Codeplug plug;
 static char root[] = "/tmp/ht-lock-service-XXXXXX";
 K_MSGQ_DEFINE(inputs, sizeof(UiInput), 16, 4);
@@ -15,6 +16,7 @@ extern "C" void __real__ZN2ht14ui_view_updateERKNS_14UiPresentationE(const UiPre
 
 extern "C" void __wrap__ZN2ht14ui_view_updateERKNS_14UiPresentationE(const UiPresentation &view) {
     atomic_set(&observed_lock, view.home.locked);
+    atomic_set(&observed_screen, static_cast<int>(view.screen));
     __real__ZN2ht14ui_view_updateERKNS_14UiPresentationE(view);
 }
 
@@ -74,7 +76,8 @@ ZTEST(ui_lock_service, test_real_ui_worker_lock_front_keys_side_inputs_and_unloc
     zassert_equal(emulator_tuned_frequency(), 430000000);
     zassert_true(atomic_get(&observed_lock));
     inject(UiKey::Monitor);
-    zassert_true(radio_snapshot().monitor_active);
+    zassert_false(radio_snapshot().monitor_active);
+    zassert_equal(atomic_get(&observed_screen), static_cast<int>(UiScreen::Home));
     inject(UiKey::Monitor, false);
     zassert_false(radio_snapshot().monitor_active);
     inject(UiKey::Ptt);
@@ -92,6 +95,11 @@ ZTEST(ui_lock_service, test_real_ui_worker_lock_front_keys_side_inputs_and_unloc
     inject(UiKey::Star, false);
     inject(UiKey::Up);
     zassert_equal(emulator_tuned_frequency(), 430012500);
+    inject(UiKey::Monitor);
+    zassert_equal(atomic_get(&observed_screen), static_cast<int>(UiScreen::QuickControls));
+    inject(UiKey::Monitor, false);
+    inject(UiKey::Monitor);
+    zassert_equal(atomic_get(&observed_screen), static_cast<int>(UiScreen::Home));
     // This single-case fixture leaves the UI owner alive at terminal completion.
 }
 

@@ -4,14 +4,14 @@
 #include <stdint.h>
 namespace ht { namespace companion {
 constexpr unsigned MAJOR = 1;
-constexpr unsigned MINOR = 5;
+constexpr unsigned MINOR = 6;
 constexpr unsigned HEADER_SIZE = 20;
 constexpr unsigned MAX_PAYLOAD = 192;
 constexpr unsigned MAX_ENCODED = 219;
 constexpr unsigned FRAME_TIMEOUT_MS = 500;
 constexpr unsigned LEASE_MS = 1000;
 constexpr unsigned MAX_RELEASE = 96;
-constexpr unsigned CPS_MAX_BYTES = 40597;
+constexpr unsigned CPS_MAX_BYTES = 40598;
 constexpr unsigned CPS_CHUNK_BYTES = 180;
 constexpr unsigned UI_MAX_BYTES = 512;
 constexpr unsigned UI_CHUNK_BYTES = 180;
@@ -88,6 +88,9 @@ constexpr unsigned UI_SCREEN_BACKLIGHT = 25;
 constexpr unsigned UI_SCREEN_TRANSMIT_LIMIT = 26;
 constexpr unsigned UI_SCREEN_STATUS = 27;
 constexpr unsigned UI_SCREEN_COMPANION_EXIT = 28;
+constexpr unsigned UI_SCREEN_BROWSE_ACTIONS = 29;
+constexpr unsigned UI_SCREEN_STARTUP = 30;
+constexpr unsigned UI_SCREEN_DISCARD = 31;
 constexpr unsigned UI_KEY_UP = 0;
 constexpr unsigned UI_KEY_DOWN = 1;
 constexpr unsigned UI_KEY_P1 = 2;
@@ -106,4 +109,5 @@ constexpr unsigned UI_KEY_DIGIT_6 = 14;
 constexpr unsigned UI_KEY_DIGIT_7 = 15;
 constexpr unsigned UI_KEY_DIGIT_8 = 16;
 constexpr unsigned UI_KEY_DIGIT_9 = 17;
+constexpr unsigned UI_KEY_QUICK = 18;
 } } // namespace ht::companion

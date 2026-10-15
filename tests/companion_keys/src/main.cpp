@@ -68,7 +68,7 @@ ZTEST(companion_keys, test_shared_draft_order_and_local_cancel) {
     press(UI_KEY_DIGIT_0, false);
     drain();
     zassert_equal(model.screen(), UiScreen::Frequency);
-    zassert_equal(strcmp(model.text_editor().text(), "430"), 0);
+    zassert_equal(strcmp(model.text_editor().text(), "430.000000"), 0);
     zassert_ok(ui_queue_input({UiKey::Back}));
     drain();
     zassert_equal(model.screen(), UiScreen::Home);
@@ -125,7 +125,7 @@ ZTEST(companion_keys, test_no_repeat_and_expired_unapplied_keys) {
     press(UI_KEY_DIGIT_2);
     press(UI_KEY_DIGIT_2, false);
     drain();
-    zassert_equal(strcmp(model.text_editor().text(), "2"), 0);
+    zassert_equal(strcmp(model.text_editor().text(), "200.000000"), 0);
 }
 
 ZTEST(companion_keys, test_star_lease_hold_and_physical_level_independence) {

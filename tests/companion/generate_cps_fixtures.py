@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""Freeze independent Python CPS v3 binary vectors for both applications."""
+"""Freeze independent Python CPS v4 binary vectors for both applications."""
 import argparse
 import copy
 import json
@@ -46,6 +46,9 @@ def fixtures():
     document['global']['lna_inverted'] = True
     valid.append({'name': 'inverted-lna', 'document': document,
                   'wire': wire.encode(document, 1).hex()})
+    document = copy.deepcopy(valid[0]['document'])
+    document['global']['ui']['startup_animation'] = False
+    valid.append({'name': 'silent-startup', 'document': document, 'wire': wire.encode(document, 1).hex()})
     invalid = []
     seed = bytes.fromhex(valid[0]['wire'])
 
@@ -60,11 +63,13 @@ def fixtures():
         add('truncated ' + str(length), seed[:length])
     add('trailing byte', seed + b'\0')
     for name, offset, value in [
-        ('unsupported record version', 4, 4),
+        ('unsupported record version', 4, 5),
         ('old manifest rejected on wire', 4, 1),
         ('old v2 manifest rejected on wire', 4, 2),
-        ('invalid LNA polarity', len(seed) - 1, 2),
-        ('invalid CTCSS level', len(seed) - 2, 128),
+        ('old v3 manifest rejected on wire', 4, 3),
+        ('invalid startup switch', len(seed) - 1, 2),
+        ('invalid LNA polarity', len(seed) - 2, 2),
+        ('invalid CTCSS level', len(seed) - 3, 128),
         ('unknown theme', 40, 99),
         ('unknown contrast', 41, 99),
         ('bad boolean', 58, 2),

@@ -18,7 +18,7 @@ enum class UiKey : uint8_t {
     Ptt,
     Release,
     Quit,
-    Monitor
+    Monitor // PTT2: ordinary Quick controls button, no direct RF action.
 };
 
 struct UiInput {
@@ -31,7 +31,7 @@ struct UiInput {
 
 // All ordinary front-key producers share this nonblocking 16-entry FIFO.
 // It owns copies in accepted enqueue order; overflow returns -EBUSY. Only the
-// UI owner drains it. Independent PTT/monitor/release/quit must bypass it and
+// UI owner drains it. Independent PTT/release/quit must bypass it and
 // are rejected here. Star level/release/cancellation remain loss-independent.
 int ui_queue_input(const UiInput &input);
 bool ui_take_input(UiInput &input);

@@ -1,14 +1,14 @@
 {
   "name": "oe3anc-ht-companion",
   "major": 1,
-  "minor": 5,
+  "minor": 6,
   "header_size": 20,
   "max_payload": 192,
   "max_encoded": 219,
   "frame_timeout_ms": 500,
   "lease_ms": 1000,
   "max_release": 96,
-  "cps_max_bytes": 40597,
+  "cps_max_bytes": 40598,
   "cps_chunk_bytes": 180,
   "messages": {
     "HELLO": 1,
@@ -91,7 +91,10 @@
     "BACKLIGHT": 25,
     "TRANSMIT_LIMIT": 26,
     "STATUS": 27,
-    "COMPANION_EXIT": 28
+    "COMPANION_EXIT": 28,
+    "BROWSE_ACTIONS": 29,
+    "STARTUP": 30,
+    "DISCARD": 31
   },
   "ui_keys_lease_ms": 500,
   "ui_keys_keep_ms": 150,
@@ -113,7 +116,8 @@
     "DIGIT_6": 14,
     "DIGIT_7": 15,
     "DIGIT_8": 16,
-    "DIGIT_9": 17
+    "DIGIT_9": 17,
+    "QUICK": 18
   },
   "ptt_lease_ms": 500,
   "ptt_keep_ms": 150

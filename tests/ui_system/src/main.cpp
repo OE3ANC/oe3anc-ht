@@ -278,6 +278,7 @@ ZTEST(ui_system, test_preview_discard_applied_theme_and_normal_layout_restoratio
         model.input({UiKey::Down});
     }
     zassert_equal(model.screen(), UiScreen::Appearance);
+    model.input({UiKey::Enter});
     model.input({UiKey::Down});
     zassert_equal(model.preferences().theme, Theme::Nord);
     radio_report_fault(-EFAULT);
@@ -289,7 +290,7 @@ ZTEST(ui_system, test_preview_discard_applied_theme_and_normal_layout_restoratio
     load();
     render("home-restored");
     label("OK Menu");
-    label("BACK Quick");
+    label("PTT2 Quick");
     UiStatus view;
     zassert_false(model.system_state(view));
     model.input({UiKey::Enter});

@@ -236,7 +236,7 @@ int begin(uint8_t *b, size_t capacity, size_t n, Kind kind, uint32_t generation)
         return -ENOSPC;
     }
     memcpy(b, "HTDB", 4);
-    b[4] = kind == Kind::Manifest ? 3 : version;
+    b[4] = kind == Kind::Manifest ? 4 : version;
     b[5] = static_cast<uint8_t>(kind);
     sys_put_le16(n, b + 6);
     sys_put_le32(generation, b + 8);
@@ -252,7 +252,7 @@ int check(const uint8_t *b, size_t n, Kind kind, uint32_t generation) {
         sys_get_le16(b + 6) != n || checksum(b, n) != sys_get_le32(b + 12)) {
         return -EBADMSG;
     }
-    if (b[4] != version && !(kind == Kind::Manifest && (b[4] == 2 || b[4] == 3))) {
+    if (b[4] != version && !(kind == Kind::Manifest && (b[4] >= 2 && b[4] <= 4))) {
         return -ENOTSUP;
     }
     return b[5] != static_cast<uint8_t>(kind) || sys_get_le32(b + 8) != generation ? -EBADMSG : 0;
@@ -293,7 +293,7 @@ int encode_manifest(const CodeplugManifest &m, uint32_t generation, uint8_t *b, 
     if (validation) {
         return validation;
     }
-    const size_t n = codeplug_envelope_size + 85 + 4 * (m.channel_count + m.bank_count);
+    const size_t n = codeplug_envelope_size + 86 + 4 * (m.channel_count + m.bank_count);
     const int error = begin(b, capacity, n, Kind::Manifest, generation);
     if (error) {
         return error;
@@ -315,6 +315,7 @@ int encode_manifest(const CodeplugManifest &m, uint32_t generation, uint8_t *b, 
     w.u32(m.global.vfo_step_hz);
     w.u8(m.global.fm_ctcss_level);
     w.u8(m.global.lna_inverted);
+    w.u8(m.global.ui.startup_animation);
     finish(b, n, written);
     return 0;
 }
@@ -348,6 +349,9 @@ int decode_manifest(const uint8_t *b, size_t n, uint32_t generation, CodeplugMan
     }
     if (b[4] >= 3) {
         m.global.lna_inverted = r.boolean();
+    }
+    if (b[4] >= 4) {
+        m.global.ui.startup_animation = r.boolean();
     }
     if (!r.done() || manifest_valid(m)) {
         return -EBADMSG;

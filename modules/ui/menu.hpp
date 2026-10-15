@@ -30,11 +30,18 @@ enum MenuItem {
     FmAfDacGainItem,
     FmCtcssLevelItem,
     LnaPolarityItem,
+    RadioItem,
+    DevelopmentItem,
+    CodecStatsItem,
+    RxPathItem,
+    RxGainItem,
+    RxSquelchItem,
     MenuCount
 };
 
-unsigned menu_item_at(unsigned position);
-unsigned menu_move(unsigned current, Mode mode, int direction);
+unsigned menu_count(unsigned group = 0);
+unsigned menu_item_at(unsigned position, unsigned group = 0);
+unsigned menu_move(unsigned current, Mode mode, int direction, unsigned group = 0);
 bool menu_available(unsigned item, Mode mode);
 bool menu_inline(unsigned item);
 void menu_label(unsigned item, const RadioState &state, uint32_t step, char (&value)[28]);

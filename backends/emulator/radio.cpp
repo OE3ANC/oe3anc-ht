@@ -63,6 +63,11 @@ int backend_configure(const RadioConfig &config, const FmRxControls &controls) {
     return 0;
 }
 
+int backend_startup_chime() {
+    backend_stop();
+    return 0; // RF emulator has no physical speaker path.
+}
+
 int backend_receive() {
     const int error = operation();
     if (error) {

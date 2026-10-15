@@ -35,6 +35,12 @@ void ui_capture_presentation(const UiModel &model, UiPresentation &view) {
     if (view.screen == UiScreen::Diagnostics) {
         model.diagnostic_page(view.list);
     }
+    if (view.screen == UiScreen::Startup) {
+        view.list = {};
+        view.list.cursor = model.startup_position();
+        view.list.count = 81;
+        view.list.ready = true;
+    }
     const auto &text = model.text_editor();
     strcpy(view.text.value, text.text());
     view.text.kind = text.kind();
@@ -43,6 +49,11 @@ void ui_capture_presentation(const UiModel &model, UiPresentation &view) {
     strcpy(view.diagnostic_text, model.diagnostic_text());
     const char *actions[4] = {"", "", "", ""};
     const auto screen = view.screen;
+    if (model.discard_open() && !view.system_visible && !home.visible) {
+        strcpy(view.actions[0], "OK Select");
+        strcpy(view.actions[1], "BACK Edit");
+        return;
+    }
     if (view.system_visible) {
         return;
     }
@@ -50,18 +61,22 @@ void ui_capture_presentation(const UiModel &model, UiPresentation &view) {
         for (unsigned row = 0; row < 4; ++row) {
             actions[row] = home.actions[row];
         }
+    } else if (screen == UiScreen::BrowseActions) {
+        actions[0] = "OK Select";
+        actions[1] = "BACK";
     } else if (screen == UiScreen::Menu) {
         model.menu_actions(actions);
     } else if (screen == UiScreen::Status) {
         actions[0] = model.codec_statistics_page() ? "OK Reset" : "";
         actions[1] = "BACK Menu";
-        actions[2] = "P1 Page";
+        actions[2] = "P1 Prev page";
+        actions[3] = "P2 Next page";
     } else if (screen == UiScreen::Appearance) {
         if (!view.appearance_pending) {
-            actions[0] = "OK Apply";
-            actions[1] = "BACK Cancel";
-            actions[2] = "P1 Contrast";
-            actions[3] = "P2 Motion";
+            actions[0] = model.value_editing() ? "OK Accept" : "OK Select";
+            actions[1] = "BACK";
+            actions[2] = model.value_editing() ? "" : "P1 Prev page";
+            actions[3] = model.value_editing() ? "" : "P2 Next page";
         }
     } else if (screen == UiScreen::Diagnostics) {
         model.diagnostic_actions(actions);
@@ -75,8 +90,8 @@ void ui_capture_presentation(const UiModel &model, UiPresentation &view) {
                screen == UiScreen::BankName) {
         actions[0] = screen == UiScreen::ChannelNumber ? "OK Tune" : "OK Apply";
         actions[1] = "BACK Cancel";
-        actions[2] = "P1 Erase";
-        actions[3] = screen == UiScreen::Frequency ? "P2 Point" : "";
+        actions[2] = "";
+        actions[3] = "";
         if (screen == UiScreen::ChannelField) {
             model.channel_actions(actions);
         }
@@ -99,14 +114,11 @@ void ui_capture_presentation(const UiModel &model, UiPresentation &view) {
         actions[1] = screen == UiScreen::Banks            ? "BACK Cancel"
                      : view.list_return == UiScreen::Home ? "BACK Home"
                                                           : "BACK Menu";
-        actions[2] = page.ready && screen == UiScreen::Channels ? "P1 Banks" : "";
-        actions[3] = page.ready && page.count && screen == UiScreen::Channels ? "P2 Edit" : "";
+        actions[0] = "OK Select";
+        actions[2] = "P1 Prev page";
+        actions[3] = "P2 Next page";
         if (screen == UiScreen::ChannelBank) {
             model.channel_actions(actions);
-        }
-        if (screen == UiScreen::Banks) {
-            actions[2] = page.ready ? "P1 New" : "";
-            actions[3] = page.ready && page.count && page.rows[page.cursor % 4].id ? "P2 Edit" : "";
         }
         if (bank_programming(screen)) {
             model.bank_actions(actions);
@@ -121,7 +133,10 @@ void ui_capture_presentation(const UiModel &model, UiPresentation &view) {
         if (!view.command_pending) {
             actions[0] = "OK Apply";
             actions[1] = "BACK Cancel";
-            actions[2] = screen == UiScreen::Backlight ? "P1 Field" : "";
+            actions[0] = screen == UiScreen::Backlight
+                             ? (model.value_editing() ? "OK Accept" : "OK Select")
+                             : "OK Apply";
+            actions[2] = "";
         }
     } else if (screen == UiScreen::QuickControls) {
         model.quick_actions(actions);

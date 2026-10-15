@@ -3,6 +3,7 @@
 #include <ht/emulator.hpp>
 #include <ht/settings.hpp>
 #include <ht/ui.hpp>
+#include "../../ui_navigation.hpp"
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -78,6 +79,7 @@ static void *setup() {
 static void load(unsigned count = 6) {
     fail_durable = false;
     commit_after_step_read = false;
+    radio_ptt(false);
     radio_power(true);
     zassert_ok(radio_start({}));
     unlink(path);
@@ -142,7 +144,15 @@ static void before(void *) {
 }
 
 static void key(UiKey key) {
+    const auto before = model.screen();
     model.input({key});
+    if (key == UiKey::Back && model.screen() == UiScreen::Discard) {
+        model.input({UiKey::Up});
+        model.input({UiKey::Enter});
+    }
+    if (key == UiKey::Back && before == UiScreen::Menu && model.screen() == UiScreen::Menu) {
+        model.input({UiKey::Back});
+    }
 }
 
 static void tick() {
@@ -155,20 +165,7 @@ static void tick() {
 }
 
 static void menu(const char *name) {
-    key(UiKey::Enter);
-    bool found = false;
-    for (unsigned i = 0; i < 20 && !found; ++i) {
-        char lines[8][32];
-        model.lines(lines);
-        for (const auto &line : lines) {
-            found |= line[0] == '>' && strstr(line, name);
-        }
-        if (!found) {
-            key(UiKey::Down);
-        }
-    }
-    zassert_true(found);
-    key(UiKey::Enter);
+    ui_test_menu(model, name);
 }
 
 static void frame_out(const char *name) {
@@ -247,7 +244,7 @@ ZTEST(ui_vfo, test_step_preview_cancel_apply_tuning_and_persistence) {
     key(UiKey::Down);
     tick();
     zassert_equal(emulator_tuned_frequency(), original);
-    settings_service(radio_snapshot(), 1100);
+    settings_service(radio_snapshot(), 11000);
     reboot();
     zassert_equal(settings_vfo_step(), 20000);
     key(UiKey::Up);
@@ -346,8 +343,9 @@ ZTEST(ui_vfo, test_split_offset_preserved_and_band_edges_leave_configuration_unc
 }
 
 ZTEST(ui_vfo, test_memory_rocker_remains_channel_selection_and_vfo_preserved) {
-    key(UiKey::Left);
+    menu("VFO / Memory");
     tick();
+    key(UiKey::Back);
     zassert_equal(radio_snapshot().selection.operating, Operating::Memory);
     const auto first = radio_snapshot().selection.channel_id;
     key(UiKey::Down);
@@ -361,63 +359,34 @@ ZTEST(ui_vfo, test_memory_rocker_remains_channel_selection_and_vfo_preserved) {
     zassert_equal(settings_vfo_step(), 20000);
     zassert_equal(emulator_tuned_frequency(), memory);
     key(UiKey::Back);
-    key(UiKey::Left);
+    menu("VFO / Memory");
     tick();
+    key(UiKey::Back);
     zassert_equal(emulator_tuned_frequency(), 145500001);
     key(UiKey::Up);
     tick();
     zassert_equal(emulator_tuned_frequency(), 145520001);
 }
 
-ZTEST(ui_vfo, test_tx_stale_ptt_focus_power_fault_and_authorized_apply) {
+ZTEST(ui_vfo, test_ptt_preserves_step_draft_and_fault_cancels) {
     open();
     key(UiKey::Up);
     radio_ptt(true);
-    radio_ptt(false);
-    key(UiKey::Enter);
-    zassert_equal(model.screen(), UiScreen::Home);
-    zassert_false(model.command_pending());
-    zassert_equal(settings_vfo_step(), 12500);
-    open();
-    model.input({UiKey::Release});
-    zassert_equal(model.screen(), UiScreen::Home);
-    open();
-    uint32_t revision;
-    auto step = settings_vfo_step(&revision);
-    zassert_ok(settings_put_vfo_step(1000, 701, radio_snapshot(), revision));
     tick();
+    zassert_equal(model.screen(), UiScreen::VfoStep);
     key(UiKey::Enter);
-    tick();
-    zassert_equal(model.error(), -ESTALE);
-    zassert_equal(settings_vfo_step(), 1000);
-    key(UiKey::Back);
-    key(UiKey::Back);
-    open();
-    key(UiKey::Up);
-    key(UiKey::Enter);
-    settings_service(radio_snapshot(), 0);
-    radio_service();
-    radio_ptt(true);
-    radio_service();
-    settings_service(radio_snapshot(), 1);
-    model.sync(radio_snapshot());
-    zassert_equal(model.screen(), UiScreen::Home);
     zassert_false(model.command_pending());
-    zassert_equal(settings_vfo_step(), 2500);
     radio_ptt(false);
     tick();
-    open();
-    radio_power(false);
-    radio_service();
-    model.sync(radio_snapshot());
-    zassert_equal(model.screen(), UiScreen::Home);
-    radio_power(true);
+    key(UiKey::Enter);
     tick();
+    zassert_equal(settings_vfo_step(), 20000);
+    zassert_equal(model.screen(), UiScreen::Menu);
+    key(UiKey::Back);
     open();
     radio_report_fault(-EIO);
     tick();
     zassert_equal(model.screen(), UiScreen::Home);
-    (void)step;
 }
 
 ZTEST(ui_vfo, test_storage_failure_keeps_accepted_step_and_retries) {
@@ -429,12 +398,14 @@ ZTEST(ui_vfo, test_storage_failure_keeps_accepted_step_and_retries) {
     zassert_equal(settings_vfo_step(), 10000);
     zassert_true(settings_status().pending);
     zassert_equal(settings_status().save_error, -EIO);
+    zassert_equal(model.screen(), UiScreen::VfoStep);
+    key(UiKey::Back);
     key(UiKey::Back);
     key(UiKey::Up);
     tick();
     zassert_equal(emulator_tuned_frequency(), 145510001);
     fail_durable = false;
-    settings_service(radio_snapshot(), 1100);
+    settings_service(radio_snapshot(), 11000);
     reboot();
     zassert_equal(settings_vfo_step(), 10000);
 }

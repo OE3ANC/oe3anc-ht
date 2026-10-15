@@ -95,3 +95,12 @@ validate(document);
 console.log(
     `${cases.length} browser/Python JSON parity cases and draft identity/membership checks passed`
 );
+
+for (const value of [null, 0, 1, 'true']) {
+    const invalid = fresh();
+    invalid.global.ui.startup_animation = value;
+    assert.throws(() => validate(invalid), /startup_animation/);
+}
+const oldUi = fresh();
+delete oldUi.global.ui.startup_animation;
+assert.equal(parse(canonical(oldUi)).global.ui.startup_animation, true);

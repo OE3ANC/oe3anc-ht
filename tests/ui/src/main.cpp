@@ -76,7 +76,7 @@ ZTEST(ui, test_shared_front_fifo_preserves_copies_order_capacity_and_sdl_arrival
     UiInput input;
     while (ui_take_input(input)) {
     }
-    const UiKey independent[] = {UiKey::Ptt, UiKey::Monitor, UiKey::Release, UiKey::Quit};
+    const UiKey independent[] = {UiKey::Ptt, UiKey::Release, UiKey::Quit};
     for (auto key : independent) {
         zassert_equal(ui_queue_input({key}), -EINVAL);
     }
@@ -122,11 +122,10 @@ ZTEST(ui, test_connected_cps_guard_retains_local_draft_and_blocks_pending_action
     const auto length = model.text_editor().length();
     model.input({UiKey::Character, '0'}, true);
     zassert_equal(model.text_editor().length(), length);
-    zassert_equal(strcmp(model.text_editor().text(), "145.500"), 0);
-    model.input({UiKey::Ptt}, true); // Safety interruption is handled before the CPS guard.
-    zassert_equal(model.screen(), UiScreen::Home);
-    zassert_true(model.cps_available());
-    type("145.500");
+    zassert_equal(strcmp(model.text_editor().text(), "145.500000"), 0);
+    model.input({UiKey::Ptt}, true);
+    zassert_equal(model.screen(), UiScreen::Frequency);
+    zassert_false(model.cps_available());
     key(UiKey::Enter);
     zassert_false(model.cps_available()); // An ordinary RF command is still pending.
     tick();
@@ -198,6 +197,9 @@ ZTEST(ui, test_transmit_limit_menu_opens_explicit_apply_editor) {
     key(UiKey::Enter);
     key(UiKey::Down);
     key(UiKey::Back);
+    zassert_equal(model.screen(), UiScreen::Discard);
+    key(UiKey::Up); // Discard the changed duration.
+    key(UiKey::Enter);
     tick();
     zassert_equal(radio_snapshot().config.transmit_limit_s, 0);
     key(UiKey::Enter);
@@ -208,7 +210,7 @@ ZTEST(ui, test_transmit_limit_menu_opens_explicit_apply_editor) {
     radio_ptt(true);
     tick();
     key(UiKey::Enter);
-    zassert_equal(model.error(), -EBUSY);
+    zassert_false(model.command_pending());
     zassert_equal(model.screen(), UiScreen::Menu);
     zassert_equal(radio_snapshot().config.transmit_limit_s, 180);
 }
@@ -229,8 +231,8 @@ ZTEST(ui, test_frequency_entry_preserves_hertz_and_rejects_bad_values) {
     key(UiKey::Back);
     key(UiKey::Hash);
     type("145.1234567");
-    key(UiKey::Enter);
-    zassert_equal(model.error(), -EINVAL);
+    zassert_equal(model.error(), -ENOSPC);
+    zassert_equal(strcmp(model.text_editor().text(), "145.123456"), 0);
 }
 
 ZTEST(ui, test_settings_only_update_after_controller_acceptance) {
@@ -251,7 +253,7 @@ ZTEST(ui, test_settings_only_update_after_controller_acceptance) {
     key(UiKey::Down); // Bandwidth.
     key(UiKey::Enter);
     tick();
-    zassert_equal(model.error(), -EBUSY);
+    zassert_false(model.command_pending());
     zassert_equal(radio_snapshot().config.bandwidth, Bandwidth::Wide);
     radio_ptt(false);
     tick();
@@ -394,19 +396,19 @@ ZTEST(ui, test_diagnostic_hex_entry_with_physical_keys) {
     for (unsigned i = 0; i < 4; ++i) {
         key(UiKey::Up);
     }
-    key(UiKey::Star);
+    key(UiKey::Hash);
     for (unsigned i = 0; i < 4; ++i) {
         key(UiKey::Down);
     }
-    key(UiKey::Star);
+    key(UiKey::Hash);
     key(UiKey::Enter);
     key(UiKey::Down);
     key(UiKey::Enter); // Edit value, wrap backward to F.
     key(UiKey::Down);
-    key(UiKey::Star);
-    key(UiKey::Star);
-    key(UiKey::Hash); // Delete one F, then replace it.
-    key(UiKey::Star);
+    key(UiKey::Hash);
+    key(UiKey::Hash);
+    key(UiKey::Star); // Delete one F, then replace it.
+    key(UiKey::Hash);
     key(UiKey::Enter);
     key(UiKey::Down);
     key(UiKey::Down);
@@ -744,7 +746,7 @@ ZTEST(ui, test_text_cursor_erase_cancel_and_producer_timing) {
     key(UiKey::Up);
     type("Z");
     zassert_equal(strcmp(model.text_editor().text(), "BZAC"), 0);
-    key(UiKey::Left);
+    key(UiKey::Star);
     zassert_equal(strcmp(model.text_editor().text(), "BAC"), 0);
     key(UiKey::Down);
     key(UiKey::Erase);
@@ -774,48 +776,32 @@ ZTEST(ui, test_physical_frequency_decimal_and_cancel) {
     type("300");
     key(UiKey::Enter);
     zassert_equal(model.error(), -EINVAL);
-    zassert_equal(strcmp(model.text_editor().text(), "300"), 0);
+    zassert_equal(strcmp(model.text_editor().text(), "300.000000"), 0);
     key(UiKey::Back);
     zassert_equal(model.screen(), UiScreen::Home);
     zassert_equal(radio_snapshot().config.rx_frequency_hz, 145500001);
 }
 
-ZTEST(ui, test_text_draft_cancel_on_hardware_ptt_and_lifecycle) {
-    RadioConfig config;
-    config.tx_inhibit = true;
-    zassert_ok(radio_start(config));
-    model.sync(radio_snapshot());
+ZTEST(ui, test_text_draft_survives_ptt_but_cancels_on_fault) {
     type("145.5");
     radio_ptt(true);
-    radio_ptt(false);  // Entire tap bypasses UI; RX may never change.
-    key(UiKey::Enter); // Must drop interrupted Apply, not reinterpret it as menu.
-    zassert_equal(model.screen(), UiScreen::Home);
-    zassert_false(model.command_pending());
     tick();
-    zassert_equal(radio_snapshot().config.rx_frequency_hz, 430000000);
-    select(6);
+    zassert_equal(model.screen(), UiScreen::Frequency);
+    zassert_equal(strcmp(model.text_editor().text(), "145.500000"), 0);
     key(UiKey::Enter);
-    type("OE3ANC");
-    radio_ptt(true);
-    tick(); // Rejected PTT still cancels the callsign draft.
-    zassert_equal(model.screen(), UiScreen::Menu);
-    key(UiKey::Enter);
-    zassert_equal(model.error(), -EBUSY);
+    zassert_false(model.command_pending());
     radio_ptt(false);
     tick();
     key(UiKey::Enter);
-    zassert_equal(model.screen(), UiScreen::Callsign);
-    type("OE3ANC");
-    model.input({UiKey::Release});
-    zassert_equal(model.screen(), UiScreen::Menu);
-    key(UiKey::Back);
-    type("145.5");
+    tick();
+    zassert_equal(radio_snapshot().config.rx_frequency_hz, 145500000);
+    type("433.5");
     RadioState fault = radio_snapshot();
     fault.phase = RadioPhase::Fault;
     fault.fault = -EPIPE;
     model.sync(fault);
     zassert_equal(model.screen(), UiScreen::Home);
-    zassert_equal(radio_snapshot().config.callsign[0], 0);
+    zassert_equal(radio_snapshot().config.rx_frequency_hz, 145500000);
 }
 
 ZTEST(ui, test_sdl_literal_and_physical_digit_inputs) {
@@ -922,7 +908,7 @@ ZTEST(ui, test_presentation_copy_renders_without_live_model_or_backend_reads) {
     zassert_equal(menu.list.cursor, page.cursor);
     zassert_equal(menu.list.count, page.count);
     zassert_equal(strcmp(menu.list.title, page.title), 0);
-    zassert_equal(strcmp(menu.actions[1], "BACK Home"), 0);
+    zassert_equal(strcmp(menu.actions[1], "BACK"), 0);
 }
 
 ZTEST(ui, test_text_lvgl_cursor_viewport_and_render) {

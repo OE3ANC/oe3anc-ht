@@ -58,6 +58,8 @@ inline bool valid_fm_rx_controls(const FmRxControls &controls) {
     return controls.weak_filter <= 7 && controls.af_dac_gain <= 15;
 }
 
+enum class ReceiveOverride : uint8_t { Normal, Monitor, ListenTx };
+
 struct RadioState {
     uint32_t generation = 0;             // Changes on restart or inactive/active transition.
     uint32_t configuration_revision = 0; // Successful configure or owner edit authorization.
@@ -73,6 +75,7 @@ struct RadioState {
     RadioPhase phase = RadioPhase::Starting;
     bool power_active = true; // Normal operation allowed; faults survive inactivity.
     bool rx_active = false;
+    ReceiveOverride receive_override = ReceiveOverride::Normal;
     bool monitor_active = false; // Transient FM RX override, never a setting.
     int16_t rssi_dbm = -127;
     Bk4819RxStatus rx_registers;
@@ -98,14 +101,17 @@ enum class CommandKind : uint8_t {
     ExitDiagnostics,
     ReadRegister,
     WriteRegister,
-    TransmitLimit, // Global limit only; guarded, without RF/audio reconfiguration.
-    LnaPolarity, // Global GPIO0/1 polarity; guarded by lifecycle/revision/selection.
-    FmCtcssLevel, // Global CTCSS TX level; guarded by lifecycle/revision/selection.
-    FmRxControls  // Temporary RX-only fields; guarded by lifecycle/revision/selection.
+    TransmitLimit,   // Global limit only; guarded, without RF/audio reconfiguration.
+    LnaPolarity,     // Global GPIO0/1 polarity; guarded by lifecycle/revision/selection.
+    FmCtcssLevel,    // Global CTCSS TX level; guarded by lifecycle/revision/selection.
+    ApplyVfo,        // Guarded shared editor commit.
+    ReceiveOverride, // Temporary listening mode; never written to settings.
+    FmRxControls     // Temporary RX-only fields; guarded by lifecycle/revision/selection.
 };
 
 struct RadioCommand {
     CommandKind kind = CommandKind::Configure;
+    ReceiveOverride receive_override = ReceiveOverride::Normal;
     uint32_t id = 0;
     RadioConfig config;
     Selection selection;
@@ -132,6 +138,7 @@ class RadioController {
     // This cancels RX monitor without synthesizing a transmit edge.
     void interrupt_monitor(bool held);
     void poll();
+    void startup_chime(bool enabled);
     void report_fault(int error);
 
     const RadioState &state() const {
@@ -140,6 +147,8 @@ class RadioController {
 
   private:
     RadioState state_;
+    bool chime_active_ = false;
+    int64_t chime_deadline_ = 0;
     bool ptt_ = false;
     bool remote_ptt_ = false;
     bool ptt_armed_ = true;
@@ -148,6 +157,7 @@ class RadioController {
     void apply_ptt(bool pressed, bool remote);
     int configure(const RadioConfig &config, const FmRxControls &controls);
     int receive();
+    int apply_receive_override();
     int fail(int error);
     void expire_transmit();
     void cancel_monitor();
@@ -160,6 +170,7 @@ class RadioController {
 // they never overwrite ordinary command results.
 int radio_start(const RadioConfig &config, const Selection &selection = {});
 void radio_service();
+void radio_startup_chime(bool enabled);
 int radio_submit(const RadioCommand &command);
 void radio_ptt(bool pressed);
 // Companion intent has its own non-queued slot and bounded lease. Only the

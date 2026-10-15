@@ -22,5 +22,6 @@ struct UiPreferences {
     uint8_t brightness_percent = 100;
     uint8_t idle_s = 15; // Zero means never dim.
     uint8_t dim_percent = 10;
+    bool startup_animation = true;
 };
 } // namespace ht

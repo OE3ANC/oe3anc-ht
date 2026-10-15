@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""Independent Python UI snapshot schema 1 examples for both codecs/renderers."""
+"""Independent Python UI snapshot schema 2 examples for both codecs/renderers."""
 import argparse
 import json
 from pathlib import Path
@@ -21,14 +21,14 @@ def kind(v):
     if s in (27, 28):
         return 'status'
     if s == 5:
-        return 'appearance'
+        return 'form'
     if s == 4:
         return 'hex' if v['flags'] & 64 else 'list'
     if s in (1, 3, 8, 10, 17):
         return 'text'
-    if s in (6, 7, 12, 18, 19):
+    if s in (6, 7, 12, 18, 19, 30):
         return 'list'
-    if 9 <= s <= 22 or s in (23, 24, 25, 26):
+    if 9 <= s <= 22 or s in (23, 24, 25, 26, 29, 31):
         return 'form'
     return 'none'
 
@@ -37,7 +37,7 @@ def encode(v):
     out = bytearray(
         struct.pack(
             '<BBBBHBBIII',
-            1,
+            2,
             v['screen'],
             v['theme'],
             v['contrast'],
@@ -242,7 +242,7 @@ def fixtures():
     invalid = []
     seed = bytearray.fromhex(valid[0]['wire'])
     for name, index, value in [
-        ('schema', 0, 2),
+        ('schema', 0, 3),
         ('screen', 1, 255),
         ('theme', 2, 7),
         ('contrast', 3, 3),

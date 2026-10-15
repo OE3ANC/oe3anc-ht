@@ -64,8 +64,8 @@ older firmware may not read settings saved by newer versions.
 - VFO and Memory operation, separate RX/TX frequencies, 256 channels and 16
   ordered banks. Edit them on the radio or share a JSON codeplug.
 - Selectable transmit power of 1, 2.5 or 5 W (provisional settings, not measured output).
-- Seven display themes, adjustable contrast, idle backlight dimming, keypad lock
-  and a transmit time limit.
+- Seven display themes, adjustable contrast, idle backlight dimming, keypad lock,
+  an optional startup animation and chime, and a transmit time limit.
 - Physical PTT and companion connection available without a mode switch;
   PTT activates after a 300 ms hold.
 - Desktop emulator for exploring the radio interface.
@@ -86,6 +86,34 @@ older firmware may not read settings saved by newer versions.
 - Firmware updates, complete flash backups and read-only factory calibration inspection
 
 <img src="assets/screenshots/companion-bootloader.png" alt="Companion CSK6 bootloader firmware tools" width="680">
+
+## Controls and menus
+
+From Home, **OK** opens the main menu and **PTT2** toggles Quick controls.
+Quick controls contain the current VFO/channel editor, FM squelch, Monitor and
+Listen on TX. Monitor and Listen on TX are temporary toggles; changing channel
+or VFO clears them. Listen on TX receives the repeater input with FM tone
+filtering and squelch bypassed. Transmit frequency and restrictions stay unchanged.
+
+| Menu | Contents |
+| --- | --- |
+| VFO Settings / Edit current channel | RX/TX frequencies and channel settings; Apply/Save, Save as channel or Duplicate/Delete |
+| Channels / Banks | Browse, select and edit channels and ordered banks |
+| Radio | VFO / Memory, VFO step, local callsign, TX limit |
+| Appearance | Theme, contrast, motion, startup animation and chime |
+| Backlight | Active brightness, idle delay and dim brightness |
+| Status | Radio, mode, activity, battery and storage |
+| Development | BK4819 diagnostics, FM tuning, LNA polarity, Codec2 statistics and RX register pages |
+
+**Up/Down** selects a row, or changes a value after **OK** starts editing.
+**OK** accepts the field; **Back** cancels it. **P1/P2** always mean previous/next
+page. In text fields, Up/Down moves the cursor, **\*** erases and **#** finishes
+the current character; frequencies have a fixed decimal point. Choose Save or
+Apply once to commit the form. Replacement and deletion require confirmation;
+Back from a changed form offers Save/Apply, Discard or Continue editing.
+PTT uses the last applied configuration and returns to the draft after release.
+Any key skips the startup animation; its Appearance switch controls both animation
+and chime, independently of ordinary menu motion.
 
 ## Acknowledgements
 

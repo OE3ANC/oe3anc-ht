@@ -4,6 +4,7 @@
 #include <ht/emulator.hpp>
 #include <ht/settings.hpp>
 #include <ht/ui.hpp>
+#include "../../ui_navigation.hpp"
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -146,25 +147,21 @@ static void tick() {
 }
 
 static void key(UiKey value) {
+    const auto before = model.screen();
     model.input({value});
+    if (value == UiKey::Back && model.screen() == UiScreen::Discard) {
+        model.input({UiKey::Up});
+        model.input({UiKey::Enter});
+    }
+    if (value == UiKey::Back && before == UiScreen::Menu && model.screen() == UiScreen::Menu) {
+        model.input({UiKey::Back});
+    }
     update();
 }
 
 static void menu(const char *name) {
-    if (model.screen() == UiScreen::Home) {
-        key(UiKey::Enter);
-    }
-    zassert_equal(model.screen(), UiScreen::Menu);
-    for (unsigned i = 0; i < 32; ++i) {
-        UiListPage list;
-        model.menu_page(list);
-        if (!strcmp(list.rows[list.cursor % 4].name, name)) {
-            key(UiKey::Enter);
-            return;
-        }
-        key(UiKey::Down);
-    }
-    zassert_unreachable("Missing menu item: %s", name);
+    ui_test_menu(model, name);
+    update();
 }
 
 static lv_obj_t *label(const char *value) {
@@ -240,7 +237,7 @@ ZTEST(ui_motion, test_rapid_navigation_replaces_page_animation_and_text_is_immed
         return nullptr;
     }();
     zassert_not_null(entry);
-    zassert_equal(strcmp(lv_textarea_get_text(entry), "4"), 0);
+    zassert_equal(strcmp(lv_textarea_get_text(entry), "400.000000"), 0);
     render("frequency-start");
     zassert_equal(lv_anim_count_running(), 1);
     advance(145);
@@ -262,10 +259,16 @@ ZTEST(ui_motion, test_motion_off_and_live_toggle_are_immediate) {
     zassert_equal(lv_anim_count_running(), 0);
     menu("Appearance");
     zassert_equal(lv_anim_count_running(), 0);
-    key(UiKey::Right);
     key(UiKey::Down);
+    key(UiKey::Down);
+    key(UiKey::Enter);
+    key(UiKey::Down); // Motion on.
+    key(UiKey::Enter);
+    key(UiKey::Up);
     zassert_true(lv_anim_count_running() > 0);
-    key(UiKey::Right);
+    key(UiKey::Down);
+    key(UiKey::Enter);
+    key(UiKey::Down); // Motion off.
     zassert_equal(lv_anim_count_running(), 0);
     zassert_equal(lv_obj_get_y(page()), 0);
     render("motion-off");
@@ -314,7 +317,7 @@ ZTEST(ui_motion, test_actual_first_run_save_enoent_keeps_error_origin) {
     const int submit_error = radio_submit(command);
     radio_service();
     settings_service(radio_snapshot(), 0);
-    settings_service(radio_snapshot(), 1001);
+    settings_service(radio_snapshot(), 10001);
     const auto failed = settings_status();
     const int restore_error = mkdir(root, 0700);
     zassert_ok(restore_error);
@@ -360,7 +363,7 @@ ZTEST(ui_motion, test_focus_and_coalesced_side_activity_snap_without_owner_tick)
     menu("Appearance");
     model.input({UiKey::Ptt});
     update();
-    label("MENU");
+    label("APPEARANCE");
     zassert_equal(lv_obj_get_y(page()), 0);
     zassert_equal(lv_anim_count_running(), 0);
 }

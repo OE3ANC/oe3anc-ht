@@ -169,9 +169,9 @@ ZTEST(ui_home, test_vfo_exact_frequency_geometry_and_actual_ptt) {
     model.home(home);
     zassert_equal(strcmp(home.frequency, "430.000001"), 0);
     zassert_equal(strcmp(home.actions[0], "OK Menu"), 0);
-    zassert_equal(strcmp(home.actions[1], "BACK Quick"), 0);
-    zassert_equal(strcmp(home.actions[2], "P1 Memory"), 0);
-    zassert_equal(strcmp(home.actions[3], "P2 Save"), 0);
+    zassert_equal(strcmp(home.actions[1], "PTT2 Quick"), 0);
+    zassert_is_null(home.actions[2]);
+    zassert_is_null(home.actions[3]);
     render("vfo-exact");
     zassert_equal(lv_obj_get_style_text_font(label(home.frequency), 0), &lv_font_montserrat_22);
     const auto idle_flushes = flush_count;
@@ -179,9 +179,7 @@ ZTEST(ui_home, test_vfo_exact_frequency_geometry_and_actual_ptt) {
     lv_refr_now(display);
     zassert_equal(flush_count, idle_flushes, "Unchanged Home must not redraw");
     zassert_equal(lv_obj_get_x(label("OK Menu")), 8);
-    zassert_equal(lv_obj_get_x(label("BACK Quick")), 82);
-    zassert_equal(lv_obj_get_y(label("P1 Memory")), 115);
-    zassert_equal(lv_obj_get_y(label("P2 Save")), 115);
+    zassert_equal(lv_obj_get_x(label("PTT2 Quick")), 82);
     radio_ptt(true);
     tick();
     model.home(home);
@@ -213,7 +211,7 @@ ZTEST(ui_home, test_memory_metadata_split_rx_only_and_missing_identity) {
     zassert_equal(strcmp(home.name, "LOCAL REPEATER"), 0);
     zassert_equal(strcmp(home.context, "MHz / Local"), 0);
     zassert_not_null(strstr(home.settings, "SPLIT"));
-    zassert_equal(strcmp(home.actions[3], "P2 Edit"), 0);
+    zassert_is_null(home.actions[3]);
     render("memory-rx");
     radio_ptt(true);
     tick();
@@ -333,7 +331,7 @@ ZTEST(ui_home, test_m17_callsign_can_filter_and_monitor) {
     state.monitor_active = true;
     model.sync(state);
     model.home(home);
-    zassert_equal(strcmp(home.activity, "FM monitor / held"), 0);
+    zassert_equal(strcmp(home.activity, "MON / squelch open"), 0);
     render("monitor");
 }
 

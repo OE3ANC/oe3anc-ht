@@ -11,14 +11,16 @@ void handle_keys(const Frame &request, Frame &response) {
     response.payload[0] = STATUS_INVALID;
     int error = 0;
     if (request.type == MSG_UI_KEY) {
-        if (request.size != 2 || request.payload[0] > UI_KEY_DIGIT_9 || request.payload[1] > 1) {
+        if (request.size != 2 || request.payload[0] > UI_KEY_QUICK || request.payload[1] > 1) {
             return;
         }
         const unsigned key = request.payload[0];
         static constexpr UiKey front[] = {UiKey::Up,    UiKey::Down, UiKey::Left, UiKey::Right,
                                           UiKey::Enter, UiKey::Back, UiKey::Star, UiKey::Hash};
-        UiInput input{key < UI_KEY_DIGIT_0 ? front[key] : UiKey::Digit};
-        if (key >= UI_KEY_DIGIT_0) {
+        UiInput input{key == UI_KEY_QUICK    ? UiKey::Monitor
+                      : key < UI_KEY_DIGIT_0 ? front[key]
+                                             : UiKey::Digit};
+        if (key >= UI_KEY_DIGIT_0 && key <= UI_KEY_DIGIT_9) {
             input.character = '0' + key - UI_KEY_DIGIT_0;
         }
         input.pressed = request.payload[1];
@@ -33,7 +35,7 @@ void handle_keys(const Frame &request, Frame &response) {
             return;
         }
         const auto mask = sys_get_le32(request.payload);
-        if (!mask || mask >= (uint32_t(1) << (UI_KEY_DIGIT_9 + 1))) {
+        if (!mask || mask >= (uint32_t(1) << (UI_KEY_QUICK + 1))) {
             return;
         }
         error = ui_remote_keep(mask);

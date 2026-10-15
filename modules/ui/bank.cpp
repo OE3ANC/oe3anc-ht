@@ -35,7 +35,7 @@ void UiModel::open_bank(uint32_t id) {
     bank_ptt_sequence_ = marker;
     bank_form_cursor_ = 0;
     bank_cursor_ = bank_add_cursor_ = 0;
-    bank_deleting_ = false;
+    bank_deleting_ = bank_dirty_ = false;
     screen_ = UiScreen::BankEditor;
 #else
     (void)id;
@@ -47,6 +47,7 @@ void UiModel::cancel_bank(bool interruption) {
     if (!bank_programming(screen_)) {
         return;
     }
+    awaiting_bank_save_ = false;
     screen_ = interruption ? UiScreen::Home : UiScreen::Banks;
     text_editor_ = {};
     if (!interruption) {
@@ -67,13 +68,17 @@ void UiModel::refresh_bank_list() {
     }
     UiListPage page;
     auto &cursor = screen_ == UiScreen::BankMembers ? bank_cursor_ : bank_add_cursor_;
-    page.count = screen_ == UiScreen::BankMembers ? bank_draft_.count : status.channel_count;
+    page.count = screen_ == UiScreen::BankMembers ? bank_draft_.count + 1 : status.channel_count;
     page.cursor = cursor < page.count ? cursor : 0;
     strcpy(page.title, screen_ == UiScreen::BankMembers ? "BANK MEMBERS" : "ADD CHANNELS");
     snprintf(page.detail, sizeof(page.detail), "%.24s / %u", bank_draft_.name,
              unsigned(bank_draft_.count % 257));
     for (unsigned row = 0, first = page.cursor / 4 * 4; row < 4 && first + row < page.count;
          ++row) {
+        if (screen_ == UiScreen::BankMembers && first + row == bank_draft_.count) {
+            strcpy(page.rows[row].name, "Add channels");
+            continue;
+        }
         Channel channel;
         uint32_t revision;
         const int error =
@@ -133,10 +138,9 @@ void UiModel::bank_input(const UiInput &input) {
             text_editor_ = {};
         } else if (input.key == UiKey::Up || input.key == UiKey::Down) {
             text_editor_.move(input.key == UiKey::Up ? -1 : 1);
-        } else if (input.key == UiKey::Left || input.key == UiKey::Erase) {
+        } else if (input.key == UiKey::Star || input.key == UiKey::Erase) {
             text_editor_.erase();
-        } else if (input.key == UiKey::Right) {
-            error_ = text_editor_.literal(' ');
+
         } else if (input.key == UiKey::Hash) {
             text_editor_.finish();
         } else if (input.key == UiKey::Character) {
@@ -149,6 +153,7 @@ void UiModel::bank_input(const UiInput &input) {
             if (!text_editor_.length()) {
                 error_ = -EINVAL;
             } else {
+                bank_dirty_ |= strcmp(bank_draft_.name, text_editor_.text()) != 0;
                 memset(bank_draft_.name, 0, sizeof(bank_draft_.name));
                 strcpy(bank_draft_.name, text_editor_.text());
                 screen_ = UiScreen::BankEditor;
@@ -164,6 +169,7 @@ void UiModel::bank_input(const UiInput &input) {
         return;
     }
     if (input.key == UiKey::Back) {
+        bank_deleting_ = false;
         if (screen_ == UiScreen::BankEditor) {
             cancel_bank();
         } else if (screen_ == UiScreen::BankAdd || screen_ == UiScreen::BankActions) {
@@ -184,16 +190,6 @@ void UiModel::bank_input(const UiInput &input) {
         return;
     }
     if (screen_ == UiScreen::BankMembers || screen_ == UiScreen::BankAdd) {
-        if (input.key == UiKey::Right) {
-            if (screen_ == UiScreen::BankMembers) {
-                screen_ = UiScreen::BankEditor;
-                bank_form_cursor_ = 1;
-            } else {
-                screen_ = UiScreen::BankMembers;
-            }
-            refresh_bank_list();
-            return;
-        }
         if (!list_.ready || settings_status().revision != bank_revision_) {
             refresh_bank_list();
             if (!error_) {
@@ -201,21 +197,25 @@ void UiModel::bank_input(const UiInput &input) {
             }
             return;
         }
-        if (input.key == UiKey::Left && screen_ == UiScreen::BankMembers) {
-            screen_ = UiScreen::BankAdd;
-            bank_add_cursor_ = 0;
-            refresh_bank_list();
-            return;
-        }
-        if (input.key == UiKey::Up || input.key == UiKey::Down) {
+        if (input.key == UiKey::Up || input.key == UiKey::Down || input.key == UiKey::Left ||
+            input.key == UiKey::Right) {
             if (list_.count) {
                 auto &cursor = screen_ == UiScreen::BankMembers ? bank_cursor_ : bank_add_cursor_;
-                cursor = (list_.cursor + list_.count + (input.key == UiKey::Down ? 1 : -1)) %
+                cursor = (list_.cursor + list_.count +
+                          (input.key == UiKey::Down    ? 1
+                           : input.key == UiKey::Up    ? -1
+                           : input.key == UiKey::Right ? 4
+                                                       : -4) +
+                          list_.count) %
                          list_.count;
                 refresh_bank_list();
             }
         } else if (input.key == UiKey::Enter && list_.count) {
-            if (screen_ == UiScreen::BankMembers) {
+            if (screen_ == UiScreen::BankMembers && list_.cursor == bank_draft_.count) {
+                screen_ = UiScreen::BankAdd;
+                bank_add_cursor_ = 0;
+                refresh_bank_list();
+            } else if (screen_ == UiScreen::BankMembers) {
                 bank_form_cursor_ = 0;
                 screen_ = UiScreen::BankActions;
             } else {
@@ -225,6 +225,7 @@ void UiModel::bank_input(const UiInput &input) {
                 } else if (bank_draft_.count == channel_capacity) {
                     error_ = -ENOSPC;
                 } else {
+                    bank_dirty_ = true;
                     bank_draft_.channel_ids[bank_draft_.count++] = id;
                     bank_cursor_ = bank_draft_.count - 1;
                     refresh_bank_list();
@@ -251,12 +252,14 @@ void UiModel::bank_input(const UiInput &input) {
                 (bank_form_cursor_ == 1 && position + 1 == bank_draft_.count)) {
                 return;
             }
+            bank_dirty_ = true;
             const unsigned next = bank_form_cursor_ ? position + 1 : position - 1;
             const auto id = bank_draft_.channel_ids[position];
             bank_draft_.channel_ids[position] = bank_draft_.channel_ids[next];
             bank_draft_.channel_ids[next] = id;
             bank_cursor_ = next;
         } else if (bank_form_cursor_ == 2) {
+            bank_dirty_ = true;
             memmove(bank_draft_.channel_ids + position, bank_draft_.channel_ids + position + 1,
                     (bank_draft_.count - position - 1) * sizeof(uint32_t));
             bank_draft_.channel_ids[--bank_draft_.count] = 0;
@@ -266,11 +269,6 @@ void UiModel::bank_input(const UiInput &input) {
         }
         screen_ = UiScreen::BankMembers;
         refresh_bank_list();
-        return;
-    }
-    if (input.key == UiKey::Right) {
-        bank_deleting_ = false;
-        save_bank();
         return;
     }
     if (input.key != UiKey::Enter) {
@@ -305,10 +303,15 @@ void UiModel::bank_input(const UiInput &input) {
 }
 
 void UiModel::bank_actions(const char *(&actions)[4]) const {
+    if (screen_ == UiScreen::BankSaved) {
+        actions[0] = actions[2] = actions[3] = "";
+        actions[1] = "BACK Back";
+        return;
+    }
     actions[0] = "OK Edit";
     actions[1] = "BACK Cancel";
     actions[2] = "";
-    actions[3] = "P2 Save";
+    actions[3] = "";
     switch (screen_) {
     case UiScreen::BankEditor:
         if (bank_form_cursor_ == 2) {
@@ -320,20 +323,21 @@ void UiModel::bank_actions(const char *(&actions)[4]) const {
         break;
     case UiScreen::BankName:
         actions[0] = "OK Use";
-        actions[2] = "P1 Erase";
-        actions[3] = "P2 Space";
+        actions[2] = "";
+        actions[3] = "";
         break;
     case UiScreen::BankMembers:
         actions[0] = list_.ready && list_.count ? "OK Actions" : "";
         actions[1] = "BACK Edit";
-        actions[2] = list_.ready ? "P1 Add" : "";
-        actions[3] = "P2 Done";
+        actions[2] = "P1 Prev page";
+        actions[3] = "P2 Next page";
         break;
     case UiScreen::BankAdd:
         actions[0] =
             list_.ready && list_.count && !list_.rows[list_.cursor % 4].suffix[0] ? "OK Add" : "";
         actions[1] = "BACK Done";
-        actions[3] = "P2 Done";
+        actions[2] = "P1 Prev page";
+        actions[3] = "P2 Next page";
         break;
     case UiScreen::BankActions:
         actions[0] = bank_form_cursor_ == 2   ? "OK Remove"
@@ -357,7 +361,7 @@ void UiModel::bank_actions(const char *(&actions)[4]) const {
     default:
         break;
     }
-    if (bank_pending_) {
+    if (bank_pending_ || awaiting_bank_save_) {
         for (auto &action : actions) {
             action = "";
         }
@@ -397,19 +401,12 @@ void UiModel::bank_lines(char (&text)[8][32]) const {
         strcpy(text[3], "Channels will be kept");
         strcpy(text[5], "Confirm with green OK");
     } else if (screen_ == UiScreen::BankSaved) {
-        strcpy(text[0], bank_deleting_                           ? "BANK DELETED"
-                        : edit_save_pending_ || edit_save_error_ ? "BANK ACCEPTED"
-                                                                 : "BANK SAVED");
-        strcpy(text[1], edit_save_error_     ? "Storage error / unsaved"
-                        : edit_save_pending_ ? "Saving; keep power on"
-                                             : "Durably saved");
-        strcpy(text[2], bank_deleting_ ? bank_original_name_ : bank_draft_.name);
-        snprintf(text[3], 32, "%u members", bank_draft_.count);
-        strcpy(text[5], bank_deleting_                           ? "Channels retained"
-                        : edit_save_error_ || edit_save_pending_ ? "Not durable yet"
-                                                                 : "Ready");
+        strcpy(text[0], edit_save_error_ ? "DELETION NOT SAVED" : "DELETION PENDING");
+        strcpy(text[1], "Keep power on");
+        strcpy(text[2], bank_original_name_);
+        strcpy(text[5], edit_save_error_ ? "Storage error / unsaved" : "Saving deletion");
     }
-    if (error_) {
+    if (error_ && screen_ != UiScreen::BankSaved) {
         const char *message = "Check bank / name";
         switch (error_) {
         case -ENOSPC:

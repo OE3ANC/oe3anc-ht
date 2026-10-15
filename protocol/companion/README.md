@@ -1,4 +1,4 @@
-# Companion application protocol 1.5
+# Companion application protocol 1.6
 
 This document and `contract.json` are the normative definition. `fixtures.json`
 contains frozen examples used by both codecs. Generated constants belong to both
@@ -217,7 +217,7 @@ JSON review and explicit confirmation precede each browser write.
 
 ## Read-only UI snapshots
 
-The [UI snapshot schema 1 definition](ui-snapshot.md) and `ui-fixtures.json`
+The [UI snapshot schema 2 definition](ui-snapshot.md) and `ui-fixtures.json`
 define the bounded presentation payload and transfer lifecycle. UI_POLL (32)
 and UI_CHUNK (33) use the same exact paired session, ordering, retry and lease
 rules. No UI navigation or RF command is permitted by this capability.
@@ -237,8 +237,9 @@ Poll a fresh snapshot after acknowledgement; never predict the action locally.
 | UI_KEYS_KEEP (36) | held mask:u32 |
 
 Key IDs in `contract.json`: Up 0, Down 1, P1/Left 2, P2/Right 3, OK 4,
-Back 5, Star 6, Hash 7, digits 0..9 are IDs 8..17. No literal text, PTT,
-monitor, power or quit command exists here. Unknown IDs/levels/mask bits/lengths
+Back 5, Star 6, Hash 7, digits 0..9 are IDs 8..17, and PTT2/Quick is 18.
+Quick opens the ordinary quick-controls menu; it is not an RF PTT command.
+No literal text, RF PTT, power or quit command exists here. Unknown IDs/levels/mask bits/lengths
 are INVALID. Digits use the radio's physical multi-tap/numeric behavior.
 
 Physical and virtual ordinary presses enter one 16-entry copied UI FIFO in
@@ -247,7 +248,7 @@ state. One press per held key is accepted: another press without release is
 INVALID. Neither firmware nor browser auto-repeats ordinary keys. Browser OS
 repeat is ignored; repeated taps require releases. Producer uptime preserves
 multi-tap timing. Existing shared drafts, Cancel/Save and wake-only first input
-remain authoritative. Independent local RF/monitor/shutdown paths bypass this
+remain authoritative. Independent local RF/shutdown paths bypass this
 queue.
 
 Accepted presses start a separate 500 ms virtual-key lease. KEEP requires a
@@ -383,5 +384,15 @@ companion link only; unknown protocol versions are rejected without a probe.
 
 Protocol 1.3 adds `global.lna_inverted` (boolean, default false) and CPS binary v3.
 The manifest appends one boolean after the CTCSS level; maximum payload is
-40597 bytes. Both peers require protocol 1.5 and an exact release match before
-live UI or CPS mutation. See [CPS binary v3](cps-binary.md) for compatibility.
+40597 bytes. In protocol 1.3 both peers require protocol 1.3 and an exact release match before
+live UI or CPS mutation. See [CPS binary compatibility](cps-binary.md) for compatibility.
+
+## Protocol 1.6 menu and startup controls
+
+Both peers require protocol 1.6 and an exact release match. UI snapshots use
+schema 2 for the redesigned Appearance form, browser action/discard forms and
+startup position. PTT2/Quick is ordinary key ID 18, including its held-mask bit.
+It toggles Quick controls from Home and does nothing inside an editor. Firmware
+owns temporary Monitor/Listen-on-TX overrides, drafts and all navigation.
+CPS binary v4 adds `global.ui.startup_animation`; the maximum payload is 40598
+bytes. See [UI encoding](ui-snapshot.md) and [CPS compatibility](cps-binary.md).

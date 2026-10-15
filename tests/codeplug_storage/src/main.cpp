@@ -261,7 +261,7 @@ ZTEST(codeplug_storage, test_full_capacity_round_trip) {
 #ifndef CONFIG_HT_SETTINGS_NVS
     struct stat info;
     zassert_ok(stat(path, &info));
-    zassert_equal(info.st_size, 40597);
+    zassert_equal(info.st_size, 40598);
 #endif
 }
 
@@ -304,7 +304,7 @@ ZTEST(codeplug_storage, test_generation_conflict_exhaustion_and_corruption) {
     uint32_t stale = 0;
     zassert_equal(codeplug_save(plug, stale), -ESTALE);
     zassert_equal(stale, 0);
-    constexpr size_t empty_manifest_size = 101; // v3 envelope and empty manifest payload.
+    constexpr size_t empty_manifest_size = 102; // v4 envelope and empty manifest payload.
     // Modify the persisted empty generation to the maximum valid generation.
 #ifdef CONFIG_HT_SETTINGS_NVS
     area.ready = false;

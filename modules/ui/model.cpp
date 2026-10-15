@@ -22,6 +22,21 @@ static const uint16_t tones[] = {0,    670,  693,  719,  744,  770,  797,  825, 
                                  1773, 1799, 1835, 1862, 1899, 1928, 1966, 1995, 2035, 2065, 2107,
                                  2181, 2257, 2291, 2336, 2418, 2503, 2541};
 
+void UiModel::begin_startup(int64_t now) {
+    if (applied_ui_.startup_animation && state_.power_active && !state_.fault &&
+        !radio_ptt_requested()) {
+        startup_started_ = now;
+        startup_position_ = 0;
+        startup_ptt_ = radio_ptt_press_sequence();
+    }
+}
+
+void UiModel::stop_startup() {
+    startup_started_ = -1;
+    startup_sound_ = false;
+    radio_startup_chime(false);
+}
+
 void UiModel::sync(const RadioState &state) {
 #ifdef CONFIG_HT_CODEPLUG_STORAGE
     settings_ui_preferences(applied_ui_);
@@ -34,8 +49,7 @@ void UiModel::sync(const RadioState &state) {
         appearance_pending_ = 0;
         error_ = storage.operation_error;
         if (!error_ && screen_ == UiScreen::Appearance) {
-            settings_ui_preferences(applied_ui_);
-            cancel_appearance();
+            awaiting_preferences_save_ = true;
         }
     }
     if (recall_pending_ && storage.operation_id == recall_pending_ && !storage.operation_pending) {
@@ -54,8 +68,22 @@ void UiModel::sync(const RadioState &state) {
                 channel_draft_.id = storage.operation_object_id;
                 browse_channel_ = channel_draft_.id;
             }
-            screen_ = UiScreen::ChannelSaved;
+            awaiting_channel_save_ = true;
+            edit_revision_ = storage.revision;
+            screen_ = deleting_ ? UiScreen::ChannelSaved : UiScreen::ChannelEditor;
             text_editor_ = {};
+        }
+    }
+    if (awaiting_channel_save_) {
+        if (storage.save_error) {
+            error_ = storage.save_error;
+            awaiting_channel_save_ = deleting_;
+        } else if (!storage.pending) {
+            awaiting_channel_save_ = false;
+            error_ = 0;
+            strcpy(notice_, deleting_ ? "Channel deleted" : "Channel saved");
+            notice_until_ = k_uptime_get() + 1500;
+            cancel_channel();
         }
     }
     if (step_pending_ && storage.operation_id == step_pending_ && !storage.operation_pending) {
@@ -65,9 +93,7 @@ void UiModel::sync(const RadioState &state) {
             vfo_step_hz_ = settings_vfo_step();
         }
         if (!error_ && screen_ == UiScreen::VfoStep) {
-            cancel_step(!state.power_active || state.fault ||
-                        state.phase != RadioPhase::Receiving ||
-                        radio_ptt_press_sequence() != step_ptt_sequence_);
+            awaiting_preferences_save_ = true;
         }
     }
     if (bank_pending_ && storage.operation_id == bank_pending_ && !storage.operation_pending) {
@@ -77,25 +103,47 @@ void UiModel::sync(const RadioState &state) {
             if (!bank_deleting_) {
                 bank_draft_.id = storage.operation_object_id;
             }
-            screen_ = UiScreen::BankSaved;
+            awaiting_bank_save_ = true;
+            bank_revision_ = storage.revision;
+            screen_ = bank_deleting_ ? UiScreen::BankSaved : UiScreen::BankEditor;
             text_editor_ = {};
+        }
+    }
+    if (awaiting_bank_save_) {
+        if (storage.save_error) {
+            error_ = storage.save_error;
+            awaiting_bank_save_ = bank_deleting_;
+        } else if (!storage.pending) {
+            awaiting_bank_save_ = false;
+            error_ = 0;
+            strcpy(notice_, bank_deleting_ ? "Bank deleted" : "Bank saved");
+            notice_until_ = k_uptime_get() + 1500;
+            cancel_bank();
         }
     }
     if (light_pending_ && storage.operation_id == light_pending_ && !storage.operation_pending) {
         light_pending_ = 0;
         error_ = storage.operation_error;
         if (!error_) {
+            awaiting_preferences_save_ = true;
+        }
+    }
+    if (awaiting_preferences_save_) {
+        if (storage.save_error) {
+            awaiting_preferences_save_ = false;
+            appearance_revision_ = light_revision_ = step_revision_ = storage.revision;
+            error_ = storage.save_error;
+        } else if (!storage.pending) {
+            awaiting_preferences_save_ = false;
             settings_ui_preferences(applied_ui_);
+            cancel_appearance();
+            cancel_light();
+            cancel_step();
             wake_light(k_uptime_get());
-            cancel_light(!state.power_active || state.fault ||
-                         state.phase != RadioPhase::Receiving ||
-                         radio_ptt_press_sequence() != light_ptt_sequence_);
         }
     }
 #endif
-    if (screen_ == UiScreen::TransmitLimit &&
-        (!state.power_active || state.fault || state.phase != RadioPhase::Receiving ||
-         radio_ptt_press_sequence() != limit_ptt_sequence_)) {
+    if (screen_ == UiScreen::TransmitLimit && (!state.power_active || state.fault)) {
         cancel_limit(true);
     }
     if (screen_ == UiScreen::TransmitLimit && !pending_ &&
@@ -104,14 +152,10 @@ void UiModel::sync(const RadioState &state) {
         cancel_limit(true);
         error_ = -ESTALE;
     }
-    if (screen_ == UiScreen::Backlight &&
-        (!state.power_active || state.fault || state.phase != RadioPhase::Receiving ||
-         radio_ptt_press_sequence() != light_ptt_sequence_)) {
+    if (screen_ == UiScreen::Backlight && (!state.power_active || state.fault)) {
         cancel_light(true);
     }
-    if (screen_ == UiScreen::QuickControls &&
-        (!state.power_active || state.fault || state.phase != RadioPhase::Receiving ||
-         radio_ptt_press_sequence() != quick_ptt_sequence_)) {
+    if (screen_ == UiScreen::QuickControls && (!state.power_active || state.fault)) {
         cancel_quick(true);
     }
     if (screen_ == UiScreen::QuickControls && !pending_ &&
@@ -120,30 +164,21 @@ void UiModel::sync(const RadioState &state) {
         cancel_quick(true);
         error_ = -ESTALE;
     }
-    if (screen_ == UiScreen::VfoStep &&
-        (!state.power_active || state.fault || state.phase != RadioPhase::Receiving ||
-         radio_ptt_press_sequence() != step_ptt_sequence_)) {
+    if (screen_ == UiScreen::VfoStep && (!state.power_active || state.fault)) {
         cancel_step(true);
     }
-    if (bank_programming(screen_) &&
-        (!state.power_active || state.fault || state.phase != RadioPhase::Receiving ||
-         radio_ptt_press_sequence() != bank_ptt_sequence_)) {
+    if (bank_programming(screen_) && (!state.power_active || state.fault)) {
         cancel_bank(true);
     }
-    if (channel_programming(screen_) &&
-        (!state.power_active || state.fault || state.phase != RadioPhase::Receiving ||
-         radio_ptt_press_sequence() != edit_ptt_sequence_)) {
+    if (channel_programming(screen_) && (!state.power_active || state.fault)) {
         cancel_channel(true);
     }
-    if (screen_ == UiScreen::Appearance &&
-        (!state.power_active || state.fault || state.phase != RadioPhase::Receiving ||
-         radio_ptt_press_sequence() != appearance_ptt_sequence_)) {
+    if (screen_ == UiScreen::Appearance && (!state.power_active || state.fault)) {
         cancel_appearance();
     }
     if ((screen_ == UiScreen::Frequency || screen_ == UiScreen::Callsign ||
          screen_ == UiScreen::ChannelNumber) &&
-        (!state.power_active || state.fault || state.phase != RadioPhase::Receiving ||
-         radio_ptt_press_sequence() != text_ptt_sequence_)) {
+        (!state.power_active || state.fault)) {
         cancel_text();
     }
     if (screen_ == UiScreen::Diagnostics && editing_ &&
@@ -152,6 +187,8 @@ void UiModel::sync(const RadioState &state) {
         cancel_diagnostic_edit();
     }
     if (state.generation != state_.generation) {
+        discard_open_ = field_editing_ = false;
+        awaiting_channel_save_ = awaiting_bank_save_ = awaiting_preferences_save_ = false;
         keypad_locked_ = false;
         cancel_lock();
         wake_light(k_uptime_get());
@@ -201,6 +238,11 @@ void UiModel::sync(const RadioState &state) {
         pending_ = 0;
         error_ = state.command_error;
         if (!error_) {
+            if (screen_ == UiScreen::ChannelEditor && editing_vfo_) {
+                strcpy(notice_, "VFO applied");
+                notice_until_ = k_uptime_get() + 1500;
+                cancel_channel();
+            }
             if (screen_ == UiScreen::QuickControls) {
                 cancel_quick();
             }
@@ -222,6 +264,90 @@ void UiModel::sync(const RadioState &state) {
             if (pending_kind_ == CommandKind::ReadRegister) {
                 value_ = state.register_value;
             }
+        }
+    }
+}
+
+bool UiModel::editor_dirty() const {
+    if (screen_ == UiScreen::ChannelEditor) {
+        const auto &a = channel_draft_.configuration;
+        const auto &b = original_channel_.configuration;
+        return channel_draft_.id != original_channel_.id ||
+               channel_draft_.number != original_channel_.number ||
+               strcmp(channel_draft_.name, original_channel_.name) ||
+               a.rx_frequency_hz != b.rx_frequency_hz || a.tx_frequency_hz != b.tx_frequency_hz ||
+               a.tx_inhibit != b.tx_inhibit || a.power_mw != b.power_mw || a.mode != b.mode ||
+               a.bandwidth != b.bandwidth || a.squelch != b.squelch ||
+               !same_tone(a.rx_tone, b.rx_tone) || !same_tone(a.tx_tone, b.tx_tone) ||
+               a.m17.destination != b.m17.destination || a.m17.can != b.m17.can ||
+               a.m17.rx_can_check != b.m17.rx_can_check || strcmp(a.m17.callsign, b.m17.callsign) ||
+               edit_bank_ != original_bank_;
+    }
+    if (screen_ == UiScreen::Appearance) {
+        return (appearance_draft_.theme != preference_original_.theme ||
+                appearance_draft_.contrast != preference_original_.contrast ||
+                appearance_draft_.animations != preference_original_.animations ||
+                appearance_draft_.startup_animation != preference_original_.startup_animation ||
+                appearance_draft_.brightness_percent != preference_original_.brightness_percent ||
+                appearance_draft_.idle_s != preference_original_.idle_s ||
+                appearance_draft_.dim_percent != preference_original_.dim_percent);
+    }
+    if (screen_ == UiScreen::Backlight) {
+        return (light_draft_.theme != preference_original_.theme ||
+                light_draft_.contrast != preference_original_.contrast ||
+                light_draft_.animations != preference_original_.animations ||
+                light_draft_.startup_animation != preference_original_.startup_animation ||
+                light_draft_.brightness_percent != preference_original_.brightness_percent ||
+                light_draft_.idle_s != preference_original_.idle_s ||
+                light_draft_.dim_percent != preference_original_.dim_percent);
+    }
+    if (screen_ == UiScreen::VfoStep) {
+        return step_draft_ != vfo_step_hz_;
+    }
+    if (screen_ == UiScreen::TransmitLimit) {
+        return limit_draft_ != state_.config.transmit_limit_s;
+    }
+    if (screen_ == UiScreen::BankEditor) {
+        return bank_dirty_;
+    }
+    return false;
+}
+
+void UiModel::save_editor() {
+    if (screen_ == UiScreen::ChannelEditor) {
+        review_channel();
+    } else if (screen_ == UiScreen::BankEditor) {
+        bank_deleting_ = false;
+        save_bank();
+    } else if (screen_ == UiScreen::Appearance) {
+        appearance_cursor_ = 4;
+        appearance({UiKey::Enter});
+    } else if (screen_ == UiScreen::Backlight) {
+        light_cursor_ = 3;
+        backlight_input({UiKey::Enter});
+    } else if (screen_ == UiScreen::VfoStep) {
+        step_input({UiKey::Enter});
+    } else if (screen_ == UiScreen::TransmitLimit) {
+        limit_input({UiKey::Enter});
+    }
+}
+
+void UiModel::discard_input(const UiInput &input) {
+    if (input.key == UiKey::Back) {
+        discard_open_ = false;
+    } else if (input.key == UiKey::Up || input.key == UiKey::Down) {
+        discard_cursor_ = (discard_cursor_ + (input.key == UiKey::Down ? 1 : 2)) % 3;
+    } else if (input.key == UiKey::Enter) {
+        discard_open_ = false;
+        if (discard_cursor_ == 0) {
+            save_editor();
+        } else if (discard_cursor_ == 1) {
+            cancel_channel();
+            cancel_bank();
+            cancel_appearance();
+            cancel_light();
+            cancel_step();
+            cancel_limit();
         }
     }
 }
@@ -368,7 +494,9 @@ void UiModel::menu(int direction) {
             return;
         }
         settings_ui_preferences(applied_ui_, &appearance_revision_);
-        appearance_draft_ = applied_ui_;
+        appearance_draft_ = preference_original_ = applied_ui_;
+        appearance_cursor_ = 0;
+        field_editing_ = false;
         screen_ = UiScreen::Appearance;
 #endif
         return;
@@ -385,8 +513,11 @@ void UiModel::menu(int direction) {
         open_channels(UiScreen::Menu);
         return;
     case BanksItem: {
+        banks_return_ = UiScreen::Menu;
         open_channels(UiScreen::Menu);
-        browse({UiKey::Left});
+        screen_ = UiScreen::Banks;
+        browse_cursor_ = 0;
+        refresh_list();
         return;
     }
     case OperatingItem:
@@ -400,14 +531,23 @@ void UiModel::menu(int direction) {
         open_channel(0, UiScreen::Menu);
         return;
     case EditChannelItem:
-        if (state_.selection.channel_id) {
-            open_channel(state_.selection.channel_id, UiScreen::Menu);
-        } else {
-            open_channels(UiScreen::Menu);
-        }
+        open_current_editor(UiScreen::Menu);
         return;
     case TransmitLimitItem:
         open_limit();
+        return;
+    case RadioItem:
+    case DevelopmentItem:
+        menu_group_ = selected_ == RadioItem ? 1 : 2;
+        selected_ = menu_item_at(0, menu_group_);
+        return;
+    case CodecStatsItem:
+    case RxPathItem:
+    case RxGainItem:
+    case RxSquelchItem:
+        status_page_ =
+            selected_ == CodecStatsItem ? 5 : rx_status_first_page + selected_ - RxPathItem;
+        screen_ = UiScreen::Status;
         return;
     case StatusItem:
         status_page_ = 0;
@@ -427,17 +567,39 @@ void UiModel::cancel_appearance() {
 
 void UiModel::appearance(const UiInput &input) {
     if (input.key == UiKey::Back) {
-        cancel_appearance();
+        if (field_editing_) {
+            appearance_draft_ = field_preferences_;
+            field_editing_ = false;
+        } else {
+            cancel_appearance();
+        }
     } else if (input.key == UiKey::Up || input.key == UiKey::Down) {
-        const unsigned theme = static_cast<unsigned>(appearance_draft_.theme);
-        appearance_draft_.theme = static_cast<Theme>(
-            (theme + (input.key == UiKey::Down ? 1 : ThemeCount - 1)) % ThemeCount);
-    } else if (input.key == UiKey::Left) {
-        appearance_draft_.contrast =
-            static_cast<Contrast>((static_cast<unsigned>(appearance_draft_.contrast) + 1) % 3);
-    } else if (input.key == UiKey::Right) {
-        appearance_draft_.animations = !appearance_draft_.animations;
+        const int direction = input.key == UiKey::Down ? 1 : -1;
+        if (!field_editing_) {
+            appearance_cursor_ = (appearance_cursor_ + 5 + direction) % 5;
+        } else if (appearance_cursor_ == 0) {
+            appearance_draft_.theme = static_cast<Theme>(
+                (unsigned(appearance_draft_.theme) + ThemeCount + direction) % ThemeCount);
+        } else if (appearance_cursor_ == 1) {
+            appearance_draft_.contrast =
+                static_cast<Contrast>((unsigned(appearance_draft_.contrast) + 3 + direction) % 3);
+        } else if (appearance_cursor_ == 2) {
+            appearance_draft_.animations = !appearance_draft_.animations;
+        } else {
+            appearance_draft_.startup_animation = !appearance_draft_.startup_animation;
+        }
+    } else if (!field_editing_ && (input.key == UiKey::Left || input.key == UiKey::Right)) {
+        appearance_cursor_ = appearance_cursor_ < 4 ? 4 : 0;
     } else if (input.key == UiKey::Enter) {
+        if (field_editing_) {
+            field_editing_ = false;
+            return;
+        }
+        if (appearance_cursor_ < 4) {
+            field_preferences_ = appearance_draft_;
+            field_editing_ = true;
+            return;
+        }
 #ifdef CONFIG_HT_CODEPLUG_STORAGE
         if (!next_id_) {
             error_ = -EOVERFLOW;
@@ -469,6 +631,19 @@ void UiModel::cancel_text() {
 }
 
 void UiModel::advance(int64_t now_ms) {
+    if (startup_visible()) {
+        const int64_t elapsed = now_ms - startup_started_;
+        if (!state_.power_active || state_.fault || radio_ptt_requested() ||
+            radio_ptt_press_sequence() != startup_ptt_ || elapsed < 0 || elapsed >= 2000) {
+            stop_startup();
+        } else {
+            startup_position_ = elapsed >= 1000 ? 80 : elapsed * 80 / 1000;
+            if (elapsed >= 1000 && !startup_sound_) {
+                startup_sound_ = true;
+                radio_startup_chime(true);
+            }
+        }
+    }
     advance_signal(now_ms);
     advance_light(now_ms);
     advance_lock(now_ms);
@@ -486,12 +661,8 @@ void UiModel::text_input(const UiInput &input) {
     }
     if (input.key == UiKey::Up || input.key == UiKey::Down) {
         text_editor_.move(input.key == UiKey::Up ? -1 : 1);
-    } else if (input.key == UiKey::Left || input.key == UiKey::Erase) {
+    } else if (input.key == UiKey::Star || input.key == UiKey::Erase) {
         text_editor_.erase();
-    } else if (input.key == UiKey::Right) {
-        if (screen_ == UiScreen::Frequency) {
-            error_ = text_editor_.literal('.');
-        }
     } else if (input.key == UiKey::Hash) {
         text_editor_.finish();
     } else if (input.key == UiKey::Digit) {
@@ -524,6 +695,12 @@ void UiModel::text_input(const UiInput &input) {
 }
 
 void UiModel::input(const UiInput &input, bool external_pending) {
+    if (startup_visible() && input.pressed) {
+        stop_startup();
+        if (input.key != UiKey::Ptt && input.key != UiKey::Quit && input.key != UiKey::Release) {
+            return;
+        }
+    }
     const bool consumed_wake_key = light_input(input);
     const bool consumed_lock_key = lock_input(input, consumed_wake_key);
     // Cancellation happens before pending/phase guards. PTT and release still
@@ -535,7 +712,7 @@ void UiModel::input(const UiInput &input, bool external_pending) {
         if ((input.key != UiKey::Ptt || input.pressed) && screen_ == UiScreen::Diagnostics) {
             cancel_diagnostic_edit();
         }
-        if (input.key != UiKey::Ptt || input.pressed) {
+        if (input.key != UiKey::Ptt) {
             cancel_appearance();
             cancel_text();
             cancel_channel(true);
@@ -548,50 +725,25 @@ void UiModel::input(const UiInput &input, bool external_pending) {
         return;
     }
     if (input.key == UiKey::Monitor) {
+        if (input.pressed && !consumed_wake_key && !keypad_locked_ && !command_pending() &&
+            !external_pending && state_.phase == RadioPhase::Receiving) {
+            if (screen_ == UiScreen::Home) {
+                open_quick();
+            } else if (screen_ == UiScreen::QuickControls && !quick_editing_) {
+                cancel_quick();
+            }
+        }
         return;
     }
     if (external_pending) {
         error_ = -EBUSY;
         return;
     }
-    if (screen_ == UiScreen::Appearance && radio_ptt_press_sequence() != appearance_ptt_sequence_) {
-        cancel_appearance();
-        return; // Do not reinterpret this preview key as a menu action.
-    }
-
-    if ((screen_ == UiScreen::Frequency || screen_ == UiScreen::Callsign ||
-         screen_ == UiScreen::ChannelNumber) &&
-        radio_ptt_press_sequence() != text_ptt_sequence_) {
-        cancel_text();
-        return;
-    }
-    if (channel_programming(screen_) && radio_ptt_press_sequence() != edit_ptt_sequence_) {
-        cancel_channel(true);
-        return;
-    }
-    if (screen_ == UiScreen::VfoStep && radio_ptt_press_sequence() != step_ptt_sequence_) {
-        cancel_step(true);
-        return;
-    }
-    if (screen_ == UiScreen::QuickControls && radio_ptt_press_sequence() != quick_ptt_sequence_) {
-        cancel_quick(true);
-        return;
-    }
-    if (screen_ == UiScreen::TransmitLimit && radio_ptt_press_sequence() != limit_ptt_sequence_) {
-        cancel_limit(true);
-        return;
-    }
-    if (screen_ == UiScreen::Backlight && radio_ptt_press_sequence() != light_ptt_sequence_) {
-        cancel_light(true);
-        return;
-    }
-    if (bank_programming(screen_) && radio_ptt_press_sequence() != bank_ptt_sequence_) {
-        cancel_bank(true);
-        return;
-    }
-
     if (consumed_wake_key || consumed_lock_key || !input.pressed || !state_.power_active ||
         state_.phase == RadioPhase::Fault) {
+        return;
+    }
+    if (state_.phase == RadioPhase::Transmitting || radio_ptt_requested()) {
         return;
     }
     // Warning/timeout presentation covers the current page. No hidden front
@@ -604,8 +756,16 @@ void UiModel::input(const UiInput &input, bool external_pending) {
         error_ = -EBUSY;
         return;
     }
+    if (input.key == UiKey::Back &&
+        (screen_ == UiScreen::ChannelSaved || screen_ == UiScreen::BankSaved)) {
+        cancel_channel();
+        cancel_bank();
+        error_ = 0;
+        return;
+    }
     if (appearance_pending_ || recall_pending_ || edit_pending_ || bank_pending_ || step_pending_ ||
-        light_pending_) {
+        light_pending_ || awaiting_channel_save_ || awaiting_bank_save_ ||
+        awaiting_preferences_save_) {
         return;
     }
     if (pending_) {
@@ -613,6 +773,16 @@ void UiModel::input(const UiInput &input, bool external_pending) {
         return;
     }
     error_ = 0;
+    if (discard_open_) {
+        discard_input(input);
+        return;
+    }
+    if (input.key == UiKey::Back && !field_editing_ && !channel_editing_ && !tone_editing_ &&
+        editor_dirty()) {
+        discard_open_ = true;
+        discard_cursor_ = 2;
+        return;
+    }
     if (screen_ == UiScreen::VfoStep) {
         step_input(input);
         return;
@@ -646,6 +816,32 @@ void UiModel::input(const UiInput &input, bool external_pending) {
         appearance(input);
         return;
     }
+    if (screen_ == UiScreen::BrowseActions) {
+        if (input.key == UiKey::Back) {
+            screen_ = browse_origin_;
+            refresh_list();
+        } else if (input.key == UiKey::Up || input.key == UiKey::Down) {
+            browse_action_ ^= 1;
+        } else if (input.key == UiKey::Enter) {
+            const auto id = list_.rows[list_.cursor % 4].id;
+            if (browse_action_) {
+                if (browse_action_bank_) {
+                    open_bank(id);
+                } else {
+                    open_channel(id, UiScreen::Channels);
+                }
+            } else if (browse_action_bank_) {
+                browse_bank_ = id;
+                browse_cursor_ = 0;
+                browse_channel_ = 0;
+                screen_ = UiScreen::Channels;
+                refresh_list();
+            } else {
+                recall({Operating::Memory, browse_bank_, id}, browse_revision_);
+            }
+        }
+        return;
+    }
     if (screen_ == UiScreen::Channels || screen_ == UiScreen::Banks) {
         browse(input);
         return;
@@ -653,10 +849,15 @@ void UiModel::input(const UiInput &input, bool external_pending) {
     if (screen_ == UiScreen::Status) {
         if (input.key == UiKey::Back) {
             screen_ = UiScreen::Menu;
-            selected_ = StatusItem;
-        } else if (input.key == UiKey::Up || input.key == UiKey::Down || input.key == UiKey::Left) {
-            status_page_ = (status_page_ + (input.key == UiKey::Up ? status_page_count - 1 : 1)) %
-                           status_page_count;
+            selected_ = menu_group_ == 2 ? (codec_statistics_page()
+                                                ? CodecStatsItem
+                                                : RxPathItem + status_page_ - rx_status_first_page)
+                                         : StatusItem;
+        } else if (input.key == UiKey::Left || input.key == UiKey::Right) {
+            const unsigned first = menu_group_ == 2 ? 5 : 0;
+            const unsigned count = menu_group_ == 2 ? status_page_count - 5 : 5;
+            status_page_ =
+                first + (status_page_ - first + (input.key == UiKey::Left ? count - 1 : 1)) % count;
 #ifdef CONFIG_HT_CODEC2
         } else if (input.key == UiKey::Enter && codec_statistics_page()) {
             m17::voice_statistics_reset();
@@ -669,13 +870,16 @@ void UiModel::input(const UiInput &input, bool external_pending) {
         return;
     }
     if (input.key == UiKey::Back) {
-#ifdef CONFIG_HT_CODEPLUG_STORAGE
-        if (screen_ == UiScreen::Home) {
-            open_quick();
+        if (screen_ == UiScreen::Menu && field_editing_) {
+            field_editing_ = false;
             return;
         }
-#endif
-        screen_ = UiScreen::Home;
+        if (screen_ == UiScreen::Menu && menu_group_) {
+            selected_ = menu_group_ == 1 ? RadioItem : DevelopmentItem;
+            menu_group_ = 0;
+        } else {
+            screen_ = UiScreen::Home;
+        }
         return;
     }
     if (screen_ == UiScreen::Home) {
@@ -683,16 +887,6 @@ void UiModel::input(const UiInput &input, bool external_pending) {
         if (state_.selection.operating == Operating::Vfo &&
             (input.key == UiKey::Up || input.key == UiKey::Down)) {
             tune_vfo(input.key == UiKey::Up ? 1 : -1);
-            return;
-        }
-        if (input.key == UiKey::Left) {
-            switch_operating();
-            return;
-        }
-        if (input.key == UiKey::Right) {
-            open_channel(
-                state_.selection.operating == Operating::Memory ? state_.selection.channel_id : 0,
-                UiScreen::Home);
             return;
         }
         if (state_.selection.operating == Operating::Memory) {
@@ -725,15 +919,67 @@ void UiModel::input(const UiInput &input, bool external_pending) {
             }
         } else if (input.key == UiKey::Enter) {
             screen_ = UiScreen::Menu;
-            selected_ = menu_available(ChannelsItem, state_.config.mode) ? ChannelsItem : ModeItem;
+            menu_group_ = 0;
+#ifdef CONFIG_HT_CODEPLUG_STORAGE
+            selected_ = EditChannelItem;
+#else
+            selected_ = ModeItem;
+#endif
         }
     } else if (screen_ == UiScreen::Menu) {
-        if (input.key == UiKey::Up || input.key == UiKey::Down) {
-            selected_ = menu_move(selected_, state_.config.mode, input.key == UiKey::Down ? 1 : -1);
-        } else if (input.key == UiKey::Enter ||
-                   (menu_inline(selected_) &&
-                    (input.key == UiKey::Left || input.key == UiKey::Right))) {
+#ifndef CONFIG_HT_CODEPLUG_STORAGE
+        if (input.key == UiKey::Enter || input.key == UiKey::Left || input.key == UiKey::Right) {
             menu(input.key == UiKey::Left ? -1 : 1);
+            return;
+        }
+#endif
+        if (field_editing_) {
+            if (input.key == UiKey::Up || input.key == UiKey::Down) {
+                const int delta = input.key == UiKey::Up ? 1 : -1;
+                if (selected_ == LnaPolarityItem) {
+                    field_config_.lna_inverted = !field_config_.lna_inverted;
+                } else {
+                    auto &value = selected_ == FmCtcssLevelItem   ? field_config_.fm_ctcss_level
+                                  : selected_ == FmWeakFilterItem ? field_controls_.weak_filter
+                                                                  : field_controls_.af_dac_gain;
+                    const int maximum = selected_ == FmCtcssLevelItem   ? 127
+                                        : selected_ == FmWeakFilterItem ? 7
+                                                                        : 15;
+                    if (int(value) + delta >= 0 && int(value) + delta <= maximum) {
+                        value += delta;
+                    }
+                }
+            } else if (input.key == UiKey::Enter) {
+                RadioCommand command;
+                command.kind = selected_ == LnaPolarityItem    ? CommandKind::LnaPolarity
+                               : selected_ == FmCtcssLevelItem ? CommandKind::FmCtcssLevel
+                                                               : CommandKind::FmRxControls;
+                command.config = field_config_;
+                command.fm_rx_controls = field_controls_;
+                command.expected_generation = state_.generation;
+                command.expected_revision = state_.configuration_revision;
+                command.selection = state_.selection;
+                submit(command);
+                if (!error_) {
+                    field_editing_ = false;
+                }
+            }
+        } else if (input.key == UiKey::Up || input.key == UiKey::Down || input.key == UiKey::Left ||
+                   input.key == UiKey::Right) {
+            const bool previous = input.key == UiKey::Up || input.key == UiKey::Left;
+            const unsigned count = input.key == UiKey::Left || input.key == UiKey::Right ? 4 : 1;
+            for (unsigned i = 0; i < count; ++i) {
+                selected_ =
+                    menu_move(selected_, state_.config.mode, previous ? -1 : 1, menu_group_);
+            }
+        } else if (input.key == UiKey::Enter) {
+            if (menu_inline(selected_)) {
+                field_editing_ = true;
+                field_config_ = state_.config;
+                field_controls_ = state_.fm_rx_controls;
+            } else {
+                menu(1);
+            }
         }
     }
 }
@@ -751,6 +997,15 @@ void UiModel::lines(char (&text)[8][32]) const {
         snprintf(text[2], 32, "Error %d", state_.fault);
         snprintf(text[4], 32, "TX disabled");
         snprintf(text[6], 32, "Reboot required");
+        return;
+    }
+    if (discard_open_) {
+        strcpy(text[0], "UNSAVED CHANGES");
+        strcpy(text[1], "Choose what to do");
+        const char *choices[] = {"Save / Apply", "Discard", "Continue editing"};
+        for (unsigned i = 0; i < 3; ++i) {
+            snprintf(text[i + 2], 32, "%c %s", discard_cursor_ == i ? '>' : ' ', choices[i]);
+        }
         return;
     }
     const auto &config = state_.config;
@@ -783,14 +1038,18 @@ void UiModel::lines(char (&text)[8][32]) const {
         } else {
             snprintf(text[0], 32, "VFO | %s", config.mode == Mode::Fm ? "FM" : "M17");
         }
-        snprintf(text[7], 32, "OK Menu | P1 %s",
-                 state_.selection.operating == Operating::Memory ? "VFO" : "Memory");
+        strcpy(text[7], "OK Menu | PTT2 Quick");
 #else
         snprintf(text[7], 32, "# Freq | Enter Menu");
 #endif
         if (keypad_locked_) {
             snprintf(text[7], 32, "Hold * 1s to unlock");
         }
+    } else if (screen_ == UiScreen::BrowseActions) {
+        strcpy(text[0], browse_action_bank_ ? "BANK" : "CHANNEL");
+        strcpy(text[1], list_.rows[list_.cursor % 4].name);
+        strcpy(text[2], "> Select");
+        strcpy(text[3], "> Edit");
     } else if (screen_ == UiScreen::Status) {
         UiStatus page;
         status(page);
@@ -799,7 +1058,7 @@ void UiModel::lines(char (&text)[8][32]) const {
         for (unsigned row = 0; row < 4; ++row) {
             strcpy(text[row + 2], page.rows[row]);
         }
-        strcpy(text[7], codec_statistics_page() ? "OK Reset | BACK Menu" : "BACK Menu | P1 Page");
+        strcpy(text[7], codec_statistics_page() ? "OK Reset | BACK Menu" : "P1 Prev | P2 Next");
         return;
     } else if (screen_ == UiScreen::TransmitLimit) {
         limit_lines(text);
@@ -844,22 +1103,21 @@ void UiModel::lines(char (&text)[8][32]) const {
         if (screen_ == UiScreen::Banks) {
             snprintf(text[7], 32, "OK Select | BACK Cancel");
         } else {
-            snprintf(text[7], 32, "%sBACK %s | P1 Banks",
-                     list_.ready && list_.count ? "OK Tune | " : "",
-                     list_return_ == UiScreen::Home ? "Home" : "Menu");
+            strcpy(text[7], "OK Select | P1/P2 Pages");
         }
     } else if (screen_ == UiScreen::Appearance) {
-        snprintf(text[0], 32, "APPEARANCE");
-        snprintf(text[1], 32, "%s / Motion %s", ui_contrast_name(appearance_draft_.contrast),
-                 appearance_draft_.animations ? "on" : "off");
-        const unsigned first = static_cast<unsigned>(appearance_draft_.theme) / 4 * 4;
-        for (unsigned row = 0; row < 4 && first + row < ThemeCount; ++row) {
-            const unsigned theme = first + row;
-            snprintf(text[row + 2], 32, "%c %s",
-                     static_cast<unsigned>(appearance_draft_.theme) == theme ? '>' : ' ',
-                     ui_palette(static_cast<Theme>(theme), Contrast::Normal).name);
+        strcpy(text[0], "APPEARANCE");
+        strcpy(text[1], field_editing_ ? "Editing / Up-Down changes" : "Select field");
+        if (appearance_cursor_ < 4) {
+            snprintf(text[2], 32, "> Theme: %s",
+                     ui_palette(appearance_draft_.theme, Contrast::Normal).name);
+            snprintf(text[3], 32, "> Contrast: %s", ui_contrast_name(appearance_draft_.contrast));
+            snprintf(text[4], 32, "> Motion: %s", appearance_draft_.animations ? "on" : "off");
+            snprintf(text[5], 32, "> Startup: %s",
+                     appearance_draft_.startup_animation ? "on" : "off");
+        } else {
+            strcpy(text[2], "> Apply");
         }
-        snprintf(text[7], 32, "OK Apply | BACK Cancel");
     } else if (screen_ == UiScreen::Frequency || screen_ == UiScreen::Callsign ||
                screen_ == UiScreen::ChannelNumber) {
         snprintf(text[0], 32, "%s",
@@ -894,7 +1152,7 @@ void UiModel::lines(char (&text)[8][32]) const {
         snprintf(text[5], 32, "%c Exit / restore", selected_ == 4 ? '>' : ' ');
         if (editing_) {
             snprintf(text[selected_ + 1], 32, ">%s_ (hex)", draft_);
-            snprintf(text[6], 32, "Up/Dn hex: %c | P2 Add", "0123456789ABCDEF"[letter_]);
+            snprintf(text[6], 32, "Up/Dn hex: %c |  # Add", "0123456789ABCDEF"[letter_]);
         }
         snprintf(text[7], 32, editing_ ? "OK Set | BACK Cancel" : "OK Select | BACK Exit");
     }

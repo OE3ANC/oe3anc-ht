@@ -22,7 +22,8 @@ void UiModel::refresh_list() {
     if (screen_ == UiScreen::Banks || screen_ == UiScreen::ChannelBank) {
         strcpy(page.title, "BANKS");
         strcpy(page.detail, "Select a channel group");
-        page.count = storage.bank_count + 1; // All is always available.
+        page.count =
+            storage.bank_count + (screen_ == UiScreen::Banks ? 2 : 1); // All is always available.
         if (page.cursor >= page.count) {
             page.cursor = 0;
         }
@@ -35,9 +36,12 @@ void UiModel::refresh_list() {
                 if (screen_ == UiScreen::Banks) {
                     snprintf(item.suffix, sizeof(item.suffix), "%u", storage.channel_count);
                 }
+            } else if (screen_ == UiScreen::Banks && first + row == 1) {
+                strcpy(item.name, "New bank");
             } else {
                 uint32_t revision;
-                if (settings_bank_at(first + row - 1, bank, &revision) ||
+                if (settings_bank_at(first + row - (screen_ == UiScreen::Banks ? 2 : 1), bank,
+                                     &revision) ||
                     revision != storage.revision) {
                     return;
                 }
@@ -69,12 +73,18 @@ void UiModel::refresh_list() {
                 page.cursor = 0;
             }
         }
+        page.count += 2;
         if (page.cursor >= page.count) {
             page.cursor = 0;
         }
         snprintf(page.detail, sizeof(page.detail), "%.24s / %u", name, page.count);
         const unsigned first = page.cursor / 4 * 4;
         for (unsigned row = 0; row < 4 && first + row < page.count; ++row) {
+            if (first + row >= page.count - 2) {
+                strcpy(page.rows[row].name,
+                       first + row == page.count - 2 ? "Select bank" : "New channel");
+                continue;
+            }
             Channel channel;
             uint32_t revision;
             if (settings_channel_at(browse_bank_, first + row, channel, &revision) ||
@@ -256,7 +266,7 @@ void UiModel::apply_number() {
 void UiModel::browse(const UiInput &input) {
     if (input.key == UiKey::Back) {
         if (screen_ == UiScreen::Banks) {
-            screen_ = UiScreen::Channels;
+            screen_ = banks_return_;
             browse_cursor_ = 0;
             refresh_list();
         } else {
@@ -271,55 +281,42 @@ void UiModel::browse(const UiInput &input) {
         return; // Retry the key after the refreshed page is shown.
     }
 #endif
-    if (screen_ == UiScreen::Banks && input.key == UiKey::Left) {
-        open_bank(0);
-        return;
-    }
-    if (screen_ == UiScreen::Banks && input.key == UiKey::Right && list_.count) {
-        const auto id = list_.rows[list_.cursor % 4].id;
-        if (id) {
-            open_bank(id);
-        }
-        return;
-    }
-    if (input.key == UiKey::Left && screen_ == UiScreen::Channels) {
-        screen_ = UiScreen::Banks;
-        browse_cursor_ = 0;
-#ifdef CONFIG_HT_CODEPLUG_STORAGE
-        Bank bank;
-        for (uint8_t i = 0; i < settings_status().bank_count; ++i) {
-            if (!settings_bank_at(i, bank) && bank.id == browse_bank_) {
-                browse_cursor_ = i + 1;
-                break;
-            }
-        }
-#endif
-        refresh_list();
-        return;
-    }
-    if (input.key == UiKey::Up || input.key == UiKey::Down) {
+    if (input.key == UiKey::Up || input.key == UiKey::Down || input.key == UiKey::Left ||
+        input.key == UiKey::Right) {
         if (list_.count) {
-            browse_cursor_ =
-                (list_.cursor + list_.count + (input.key == UiKey::Down ? 1 : -1)) % list_.count;
+            browse_cursor_ = (list_.cursor + list_.count +
+                              (input.key == UiKey::Down    ? 1
+                               : input.key == UiKey::Up    ? -1
+                               : input.key == UiKey::Right ? 4
+                                                           : -4) +
+                              list_.count) %
+                             list_.count;
             if (screen_ == UiScreen::Channels) {
                 browse_channel_ = 0;
             }
             refresh_list();
         }
-    } else if (input.key == UiKey::Right && screen_ == UiScreen::Channels && list_.count) {
-        open_channel(list_.rows[list_.cursor % 4].id, UiScreen::Channels);
-    } else if (input.key == UiKey::Enter && !list_.count && screen_ == UiScreen::Channels) {
-        open_channel(0, UiScreen::Channels);
     } else if (input.key == UiKey::Enter && list_.count) {
         const auto id = list_.rows[list_.cursor % 4].id;
-        if (screen_ == UiScreen::Banks) {
-            browse_bank_ = id;
+        if (screen_ == UiScreen::Channels && list_.cursor == list_.count - 2) {
+            banks_return_ = UiScreen::Channels;
+            screen_ = UiScreen::Banks;
+            browse_cursor_ = 0;
+            refresh_list();
+        } else if (screen_ == UiScreen::Channels && list_.cursor == list_.count - 1) {
+            open_channel(0, UiScreen::Channels);
+        } else if (screen_ == UiScreen::Banks && list_.cursor == 1) {
+            open_bank(0);
+        } else if (screen_ == UiScreen::Banks && !id) {
+            browse_bank_ = 0;
             screen_ = UiScreen::Channels;
             browse_cursor_ = 0;
-            // Preserve the highlighted channel when it belongs to the new bank.
             refresh_list();
         } else {
-            recall({Operating::Memory, browse_bank_, id}, browse_revision_);
+            browse_action_bank_ = screen_ == UiScreen::Banks;
+            browse_origin_ = screen_;
+            browse_action_ = 0;
+            screen_ = UiScreen::BrowseActions;
         }
     } else if (screen_ == UiScreen::Channels &&
                (input.key == UiKey::Digit || input.key == UiKey::Character) &&

@@ -97,6 +97,7 @@ void ui_run() {
         return;
     }
     int64_t previous = k_uptime_get();
+    model.begin_startup(previous);
     k_mutex_lock(&model_mutex, K_FOREVER);
     ready = true;
     k_mutex_unlock(&model_mutex);
@@ -122,8 +123,7 @@ void ui_run() {
             model.input(input, cps_pending != 0);
             if (input.key == UiKey::Ptt) {
                 radio_ptt(input.pressed);
-            } else if (input.key == UiKey::Monitor) {
-                radio_monitor(input.pressed);
+
             } else if (input.key == UiKey::Release || input.key == UiKey::Quit) {
                 radio_ptt(false);
                 radio_monitor(false);

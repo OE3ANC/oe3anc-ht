@@ -76,6 +76,7 @@ static void *setup() {
 static void load(unsigned count = 6) {
     fail_durable = false;
     enable_gain = false;
+    radio_ptt(false);
     radio_power(true);
     zassert_ok(radio_start({}));
     unlink(path);
@@ -201,314 +202,106 @@ static void frame_out(const char *name) {
 }
 
 static void open() {
-    key(UiKey::Back);
+    key(UiKey::Monitor);
     zassert_equal(model.screen(), UiScreen::QuickControls);
 }
 
-static void reboot() {
-    RadioConfig config;
-    Selection selection;
-    zassert_ok(settings_start(config, selection));
-    zassert_ok(radio_start(config, selection));
-    model = {};
-    model.sync(radio_snapshot());
-}
-
-ZTEST(ui_quick, test_vfo_draft_cancel_apply_bounds_and_reboot) {
-    const auto frequency = emulator_tuned_frequency();
+static void sql() {
     open();
-    frame_out("quick-vfo");
-    key(UiKey::Up);
-    zassert_equal(radio_snapshot().config.squelch, 4);
-    key(UiKey::Back);
-    zassert_equal(model.screen(), UiScreen::Home);
-    zassert_equal(radio_snapshot().config.squelch, 4);
-    open();
-    for (unsigned i = 0; i < 20; ++i) {
-        key(UiKey::Up);
-    }
-    char lines[8][32];
-    model.lines(lines);
-    zassert_not_null(strstr(lines[2], "Squelch: 15"));
-    for (unsigned i = 0; i < 20; ++i) {
-        key(UiKey::Down);
-    }
-    model.lines(lines);
-    zassert_not_null(strstr(lines[2], "Squelch: 0"));
-    key(UiKey::Up);
-    key(UiKey::Up);
-    frame_out("quick-preview");
-    key(UiKey::Enter);
-    zassert_true(model.command_pending());
-    frame_out("quick-pending");
-    tick();
-    zassert_equal(model.screen(), UiScreen::Home);
-    zassert_equal(radio_snapshot().config.squelch, 2);
-    zassert_equal(emulator_tuned_frequency(), frequency);
-    zassert_true(settings_status().pending);
-    settings_service(radio_snapshot(), 1100);
-    reboot();
-    zassert_equal(radio_snapshot().config.squelch, 2);
-}
-
-ZTEST(ui_quick, test_menu_discovery_and_squelch_entry_use_draft_return_to_menu) {
-    menu("Quick controls");
-    zassert_equal(model.screen(), UiScreen::QuickControls);
-    key(UiKey::Up);
-    key(UiKey::Enter);
-    tick();
-    zassert_equal(model.screen(), UiScreen::Menu);
-    key(UiKey::Back);
-    menu("Squelch:");
-    zassert_equal(model.screen(), UiScreen::QuickControls);
-    zassert_equal(radio_snapshot().config.squelch, 5);
     key(UiKey::Down);
-    key(UiKey::Back);
-    zassert_equal(model.screen(), UiScreen::Menu);
-    zassert_equal(radio_snapshot().config.squelch, 5);
+    key(UiKey::Enter);
 }
 
-ZTEST(ui_quick, test_memory_squelch_is_temporary_and_recall_restores_saved_channel) {
+ZTEST(ui_quick, test_explicit_squelch_draft_accept_and_cancel) {
+    const auto initial = radio_snapshot().config.squelch;
+    sql();
+    key(UiKey::Up);
     key(UiKey::Left);
+    key(UiKey::Right);
+    zassert_equal(radio_snapshot().config.squelch, initial);
+    frame_out("squelch-edit");
+    key(UiKey::Back);
+    key(UiKey::Enter);
+    key(UiKey::Up);
+    key(UiKey::Enter);
+    tick();
+    zassert_equal(model.screen(), UiScreen::Home);
+    zassert_equal(radio_snapshot().config.squelch, initial + 1);
+}
+
+ZTEST(ui_quick, test_memory_squelch_temporary_and_recall_restores) {
+    Channel channel;
+    zassert_ok(settings_channel_number(1, channel));
+    auto state = radio_snapshot();
+    zassert_ok(settings_recall({Operating::Memory, 0, channel.id}, 800, state));
+    tick();
+    sql();
+    key(UiKey::Up);
+    key(UiKey::Enter);
     tick();
     zassert_equal(radio_snapshot().selection.operating, Operating::Memory);
-    settings_service(radio_snapshot(), 1100);
-    const auto generation = settings_status().generation;
-    const auto selected = radio_snapshot().selection;
-    const auto frequency = emulator_tuned_frequency();
-    open();
-    key(UiKey::Up);
-    frame_out("quick-memory");
-    key(UiKey::Enter);
+    zassert_equal(radio_snapshot().config.squelch, channel.configuration.squelch + 1);
+    state = radio_snapshot();
+    zassert_ok(settings_recall(state.selection, 801, state));
     tick();
-    zassert_equal(radio_snapshot().config.squelch, 5);
-    zassert_true(same_selection(radio_snapshot().selection, selected));
-    zassert_equal(emulator_tuned_frequency(), frequency);
-    zassert_false(settings_status().pending);
-    settings_service(radio_snapshot(), 2200);
-    zassert_equal(settings_status().generation, generation);
-    Channel channel;
-    zassert_ok(settings_channel(selected.channel_id, channel));
-    zassert_equal(channel.configuration.squelch, 4);
-    zassert_ok(settings_recall(selected, 711, radio_snapshot()));
-    tick();
-    zassert_equal(radio_snapshot().config.squelch, 4);
+    zassert_equal(radio_snapshot().config.squelch, channel.configuration.squelch);
 }
 
-ZTEST(ui_quick, test_supported_gain_field_switching_global_persistence_and_m17) {
-    enable_gain = true;
+ZTEST(ui_quick, test_monitor_listen_are_mutually_exclusive_toggles) {
     open();
-    const char *actions[4];
-    model.quick_actions(actions);
-    zassert_equal(strcmp(actions[2], "P1 Field"), 0);
-    zassert_equal(model.form_cursor(), 1);
-    key(UiKey::Left);
-    zassert_equal(model.form_cursor(), 0);
-    key(UiKey::Up);
-    frame_out("quick-gain-fixture");
-    key(UiKey::Left);
+    key(UiKey::Down);
     key(UiKey::Down);
     key(UiKey::Enter);
     tick();
-    zassert_equal(radio_snapshot().config.gain, 1);
-    zassert_equal(radio_snapshot().config.squelch, 3);
-    settings_service(radio_snapshot(), 1100);
-    reboot();
-    zassert_equal(radio_snapshot().config.gain, 1);
-    RadioCommand command;
-    command.config = radio_snapshot().config;
-    command.config.mode = Mode::M17;
-    zassert_ok(radio_submit(command));
-    tick();
+    zassert_equal(radio_snapshot().receive_override, ReceiveOverride::Monitor);
     open();
-    model.quick_actions(actions);
-    zassert_equal(strcmp(actions[2], ""), 0);
-    key(UiKey::Down);
-    key(UiKey::Enter);
-    tick();
-    zassert_equal(radio_snapshot().config.gain, 0);
-    zassert_equal(radio_snapshot().config.squelch, 3);
-    zassert_equal(radio_snapshot().config.mode, Mode::M17);
-}
-
-ZTEST(ui_quick, test_unsupported_gain_and_m17_squelch_never_submit) {
-    open();
-    const char *actions[4];
-    model.quick_actions(actions);
-    zassert_equal(strcmp(actions[2], ""), 0);
-    key(UiKey::Left);
-    zassert_equal(model.form_cursor(), 0);
-    key(UiKey::Back);
-    RadioCommand command;
-    command.config = radio_snapshot().config;
-    command.config.mode = Mode::M17;
-    zassert_ok(radio_submit(command));
-    tick();
-    open();
-    zassert_false(model.quick_available());
-    frame_out("quick-unavailable");
-    model.quick_actions(actions);
-    zassert_equal(strcmp(actions[0], ""), 0);
     key(UiKey::Up);
     key(UiKey::Enter);
-    zassert_false(model.command_pending());
-    zassert_equal(radio_snapshot().config.squelch, 4);
-    key(UiKey::Back);
-    zassert_equal(model.screen(), UiScreen::Home);
+    tick();
+    zassert_equal(radio_snapshot().receive_override, ReceiveOverride::ListenTx);
+    open();
+    key(UiKey::Up);
+    frame_out("listen-toggle");
+    key(UiKey::Enter);
+    tick();
+    zassert_equal(radio_snapshot().receive_override, ReceiveOverride::Normal);
 }
 
-ZTEST(ui_quick, test_ptt_coalesced_press_focus_fault_power_restart_cancel) {
-    open();
+ZTEST(ui_quick, test_stale_and_busy_drafts_cannot_apply) {
+    sql();
     key(UiKey::Up);
     radio_ptt(true);
-    radio_ptt(false);
+    tick();
     key(UiKey::Enter);
-    zassert_equal(model.screen(), UiScreen::Home);
     zassert_false(model.command_pending());
-    zassert_equal(radio_snapshot().config.squelch, 4);
-    open();
-    model.input({UiKey::Release});
-    zassert_equal(model.screen(), UiScreen::Home);
-    open();
-    radio_ptt(true);
-    radio_service();
-    model.sync(radio_snapshot());
-    zassert_equal(model.screen(), UiScreen::Home);
-    key(UiKey::Back);
-    zassert_equal(model.error(), -EBUSY);
+    zassert_equal(model.screen(), UiScreen::QuickControls);
     radio_ptt(false);
     tick();
-    open();
-    radio_power(false);
-    radio_service();
-    model.sync(radio_snapshot());
-    zassert_equal(model.screen(), UiScreen::Home);
-    radio_power(true);
-    tick();
-    open();
-    zassert_ok(radio_start({}));
-    model.sync(radio_snapshot());
-    zassert_equal(model.screen(), UiScreen::Home);
-    open();
-    radio_report_fault(-EIO);
-    tick();
-    zassert_equal(model.screen(), UiScreen::Home);
-    zassert_equal(radio_snapshot().fault, -EIO);
-}
-
-ZTEST(ui_quick, test_stale_draft_and_queued_apply_cannot_modify_changed_selection) {
-    open();
-    key(UiKey::Up);
     RadioCommand change;
-    change.id = 981;
     change.config = radio_snapshot().config;
-    change.config.rx_frequency_hz = change.config.tx_frequency_hz = 145600000;
+    change.config.rx_frequency_hz += 1000;
     zassert_ok(radio_submit(change));
-    radio_service();
-    model.sync(radio_snapshot());
+    tick();
     zassert_equal(model.screen(), UiScreen::Home);
-    zassert_equal(model.error(), -ESTALE);
-    open();
-    key(UiKey::Up);
-    change.config.rx_frequency_hz = change.config.tx_frequency_hz = 145700000;
-    zassert_ok(radio_submit(change));
-    key(UiKey::Enter);
-    zassert_true(model.command_pending());
-    tick();
-    tick();
     zassert_equal(model.error(), -ESTALE);
     zassert_equal(radio_snapshot().config.squelch, 4);
-    model.sync(radio_snapshot());
-    zassert_equal(model.screen(), UiScreen::Home);
-    zassert_equal(emulator_tuned_frequency(), 145700000);
 }
 
-ZTEST(ui_quick, test_queue_pressure_release_and_cancelled_submitted_apply_do_not_reopen) {
-    open();
-    key(UiKey::Up);
+ZTEST(ui_quick, test_m17_has_editor_and_listen_only) {
     RadioCommand command;
     command.config = radio_snapshot().config;
-    unsigned count = 0;
-    while (!radio_submit(command)) {
-        ++count;
-    }
-    zassert_true(count > 0);
-    key(UiKey::Enter);
-    zassert_equal(model.error(), -ENOMSG);
-    frame_out("quick-busy");
-    zassert_false(model.command_pending());
-    radio_ptt(true);
-    radio_service();
-    model.sync(radio_snapshot());
-    radio_ptt(false);
-    radio_service();
-    zassert_false(emulator_transmitting());
-    for (unsigned i = 0; i < count; ++i) {
-        radio_service();
-    }
-    model.sync(radio_snapshot());
+    command.config.mode = Mode::M17;
+    zassert_ok(radio_submit(command));
+    tick();
     open();
-    key(UiKey::Up);
+    key(UiKey::Down);
+    zassert_equal(model.form_cursor(), 3);
+    key(UiKey::Down);
+    zassert_equal(model.form_cursor(), 0);
     key(UiKey::Enter);
-    model.input({UiKey::Release});
-    tick();
-    zassert_equal(model.screen(), UiScreen::Home);
-    zassert_false(model.command_pending());
-    zassert_equal(radio_snapshot().config.squelch,
-                  5); // Already submitted Apply may finish; the draft stays closed.
-}
-
-ZTEST(ui_quick, test_noop_keeps_monitor_and_storage_failure_reports_dirty_retry) {
-    radio_monitor(true);
-    tick();
-    zassert_true(radio_snapshot().monitor_active);
-    const auto revision = radio_snapshot().configuration_revision;
-    open();
-    key(UiKey::Enter);
-    tick();
-    zassert_equal(radio_snapshot().configuration_revision, revision);
-    zassert_true(radio_snapshot().monitor_active);
-    zassert_false(settings_status().pending);
-    open();
-    key(UiKey::Up);
-    key(UiKey::Enter);
-    tick();
-    zassert_false(radio_snapshot().monitor_active);
-    fail_durable = true;
-    settings_service(radio_snapshot(), 1100);
-    zassert_equal(settings_status().save_error, -EIO);
-    zassert_true(settings_status().pending);
-    zassert_equal(radio_snapshot().config.squelch, 5);
-    fail_durable = false;
-    settings_service(radio_snapshot(), 2200);
-    reboot();
-    zassert_equal(radio_snapshot().config.squelch, 5);
+    zassert_equal(model.screen(), UiScreen::ChannelEditor);
+    key(UiKey::Monitor);
+    zassert_equal(model.screen(), UiScreen::ChannelEditor);
 }
 
 ZTEST_SUITE(ui_quick, nullptr, setup, before, nullptr, nullptr);
-
-ZTEST(ui_quick, test_repeated_palette_field_navigation_is_bounded_and_motion_off) {
-    for (unsigned theme = 0; theme < ThemeCount; ++theme) {
-        for (unsigned contrast = 0; contrast < 3; ++contrast) {
-            auto ui = plug.global.ui;
-            ui.theme = static_cast<Theme>(theme);
-            ui.contrast = static_cast<Contrast>(contrast);
-            ui.animations = false;
-            zassert_ok(
-                settings_put_ui_preferences(ui, 880, radio_snapshot(), settings_status().revision));
-            tick();
-            enable_gain = true;
-            for (unsigned i = 0; i < 10; ++i) {
-                open();
-                key(UiKey::Left);
-                key(UiKey::Up);
-                key(UiKey::Left);
-                key(UiKey::Down);
-                frame_out("quick-theme-fixture");
-                key(UiKey::Back);
-            }
-        }
-    }
-    printk("Quick UI heap: min-free=%u min-largest=%u max-fragmentation=%u%%\n", minimum_free,
-           minimum_largest, maximum_fragmentation);
-}

@@ -226,6 +226,7 @@ static void finish_recall(int error) {
 
 static bool same_ui(const UiPreferences &a, const UiPreferences &b) {
     return a.theme == b.theme && a.contrast == b.contrast && a.animations == b.animations &&
+           a.startup_animation == b.startup_animation &&
            a.brightness_percent == b.brightness_percent && a.idle_s == b.idle_s &&
            a.dim_percent == b.dim_percent;
 }

@@ -23,6 +23,88 @@ static void execute(RadioCommand command) {
     radio_service();
 }
 
+ZTEST(radio, test_latched_monitor_stop_failure_never_keys_tx) {
+    const auto original = radio_snapshot();
+    RadioCommand command;
+    command.kind = CommandKind::ReceiveOverride;
+    command.expected_generation = original.generation;
+    command.expected_revision = original.configuration_revision;
+    command.selection = original.selection;
+    command.receive_override = ReceiveOverride::Monitor;
+    execute(command);
+    zassert_true(radio_snapshot().monitor_active);
+    emulator_fail_next(-EIO);
+    radio_ptt(true);
+    radio_service();
+    zassert_equal(radio_snapshot().phase, RadioPhase::Fault);
+    zassert_equal(radio_snapshot().fault, -EIO);
+    zassert_false(emulator_transmitting());
+    radio_ptt(false);
+    radio_service();
+}
+
+ZTEST(radio, test_listen_tx_override_keeps_saved_frequencies_and_tx_policy) {
+    RadioConfig config;
+    config.rx_frequency_hz = 145600000;
+    config.tx_frequency_hz = 145000000;
+    config.rx_tone = {ToneKind::Ctcss, 885, false};
+    zassert_ok(radio_start(config));
+    auto original = radio_snapshot();
+    RadioCommand command;
+    command.kind = CommandKind::ReceiveOverride;
+    command.expected_generation = original.generation;
+    command.expected_revision = original.configuration_revision;
+    command.selection = original.selection;
+    command.receive_override = ReceiveOverride::ListenTx;
+    execute(command);
+    zassert_ok(radio_snapshot().command_error);
+    zassert_equal(emulator_tuned_frequency(), config.tx_frequency_hz);
+    zassert_true(radio_snapshot().monitor_active);
+    zassert_equal(radio_snapshot().config.rx_frequency_hz, config.rx_frequency_hz);
+    zassert_equal(radio_snapshot().configuration_revision, original.configuration_revision);
+    radio_ptt(true);
+    radio_service();
+    zassert_equal(radio_snapshot().phase, RadioPhase::Transmitting);
+    zassert_equal(emulator_tuned_frequency(), config.tx_frequency_hz);
+    radio_ptt(false);
+    radio_service();
+    zassert_equal(radio_snapshot().receive_override, ReceiveOverride::ListenTx);
+    zassert_true(radio_snapshot().monitor_active);
+    command.receive_override = ReceiveOverride::Monitor;
+    execute(command);
+    zassert_equal(emulator_tuned_frequency(), config.rx_frequency_hz);
+    zassert_equal(radio_snapshot().receive_override, ReceiveOverride::Monitor);
+    command.receive_override = ReceiveOverride::Normal;
+    execute(command);
+    zassert_false(radio_snapshot().monitor_active);
+    command.receive_override = ReceiveOverride::ListenTx;
+    execute(command);
+    RadioCommand recall;
+    recall.kind = CommandKind::Recall;
+    recall.id = 999;
+    recall.config = config;
+    recall.selection = {Operating::Memory, 0, 1};
+    recall.expected_generation = original.generation;
+    recall.expected_revision = original.configuration_revision;
+    execute(recall);
+    zassert_ok(radio_snapshot().recall_error);
+    zassert_equal(radio_snapshot().receive_override, ReceiveOverride::Normal);
+    zassert_equal(emulator_tuned_frequency(), config.rx_frequency_hz);
+    config.tx_inhibit = true;
+    zassert_ok(radio_start(config));
+    original = radio_snapshot();
+    command.expected_generation = original.generation;
+    command.expected_revision = original.configuration_revision;
+    execute(command);
+    radio_ptt(true);
+    radio_service();
+    zassert_equal(radio_snapshot().ptt_error, -EPERM);
+    zassert_false(emulator_transmitting());
+    zassert_true(radio_snapshot().monitor_active);
+    radio_ptt(false);
+    radio_service();
+}
+
 ZTEST(radio, test_selection_identity_global_edits_and_tuning_into_vfo) {
     const Selection selected{Operating::Memory, 3, 19};
     zassert_ok(radio_start({}, selected));

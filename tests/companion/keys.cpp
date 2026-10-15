@@ -45,7 +45,9 @@ static void fixture(unsigned type, const uint8_t *bytes, unsigned length, unsign
     if (type != MSG_UI_KEY)
         return;
     assert(wire_key == bytes[0] && input.pressed == bool(bytes[1]));
-    if (wire_key >= UI_KEY_DIGIT_0) {
+    if (wire_key == UI_KEY_QUICK) {
+        assert(input.key == UiKey::Monitor);
+    } else if (wire_key >= UI_KEY_DIGIT_0) {
         assert(input.key == UiKey::Digit &&
                input.character == static_cast<char>('0' + wire_key - UI_KEY_DIGIT_0));
     } else {

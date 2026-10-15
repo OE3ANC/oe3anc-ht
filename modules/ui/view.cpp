@@ -5,14 +5,14 @@
 #include <string.h>
 
 namespace ht {
-static lv_obj_t *view_screen;
+static lv_obj_t *view_screen, *startup_root, *startup_label;
 static lv_obj_t *content_root, *title, *detail, *theme_rows[4], *selection, *stripe;
 static lv_obj_t *separators[2], *footer[4], *list_prefix[4], *list_suffix[4];
 static lv_obj_t *entry, *entry_line, *entry_help;
 static lv_obj_t *lock_body, *lock_shackle;
 static lv_obj_t *home_strip, *home_mode, *home_battery, *signal[5];
 static bool home_visible, system_visible;
-static bool appearance_visible, editor_visible, list_visible, content_visible, styled;
+static bool editor_visible, list_visible, content_visible, styled;
 static UiScreen drawn_screen;
 static uint16_t drawn_list_cursor;
 static uint8_t drawn_form_cursor;
@@ -97,6 +97,17 @@ int ui_view_start(lv_obj_t *screen) {
     if (!content_root) {
         return -ENOMEM;
     }
+    startup_root = box(content_root, 0, 0, 160, 128);
+    if (!startup_root) {
+        return -ENOMEM;
+    }
+    startup_label = text(startup_root, 0, -20, 160, &lv_font_montserrat_14);
+    if (!startup_label) {
+        return -ENOMEM;
+    }
+    lv_label_set_text(startup_label, "OE3ANC-HT");
+    lv_obj_set_style_text_align(startup_label, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_add_flag(startup_root, LV_OBJ_FLAG_HIDDEN);
     selection = box(content_root, 5, 39, 150, 15);
     if (!selection) {
         return -ENOMEM;
@@ -184,8 +195,8 @@ int ui_view_start(lv_obj_t *screen) {
     lv_obj_add_flag(entry, LV_OBJ_FLAG_HIDDEN);
     lv_obj_add_flag(entry_line, LV_OBJ_FLAG_HIDDEN);
     lv_obj_add_flag(entry_help, LV_OBJ_FLAG_HIDDEN);
-    appearance_visible = editor_visible = list_visible = content_visible = home_visible =
-        system_visible = styled = false;
+    editor_visible = list_visible = content_visible = home_visible = system_visible = styled =
+        false;
     drawn_screen = UiScreen::Home;
     drawn_interruptions = 0;
     drawn_ptt_sequence = 0;
@@ -226,6 +237,18 @@ void ui_view_update(const UiPresentation &presentation) {
         }
     }
     const auto &lines = presentation.lines;
+    const bool startup = presentation.screen == UiScreen::Startup && !presentation.system_visible &&
+                         !presentation.home.visible;
+    if (startup) {
+        box_color(startup_root, 0x0b111a);
+        text_color(startup_label, 0x65dcc7);
+        lv_obj_set_y(startup_label,
+                     -24 + (presentation.list.cursor > 80 ? 80 : presentation.list.cursor));
+        lv_obj_clear_flag(startup_root, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_move_foreground(startup_root);
+    } else {
+        lv_obj_add_flag(startup_root, LV_OBJ_FLAG_HIDDEN);
+    }
     const auto &home = presentation.home;
     const bool show_home = home.visible;
     const bool show_lock = show_home && home.locked;
@@ -249,8 +272,6 @@ void ui_view_update(const UiPresentation &presentation) {
     const bool show_diagnostic =
         normal && !show_home && presentation.screen == UiScreen::Diagnostics;
     const bool show_hex = show_diagnostic && presentation.diagnostic_editing;
-    const bool show_appearance =
-        normal && !show_home && presentation.screen == UiScreen::Appearance;
     const bool show_editor = show_hex || (normal && !show_home &&
                                           (presentation.screen == UiScreen::Frequency ||
                                            presentation.screen == UiScreen::Callsign ||
@@ -267,13 +288,15 @@ void ui_view_update(const UiPresentation &presentation) {
     const bool show_form =
         normal && !show_home &&
         (channel_programming(presentation.screen) || bank_programming(presentation.screen) ||
+         presentation.screen == UiScreen::Discard || presentation.screen == UiScreen::Appearance ||
+         presentation.screen == UiScreen::BrowseActions ||
          presentation.screen == UiScreen::VfoStep ||
          presentation.screen == UiScreen::QuickControls ||
          presentation.screen == UiScreen::Backlight ||
          presentation.screen == UiScreen::TransmitLimit) &&
         !show_editor && !show_list;
-    const bool show = show_system || show_home || show_menu || show_status || show_appearance ||
-                      show_editor || show_list || show_form;
+    const bool show = presentation.screen == UiScreen::Startup || show_system || show_home ||
+                      show_menu || show_status || show_editor || show_list || show_form;
     if (show != content_visible) {
         if (show) {
             lv_obj_clear_flag(content_root, LV_OBJ_FLAG_HIDDEN);
@@ -286,7 +309,6 @@ void ui_view_update(const UiPresentation &presentation) {
         lv_anim_del(selection, selection_y);
     }
     const bool layout_changed = show_system != system_visible || show_home != home_visible ||
-                                show_appearance != appearance_visible ||
                                 show_editor != editor_visible || show_list != list_visible ||
                                 presentation.screen != drawn_screen;
     if (!motion || layout_changed || show_home || !show) {
@@ -326,14 +348,13 @@ void ui_view_update(const UiPresentation &presentation) {
         lv_obj_set_width(title, show_home ? 56 : 144);
         lv_obj_set_width(detail, show_home ? 136 : 144);
         for (auto *object : theme_rows) {
-            if (show_system || show_home || show_menu || show_status || show_appearance ||
-                show_list || show_form) {
+            if (show_system || show_home || show_menu || show_status || show_list || show_form) {
                 lv_obj_clear_flag(object, LV_OBJ_FLAG_HIDDEN);
             } else {
                 lv_obj_add_flag(object, LV_OBJ_FLAG_HIDDEN);
             }
         }
-        if (show_menu || show_appearance || show_list || show_form) {
+        if (show_menu || show_list || show_form) {
             lv_obj_clear_flag(selection, LV_OBJ_FLAG_HIDDEN);
         } else {
             lv_obj_add_flag(selection, LV_OBJ_FLAG_HIDDEN);
@@ -454,38 +475,6 @@ void ui_view_update(const UiPresentation &presentation) {
             changed_text(theme_rows[row], page.rows[row]);
             text_color(theme_rows[row], colors.white);
         }
-    } else if (show_appearance) {
-        changed_text(title, "APPEARANCE");
-        if (!appearance_visible || preferences.theme != last_theme || !motion) {
-            lv_anim_del(selection, selection_y);
-            const int y = 39 + 15 * (static_cast<unsigned>(preferences.theme) % 4);
-            if (appearance_visible && motion && preferences.theme != last_theme) {
-                lv_anim_t animation;
-                lv_anim_init(&animation);
-                lv_anim_set_var(&animation, selection);
-                lv_anim_set_exec_cb(&animation, selection_y);
-                lv_anim_set_values(&animation, lv_obj_get_y(selection), y);
-                lv_anim_set_time(&animation, 140);
-                lv_anim_start(&animation);
-            } else {
-                lv_obj_set_y(selection, y);
-            }
-        }
-        const unsigned first = static_cast<unsigned>(preferences.theme) / 4 * 4;
-        for (unsigned row = 0; row < 4; ++row) {
-            const bool present = first + row < ThemeCount;
-            if (present) {
-                lv_obj_clear_flag(theme_rows[row], LV_OBJ_FLAG_HIDDEN);
-            } else {
-                lv_obj_add_flag(theme_rows[row], LV_OBJ_FLAG_HIDDEN);
-            }
-            text_color(theme_rows[row], colors.white);
-            changed_text(
-                theme_rows[row],
-                present ? ui_palette(static_cast<Theme>(first + row), Contrast::Normal).name : "");
-        }
-        changed_text(detail, lines[6][0] ? lines[6] : lines[1]);
-        text_color(detail, presentation.error ? colors.red : colors.muted);
     } else if (show_list) {
         const auto &page = presentation.list;
         changed_text(title, show_diagnostic                                ? page.title
@@ -621,6 +610,9 @@ void ui_view_update(const UiPresentation &presentation) {
         changed_text(detail, lines[6][0] ? lines[6] : lines[1]);
         text_color(detail, presentation.error ? colors.red : colors.muted);
         const bool selectable =
+            presentation.screen == UiScreen::Appearance ||
+            presentation.screen == UiScreen::Discard ||
+            presentation.screen == UiScreen::BrowseActions ||
             presentation.screen == UiScreen::ChannelEditor ||
             presentation.screen == UiScreen::ChannelTone ||
             presentation.screen == UiScreen::BankEditor ||
@@ -659,7 +651,6 @@ void ui_view_update(const UiPresentation &presentation) {
     for (unsigned row = 0; row < 4; ++row) {
         changed_text(footer[row], presentation.actions[row]);
     }
-    appearance_visible = show_appearance;
     editor_visible = show_editor;
     list_visible = show_list;
     content_visible = show;

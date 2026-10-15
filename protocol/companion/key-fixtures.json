@@ -140,7 +140,7 @@
   {
     "name": "key-unknown",
     "type": 34,
-    "payload": "1201",
+    "payload": "1301",
     "status": 1
   },
   {
@@ -170,7 +170,13 @@
   {
     "name": "keep-unknown",
     "type": 36,
-    "payload": "00000400",
+    "payload": "00000800",
     "status": 1
+  },
+  {
+    "name": "quick-button",
+    "type": 34,
+    "payload": "1201",
+    "status": 0
   }
 ]

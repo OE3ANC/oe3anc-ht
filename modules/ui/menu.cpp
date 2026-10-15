@@ -7,35 +7,56 @@
 #include <zephyr/sys/util.h>
 
 namespace ht {
-unsigned menu_item_at(unsigned position) {
-#ifdef CONFIG_HT_CODEPLUG_STORAGE
-    static const MenuItem order[] = {
-        ChannelsItem,      SaveVfoItem,     EditChannelItem,  BanksItem,         AppearanceItem,
-        OperatingItem,     FrequencyItem,   VfoStepItem,      QuickControlsItem, BacklightItem,
-        TransmitLimitItem, CallsignItem,    StatusItem,       ModeItem,          BandwidthItem,
-        SquelchItem,       PowerItem,       RxToneItem,       TxToneItem,        GainItem,
-        FmWeakFilterItem,  FmAfDacGainItem, FmCtcssLevelItem, LnaPolarityItem,   DiagnosticsItem};
-    static_assert(sizeof(order) / sizeof(order[0]) == MenuCount,
-                  "Every menu identity needs one position");
-    return order[position];
-#else
-    return position;
+static const MenuItem main_menu[] = {EditChannelItem, ChannelsItem,  BanksItem,  RadioItem,
+                                     AppearanceItem,  BacklightItem, StatusItem, DevelopmentItem};
+static const MenuItem radio_menu[] = {OperatingItem, VfoStepItem, CallsignItem, TransmitLimitItem};
+static const MenuItem development_menu[] = {DiagnosticsItem,  FmWeakFilterItem, FmAfDacGainItem,
+                                            FmCtcssLevelItem, LnaPolarityItem,  CodecStatsItem,
+                                            RxPathItem,       RxGainItem,       RxSquelchItem};
+
+unsigned menu_count(unsigned group) {
+#ifndef CONFIG_HT_CODEPLUG_STORAGE
+    return RadioItem;
 #endif
+    return group == 1   ? ARRAY_SIZE(radio_menu)
+           : group == 2 ? ARRAY_SIZE(development_menu)
+                        : ARRAY_SIZE(main_menu);
 }
 
-unsigned menu_move(unsigned current, Mode mode, int direction) {
+unsigned menu_item_at(unsigned position, unsigned group) {
+#ifndef CONFIG_HT_CODEPLUG_STORAGE
+    return position;
+#endif
+    return group == 1   ? radio_menu[position]
+           : group == 2 ? development_menu[position]
+                        : main_menu[position];
+}
+
+unsigned menu_move(unsigned current, Mode mode, int direction, unsigned group) {
+    const unsigned count = menu_count(group);
     unsigned index = 0;
-    while (index + 1 < MenuCount && menu_item_at(index) != current) {
+    while (index + 1 < count && menu_item_at(index, group) != current) {
         ++index;
     }
-    do {
-        index = (index + (direction > 0 ? 1 : MenuCount - 1)) % MenuCount;
-    } while (!menu_available(menu_item_at(index), mode));
-    return menu_item_at(index);
+    for (unsigned attempt = 0; attempt < count; ++attempt) {
+        index = (index + count + direction) % count;
+        if (menu_available(menu_item_at(index, group), mode)) {
+            return menu_item_at(index, group);
+        }
+    }
+    return current;
 }
 
 bool menu_available(unsigned item, Mode mode) {
-    if (item == LnaPolarityItem) {
+    if (item == CodecStatsItem) {
+#ifdef CONFIG_HT_CODEC2
+        return true;
+#else
+        return false;
+#endif
+    }
+    if (item == LnaPolarityItem || item == RxPathItem || item == RxGainItem ||
+        item == RxSquelchItem) {
         return backend_capabilities().registers;
     }
     if (item == FmCtcssLevelItem) {
@@ -77,6 +98,24 @@ bool menu_inline(unsigned item) {
 void menu_label(unsigned item, const RadioState &state, uint32_t step, char (&value)[28]) {
     const auto &config = state.config;
     switch (item) {
+    case RadioItem:
+        strcpy(value, "Radio");
+        break;
+    case DevelopmentItem:
+        strcpy(value, "Development");
+        break;
+    case CodecStatsItem:
+        strcpy(value, "Codec2 statistics");
+        break;
+    case RxPathItem:
+        strcpy(value, "RX Path");
+        break;
+    case RxGainItem:
+        strcpy(value, "RX Gain");
+        break;
+    case RxSquelchItem:
+        strcpy(value, "RX Squelch");
+        break;
     case FmWeakFilterItem: {
         static constexpr uint16_t bandwidth_hz[] = {1700, 2000, 2500, 3000, 3750, 4000, 4250, 4500};
         const unsigned hz = bandwidth_hz[state.fm_rx_controls.weak_filter] *
@@ -155,7 +194,8 @@ void menu_label(unsigned item, const RadioState &state, uint32_t step, char (&va
         strcpy(value, "Save VFO as channel");
         break;
     case EditChannelItem:
-        strcpy(value, "Edit / select channel");
+        strcpy(value, state.selection.operating == Operating::Vfo ? "VFO Settings"
+                                                                  : "Edit current channel");
         break;
     case AppearanceItem:
         strcpy(value, "Appearance");
@@ -178,15 +218,15 @@ void menu_label(unsigned item, const RadioState &state, uint32_t step, char (&va
 
 void UiModel::menu_page(UiListPage &page) const {
     page = {};
-    strcpy(page.title, "MENU");
+    strcpy(page.title, menu_group_ == 1 ? "RADIO" : menu_group_ == 2 ? "DEVELOPMENT" : "MENU");
     strcpy(page.detail, state_.phase == RadioPhase::Transmitting ? "TX / read-only actions"
                         : selected_ == LnaPolarityItem           ? "Global / RX, TX and idle"
                         : selected_ == FmCtcssLevelItem          ? "Global / 0-127 / default 74"
                         : selected_ == FmWeakFilterItem || selected_ == FmAfDacGainItem
                             ? "FM RX test / until reboot"
                             : "Choose an action");
-    for (unsigned position = 0; position < MenuCount; ++position) {
-        const unsigned item = menu_item_at(position);
+    for (unsigned position = 0; position < menu_count(menu_group_); ++position) {
+        const unsigned item = menu_item_at(position, menu_group_);
         if (menu_available(item, state_.config.mode)) {
             if (item == selected_) {
                 page.cursor = page.count;
@@ -196,8 +236,8 @@ void UiModel::menu_page(UiListPage &page) const {
     }
     const unsigned first = page.cursor / 4 * 4;
     unsigned index = 0;
-    for (unsigned position = 0; position < MenuCount; ++position) {
-        const unsigned item = menu_item_at(position);
+    for (unsigned position = 0; position < menu_count(menu_group_); ++position) {
+        const unsigned item = menu_item_at(position, menu_group_);
         if (!menu_available(item, state_.config.mode)) {
             continue;
         }
@@ -205,7 +245,12 @@ void UiModel::menu_page(UiListPage &page) const {
             auto &row = page.rows[index - first];
             row.id = item;
             char value[28];
-            menu_label(item, state_, vfo_step_hz_, value);
+            auto displayed = state_;
+            if (field_editing_ && item == selected_) {
+                displayed.config = field_config_;
+                displayed.fm_rx_controls = field_controls_;
+            }
+            menu_label(item, displayed, vfo_step_hz_, value);
             snprintf(row.name, sizeof(row.name), "%.24s", value);
         }
         ++index;
@@ -215,7 +260,9 @@ void UiModel::menu_page(UiListPage &page) const {
 
 void UiModel::menu_actions(const char *(&actions)[4]) const {
     actions[0] = actions[2] = actions[3] = "";
-    actions[1] = "BACK Home";
+    actions[1] = "BACK";
+    actions[2] = "P1 Prev page";
+    actions[3] = "P2 Next page";
     if (command_pending() || appearance_pending_) {
         actions[1] = "";
         return;
@@ -225,12 +272,14 @@ void UiModel::menu_actions(const char *(&actions)[4]) const {
         return;
     }
     if (state_.phase != RadioPhase::Receiving || radio_ptt_requested()) {
+        actions[0] = actions[2] = actions[3] = "";
         return;
     }
     if (menu_inline(selected_)) {
-        actions[0] = "OK Change";
-        actions[2] = "P1 Prev";
-        actions[3] = "P2 Next";
+        actions[0] = field_editing_ ? "OK Accept" : "OK Edit";
+        if (field_editing_) {
+            actions[2] = actions[3] = "";
+        }
     } else {
         actions[0] = "OK Select";
     }

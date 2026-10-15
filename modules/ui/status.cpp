@@ -109,8 +109,7 @@ void UiModel::status(UiStatus &view) const {
     if (status_page_ >= rx_status_first_page) {
         const unsigned page = status_page_ - rx_status_first_page;
         const char *names[] = {"RX PATH", "RX GAIN", "RX SQUELCH"};
-        snprintf(view.title, sizeof(view.title), "%s / %u OF %u", names[page], status_page_ + 1,
-                 status_page_count);
+        snprintf(view.title, sizeof(view.title), "%s", names[page]);
         if (state_.phase != RadioPhase::Receiving) {
             strcpy(view.detail, "Available while receiving");
             return;
@@ -134,7 +133,7 @@ void UiModel::status(UiStatus &view) const {
     }
     switch (status_page_) {
     case 0: {
-        snprintf(view.title, sizeof(view.title), "RADIO / 1 OF %u", status_page_count);
+        snprintf(view.title, sizeof(view.title), "RADIO / 1 OF %u", 5U);
         snprintf(view.detail, sizeof(view.detail), "%s / %s / %s",
                  state_.selection.operating == Operating::Memory ? "Memory" : "VFO",
                  config.mode == Mode::Fm ? "FM" : "M17",
@@ -157,7 +156,7 @@ void UiModel::status(UiStatus &view) const {
         break;
     }
     case 1:
-        snprintf(view.title, sizeof(view.title), "MODE / 2 OF %u", status_page_count);
+        snprintf(view.title, sizeof(view.title), "MODE / 2 OF %u", 5U);
         snprintf(view.detail, sizeof(view.detail), "%s / limit %s",
                  config.mode == Mode::Fm ? "FM" : "M17",
                  config.transmit_limit_s ? "enabled" : "off");
@@ -181,7 +180,7 @@ void UiModel::status(UiStatus &view) const {
         }
         break;
     case 2:
-        snprintf(view.title, sizeof(view.title), "ACTIVITY / 3 OF %u", status_page_count);
+        snprintf(view.title, sizeof(view.title), "ACTIVITY / 3 OF %u", 5U);
         strcpy(view.detail, "Live controller snapshot");
         snprintf(view.rows[0], 32, "RSSI %d dBm / relative", state_.rssi_dbm);
         snprintf(view.rows[1], 32, "RX %s", state_.rx_active ? "active" : "idle");
@@ -192,7 +191,7 @@ void UiModel::status(UiStatus &view) const {
         snprintf(view.rows[3], 32, "Monitor %s", state_.monitor_active ? "held" : "off");
         break;
     case 3: {
-        snprintf(view.title, sizeof(view.title), "BATTERY / 4 OF %u", status_page_count);
+        snprintf(view.title, sizeof(view.title), "BATTERY / 4 OF %u", 5U);
 #ifdef CONFIG_HT_BATTERY
         const auto caps = battery_capabilities();
         const auto snapshot = battery_snapshot();
@@ -241,7 +240,7 @@ void UiModel::status(UiStatus &view) const {
         break;
     }
     case 4: {
-        snprintf(view.title, sizeof(view.title), "STORAGE / 5 OF %u", status_page_count);
+        snprintf(view.title, sizeof(view.title), "STORAGE / 5 OF %u", 5U);
 #ifdef CONFIG_HT_SETTINGS
         const auto storage = settings_status();
         strcpy(view.detail,
@@ -276,7 +275,7 @@ void UiModel::status(UiStatus &view) const {
     }
     default:
 #ifdef CONFIG_HT_CODEC2
-        snprintf(view.title, sizeof(view.title), "CODEC2 / 6 OF %u", status_page_count);
+        snprintf(view.title, sizeof(view.title), "CODEC2");
         const auto codec = m17::voice_statistics();
         snprintf(view.detail, sizeof(view.detail), "mod/3200/%zuB/heap0", codec.state_bytes);
         timing(view.rows[0], "Enc avg/max", codec.encode);

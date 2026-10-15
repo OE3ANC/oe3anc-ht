@@ -46,8 +46,7 @@ void UiModel::diagnostics(const UiInput &input) {
                 value_ = value;
             }
             cancel_diagnostic_edit();
-        } else if (input.key == UiKey::Erase || input.key == UiKey::Hash ||
-                   input.key == UiKey::Left) {
+        } else if (input.key == UiKey::Erase || input.key == UiKey::Star) {
             if (length_) {
                 draft_[--length_] = 0;
             }
@@ -55,7 +54,7 @@ void UiModel::diagnostics(const UiInput &input) {
             letter_ = (letter_ + (input.key == UiKey::Up ? 1 : 15)) % 16;
         } else {
             char c = 0;
-            if (input.key == UiKey::Right || input.key == UiKey::Star) {
+            if (input.key == UiKey::Hash) {
                 c = hex[letter_];
             } else if (input.key == UiKey::Character || input.key == UiKey::Digit) {
                 c = input.character;
@@ -76,6 +75,10 @@ void UiModel::diagnostics(const UiInput &input) {
                 draft_[length_] = 0;
             }
         }
+        return;
+    }
+    if (input.key == UiKey::Left || input.key == UiKey::Right) {
+        selected_ = selected_ < 4 ? 4 : 0;
         return;
     }
     if (input.key == UiKey::Up || input.key == UiKey::Down) {
@@ -155,8 +158,8 @@ void UiModel::diagnostic_actions(const char *(&actions)[4]) const {
     if (editing_) {
         actions[0] = length_ ? "OK Set" : "";
         actions[1] = "BACK Cancel";
-        actions[2] = length_ ? "P1 Erase" : "";
-        actions[3] = length_ < (selected_ == 0 ? 2 : 4) ? "P2 Add" : "";
+        actions[2] = "";
+        actions[3] = "";
     } else {
         actions[0] = selected_ < 2    ? "OK Edit"
                      : selected_ == 2 ? "OK Read"

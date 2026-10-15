@@ -36,6 +36,7 @@ const RadioCapabilities &backend_capabilities();
 int backend_init(const RadioConfig &config);
 int backend_configure(const RadioConfig &config, const FmRxControls &controls);
 int backend_receive();
+int backend_startup_chime(); // Speaker only; backend_stop cancels immediately.
 // Transient FM RX gating only. stop/configure must discard this override.
 int backend_monitor(bool enabled);
 // On success return the uptime timestamp of RF keying, after preparation.
