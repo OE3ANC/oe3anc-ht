@@ -165,3 +165,18 @@ Automated tests are currently disabled in CI and tagged release builds via
 `tools/check_ci.py --skip-tests`. Firmware and companion builds and release
 identity checks still run. Test sources remain available; omit `--skip-tests`
 to run the complete checks manually.
+
+### Automatic nightly builds
+
+Every push to `main` builds and deploys the latest firmware/companion pair to
+[/nightly/](https://ht.oe3anc.at/nightly/). The companion shows the UTC build date
+and links to `firmware-nightly.zip` beside it. These files replace the previous
+nightly; no nightly GitHub Release or moving tag is created. Use the firmware
+and companion from the same build, since their exact identity is still checked.
+
+Only version-tag pushes create versioned release drafts. Publishing a tagged
+release preserves its archived companion and the latest nightly. Pages deployments
+are serialized and always build the current default branch, including release
+publication/retries, so an older event cannot replace nightly with an older commit.
+The existing GitHub Pages environment must permit automatic deployment without
+required reviewers; the workflow itself has no approval or manual publish step.

@@ -10,7 +10,7 @@ import {
     helloPayload,
     helloReply
 } from '../../companion/src/protocol.mjs';
-import { releaseTag, githubReleaseUrl } from '../../companion/src/release-links.mjs';
+import { releaseTag, githubReleaseUrl, companionLabel, firmwareLink } from '../../companion/src/release-links.mjs';
 
 const fixtures = JSON.parse(
     readFileSync(new URL('../../protocol/companion/fixtures.json', import.meta.url))
@@ -81,3 +81,15 @@ for (const identity of [
     assert.equal(githubReleaseUrl(identity), null);
 }
 console.log('Validated firmware release links reject development and malformed identities');
+
+const tagged = { label: 'v1.3.8', identity: 'v1.3.8@' + 'a'.repeat(40) };
+const development = { label: 'development', identity: 'dev-' + 'b'.repeat(32) };
+const nightly = { nightlyBuiltAt: '2026-10-15 14:23 UTC' };
+assert.equal(companionLabel(tagged, {}), 'Companion v1.3.8');
+assert.equal(companionLabel(development, {}), 'Companion development');
+assert.equal(companionLabel(development, nightly), 'Nightly 2026-10-15 14:23 UTC');
+assert.deepEqual(firmwareLink(development, nightly), {
+    url: './firmware-nightly.zip', label: 'Download nightly firmware'
+});
+assert.equal(firmwareLink(tagged, {}).url, githubReleaseUrl(tagged.identity));
+assert.equal(firmwareLink(development, {}).url, 'https://github.com/OE3ANC/oe3anc-ht/releases');

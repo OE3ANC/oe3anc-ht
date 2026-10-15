@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """Stage published, verified companion archives for GitHub Pages without rebuilding."""
 import argparse
+from datetime import datetime, timezone
 import hashlib
 import io
 import json
@@ -9,12 +10,13 @@ import os
 from pathlib import Path, PurePosixPath
 import re
 import stat
+import subprocess
 import sys
 import zipfile
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'tools'))
 from publish_release import GitHub, check_tag
-from release_packages import MANIFEST, MAX_PACKAGE, canonical, validate_manifest
+from release_packages import MANIFEST, MAX_PACKAGE, canonical, validate_files, validate_manifest
 
 
 def version(tag):
@@ -132,7 +134,19 @@ def release_files(api, release, base_path):
     return files
 
 
-def assemble(api, output, base_path, required_release=None, site_base_path=None):
+def nightly_files(directory, commit, base_path, built_at):
+    # Reuse the paired archive validation; nightly never creates a GitHub release/tag.
+    manifest = validate_manifest(json.loads((directory / MANIFEST).read_text()), None, commit)
+    packages = validate_files(directory, manifest)
+    files = archive_files(packages['companion-nightly.zip'], 'nightly', manifest['release'], base_path)
+    stamp = datetime.strptime(built_at, '%Y-%m-%dT%H:%M:%SZ')
+    site = {'basePath': base_path, 'nightlyBuiltAt': stamp.strftime('%Y-%m-%d %H:%M UTC')}
+    files['nightly/src/site.mjs'] = ('export const site = ' + json.dumps(site) + ';\n').encode()
+    files['nightly/firmware-nightly.zip'] = packages['firmware-nightly.zip']
+    return files
+
+
+def assemble(api, output, base_path, required_release=None, site_base_path=None, nightly=None):
     site_base_path = base_path if site_base_path is None else site_base_path
     for path in (base_path, site_base_path):
         if not re.fullmatch(r'/(?:[A-Za-z0-9_-]+/)*', path):
@@ -147,7 +161,7 @@ def assemble(api, output, base_path, required_release=None, site_base_path=None)
         for release in api.listing('/releases')
         if not release['draft'] and '<!-- oe3anc-ht-pair:' in (release['body'] or '')
     ]
-    if not releases or (
+    if (not releases and not nightly) or (
         required_release is not None
         and not any(release['id'] == required_release for release in releases)
     ):
@@ -167,8 +181,13 @@ def assemble(api, output, base_path, required_release=None, site_base_path=None)
             path = output / mount / name
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_bytes(content)
-    latest = releases[-1]['tag_name']
-    destination = './' + mount + latest + '/'
+    for name, content in (nightly or {}).items():
+        path = output / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(content)
+    latest = releases[-1]['tag_name'] if releases else 'nightly'
+    destination = './' + (mount + latest if releases else latest) + '/'
+
     (output / 'index.html').write_text(
         '<!doctype html>\n<html lang="en">\n<meta charset="utf-8">\n'
         '<meta name="viewport" content="width=device-width, initial-scale=1">\n'
@@ -188,18 +207,27 @@ def main():
         '--site-base-path', help='Actual Pages root; inferred from repository CNAME'
     )
     parser.add_argument('--output', type=Path, default=Path('build/pages'))
+    parser.add_argument('--nightly-packages', type=Path)
     args = parser.parse_args()
     release_id = os.environ.get('PAGES_RELEASE_ID', '')
     site_base = args.site_base_path
     if site_base is None:
         cname = Path(__file__).resolve().parents[1] / 'CNAME'
         site_base = '/' if cname.is_file() else args.base_path
+    nightly = None
+    if args.nightly_packages:
+        commit = subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip()
+        nightly = nightly_files(
+            args.nightly_packages, commit, args.base_path,
+            datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
+        )
     assemble(
         GitHub(args.repository, os.environ.get('GH_TOKEN', '')),
         args.output,
         args.base_path,
         int(release_id) if release_id else None,
         site_base,
+        nightly,
     )
 
 

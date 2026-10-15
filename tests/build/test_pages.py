@@ -291,12 +291,79 @@ class PagesChecks(unittest.TestCase):
             self.assemble()
         self.assertEqual((self.output / 'index.html').read_text(), 'existing site')
 
+    def make_nightly(self):
+        api = FakeGitHub()
+        release, tagged_files = api.add('v1.0.0')
+        metadata = json.loads(tagged_files['v1.0.0/release.json'])
+        metadata['label'] = 'development'
+        metadata['identity'] = 'dev-' + metadata['source_sha256'][:32]
+        files = {name.replace('v1.0.0/', 'nightly/', 1): data
+                 for name, data in tagged_files.items()}
+        files['nightly/release.json'] = deploy_pages.canonical(metadata)
+        files['nightly/src/release.mjs'] = (
+            'export const release = ' + json.dumps(metadata) + ';\n'
+        ).encode()
+        directory = Path(self.temporary.name) / 'packages'
+        directory.mkdir()
+        buffer = io.BytesIO()
+        with zipfile.ZipFile(buffer, 'w') as archive:
+            for name, data in files.items():
+                archive.writestr(name, data)
+        manifest = {'schema_version': 1, 'release': metadata, 'packages': []}
+        for role, data in [('firmware', b'nightly firmware'), ('companion', buffer.getvalue())]:
+            name = role + '-nightly.zip'
+            (directory / name).write_bytes(data)
+            manifest['packages'].append({
+                'role': role, 'name': name, 'size': len(data),
+                'sha256': hashlib.sha256(data).hexdigest(),
+            })
+        (directory / deploy_pages.MANIFEST).write_bytes(deploy_pages.canonical(manifest))
+        return directory, metadata
+
+    def test_nightly_date_firmware_pair_and_empty_release_history(self):
+        directory, metadata = self.make_nightly()
+        files = deploy_pages.nightly_files(
+            directory, metadata['commit'], '/oe3anc-ht/', '2026-10-15T14:23:45Z'
+        )
+        self.assertEqual(files['nightly/firmware-nightly.zip'], b'nightly firmware')
+        self.assertIn(b'2026-10-15 14:23 UTC', files['nightly/src/site.mjs'])
+        self.assertEqual(json.loads(files['nightly/release.json']), metadata)
+        deploy_pages.assemble(self.api, self.output, '/oe3anc-ht/', nightly=files)
+        self.assertIn('./nightly/', (self.output / 'index.html').read_text())
+        self.assertEqual((self.output / 'nightly/firmware-nightly.zip').read_bytes(),
+                         b'nightly firmware')
+
+    def test_nightly_coexists_with_unchanged_release_archives_on_custom_domain(self):
+        directory, metadata = self.make_nightly()
+        release, archived = self.api.add('v1.0.0')
+        files = deploy_pages.nightly_files(
+            directory, metadata['commit'], '/oe3anc-ht/', '2026-10-15T14:23:45Z'
+        )
+        deploy_pages.assemble(self.api, self.output, '/oe3anc-ht/', release['id'], '/', files)
+        for name, content in archived.items():
+            self.assertEqual((self.output / 'oe3anc-ht' / name).read_bytes(), content)
+        self.assertTrue((self.output / 'nightly/index.html').is_file())
+        self.assertIn('./oe3anc-ht/v1.0.0/', (self.output / 'index.html').read_text())
+
+    def test_nightly_rejects_wrong_commit_corrupt_packages_and_invalid_date(self):
+        directory, metadata = self.make_nightly()
+        for commit, date in [('0' * 40, '2026-10-15T14:23:45Z'),
+                             (metadata['commit'], 'not a date')]:
+            with self.assertRaises(ValueError):
+                deploy_pages.nightly_files(directory, commit, '/oe3anc-ht/', date)
+        (directory / 'firmware-nightly.zip').write_bytes(b'corrupt')
+        with self.assertRaises(ValueError):
+            deploy_pages.nightly_files(
+                directory, metadata['commit'], '/oe3anc-ht/', '2026-10-15T14:23:45Z'
+            )
+
     def test_pages_workflow_triggers_trusted_checkout_and_least_privilege(self):
         workflow = yaml.load(
             (ROOT / '.github/workflows/pages.yml').read_text(), Loader=yaml.BaseLoader
         )
-        self.assertEqual(set(workflow['on']), {'release', 'workflow_dispatch'})
+        self.assertEqual(set(workflow['on']), {'push', 'release', 'workflow_dispatch'})
         self.assertEqual(workflow['on']['release']['types'], ['published'])
+        self.assertEqual(workflow['on']['push']['branches'], ['main'])
         self.assertEqual(workflow['permissions'], {'contents': 'read'})
         self.assertEqual(workflow['concurrency']['cancel-in-progress'], 'false')
         assemble, deploy = workflow['jobs']['assemble'], workflow['jobs']['deploy']
@@ -312,7 +379,7 @@ class PagesChecks(unittest.TestCase):
         for job in workflow['jobs'].values():
             for step in job['steps']:
                 self.assertNotIn('secrets.', json.dumps(step))
-                if 'uses' in step:
+                if 'uses' in step and not step['uses'].startswith('./'):
                     self.assertRegex(step['uses'].split(' #')[0], r'^actions/[a-z-]+@[0-9a-f]{40}$')
                 if 'run' in step:
                     self.assertNotIn('${{', step['run'])

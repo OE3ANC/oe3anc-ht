@@ -6,7 +6,7 @@ import { CpsEditor } from './cps.mjs';
 import { ConnectedCps } from './connected-cps.mjs';
 import { LiveUi } from './live-ui.mjs';
 import { FirmwareTools } from './firmware-tools.mjs';
-import { releaseTag, githubReleaseUrl } from './release-links.mjs';
+import { releaseTag, githubReleaseUrl, companionLabel, firmwareLink } from './release-links.mjs';
 import { setupToolTabs } from './tabs.mjs';
 
 const editor = new CpsEditor(document.querySelector('#cps'));
@@ -15,12 +15,12 @@ const disconnect = document.querySelector('#disconnect');
 const status = document.querySelector('#status');
 const matching = document.querySelector('#matching');
 const matchingRelease = document.querySelector('#matching-release');
-document.querySelector('#release').textContent = `Companion ${release.label}`;
+document.querySelector('#release').textContent = companionLabel(release, site);
 
 for (const link of document.querySelectorAll('[data-release-link]')) {
-    const url = githubReleaseUrl(release.identity);
-    link.href = url ?? 'https://github.com/OE3ANC/oe3anc-ht/releases';
-    link.textContent = url ? `Firmware ${release.label} ↗` : 'Firmware releases ↗';
+    const firmware = firmwareLink(release, site);
+    link.href = firmware.url;
+    link.textContent = firmware.label;
 }
 
 let connecting = false;

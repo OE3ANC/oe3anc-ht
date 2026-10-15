@@ -27,7 +27,9 @@ Home/End on the tab bar, or link directly to `#cps`, `#live-ui` or `#firmware-to
 Setup details are expandable, with flash risks and destructive confirmations kept
 visible in Firmware. Reset and full restore are in the Recovery disclosure.
 Tagged companions link directly to their matching GitHub firmware release;
-development previews link to the releases list. A version mismatch also links
+development previews link to the releases list. The automatically replaced
+`/nightly/` companion shows a UTC build date and downloads its paired firmware
+from `./firmware-nightly.zip`. A version mismatch also links
 to the release required by the connected radio.
 
 Review and write is available as soon as a compatible radio is connected. If no

@@ -22,7 +22,7 @@ def canonical(value):
 
 
 def validate_manifest(data, tag, commit):
-    if not re.fullmatch(r'v[0-9]+\.[0-9]+\.[0-9]+(?:-rc\.[0-9]+)?', tag):
+    if tag is not None and not re.fullmatch(r'v[0-9]+\.[0-9]+\.[0-9]+(?:-rc\.[0-9]+)?', tag):
         raise ValueError('Invalid version tag')
     if not re.fullmatch('[0-9a-f]{40}', commit):
         raise ValueError('Invalid release commit')
@@ -37,13 +37,15 @@ def validate_manifest(data, tag, commit):
     if (
         not isinstance(release, dict)
         or set(release) != {'identity', 'label', 'commit', 'source_sha256'}
-        or release['identity'] != tag + '@' + commit
-        or release['label'] != tag
+        or release['label'] != (tag or 'development')
         or release['commit'] != commit
         or not isinstance(release['source_sha256'], str)
         or not re.fullmatch('[0-9a-f]{64}', release['source_sha256'])
     ):
         raise ValueError('Release pair tag/commit/source mismatch')
+    identity = tag + '@' + commit if tag else 'dev-' + release['source_sha256'][:32]
+    if release['identity'] != identity:
+        raise ValueError('Release pair identity mismatch')
     if not isinstance(data['packages'], list) or len(data['packages']) != 2:
         raise ValueError('Release pair requires two packages')
     for package, role in zip(data['packages'], ('firmware', 'companion')):
@@ -51,7 +53,7 @@ def validate_manifest(data, tag, commit):
             not isinstance(package, dict)
             or set(package) != {'role', 'name', 'size', 'sha256'}
             or package['role'] != role
-            or package['name'] != role + '-' + tag + '.zip'
+            or package['name'] != role + '-' + (tag or 'nightly') + '.zip'
             or type(package['size']) is not int
             or not 0 < package['size'] <= MAX_PACKAGE
             or not isinstance(package['sha256'], str)
@@ -92,6 +94,7 @@ def package(build, website, output, tag, dependencies):
     # A failed attempt must never leave a previous manifest ready for publication.
     (output / MANIFEST).unlink(missing_ok=True)
     release = companion_release.metadata(tag)
+    name = tag or 'nightly'
     if json.loads((build / 'emulator/companion-generated/release.json').read_text()) != release:
         raise ValueError('Emulator release metadata mismatch')
     if json.loads((website / 'release.json').read_text()) != release:
@@ -113,7 +116,7 @@ def package(build, website, output, tag, dependencies):
     entries.update(
         {'release.json': canonical(release), 'firmware-bundle.json': bundle_path.read_bytes()}
     )
-    archive(output / ('firmware-' + tag + '.zip'), entries)
+    archive(output / ('firmware-' + name + '.zip'), entries)
     # Include only files produced by this builder, never stray dist fixtures/files.
     paths = [
         Path(name)
@@ -133,16 +136,16 @@ def package(build, website, output, tag, dependencies):
             for path in sorted((ROOT / 'companion' / folder).glob('*'))
             if path.is_file()
         )
-    entries = {tag + '/' + name: content for name, content in licenses.items()}
+    entries = {name + '/' + path: content for path, content in licenses.items()}
     for relative in paths:
         path = website / relative
         if path.is_symlink():
             raise ValueError('Companion package cannot contain symlinks')
-        entries[tag + '/' + relative.as_posix()] = path.read_bytes()
-    archive(output / ('companion-' + tag + '.zip'), entries)
+        entries[name + '/' + relative.as_posix()] = path.read_bytes()
+    archive(output / ('companion-' + name + '.zip'), entries)
     manifest = {'schema_version': 1, 'release': release, 'packages': []}
     for role in ('firmware', 'companion'):
-        path = output / (role + '-' + tag + '.zip')
+        path = output / (role + '-' + (tag or 'nightly') + '.zip')
         manifest['packages'].append(
             {
                 'role': role,
@@ -160,7 +163,9 @@ def package(build, website, output, tag, dependencies):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--tag', required=True)
+    channel = parser.add_mutually_exclusive_group(required=True)
+    channel.add_argument('--tag')
+    channel.add_argument('--nightly', action='store_true')
     parser.add_argument('--build-dir', type=Path, default=ROOT / 'build/ci')
     parser.add_argument('--website', type=Path, default=ROOT / 'companion/dist')
     parser.add_argument('--output', type=Path, default=ROOT / 'build/release')
