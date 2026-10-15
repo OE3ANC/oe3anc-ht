@@ -15,6 +15,11 @@ The user's current request defines the task scope.
 - Reuse existing helpers, standard libraries and Zephyr facilities before adding
   code or dependencies. Do not add speculative features, generic frameworks,
   one-use abstractions or configuration without a concrete need.
+- Keep README feature sections short and user-facing: include only essential
+  capabilities and limitations that affect everyday use. Do not append register
+  details, implementation notes, debugging procedures, test results or fix history.
+  Put necessary technical detail in the relevant developer documentation or commit
+  description; update existing feature bullets instead of growing a changelog.
 - Keep changes focused. Avoid unrelated cleanup, mass formatting and public API
   churn unless the user explicitly requests a source cleanup. Preserve existing
   user changes and leave dependency checkouts unchanged.

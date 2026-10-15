@@ -51,81 +51,24 @@ and banks, preserves firmware and factory calibration, and verifies the reset.
 Disconnect, unplug and reboot, then read the radio again before uploading a codeplug.
 Normal firmware updates preserve settings and do not clear this error.
 
+Before downgrading firmware, export your codeplug and keep a complete flash backup;
+older firmware may not read settings saved by newer versions.
+
 ## Features
 
 ### Firmware
 
-- FM with independent RX/TX CTCSS or DCS, and [M17](https://m17project.org/) voice with callsign
+- FM with independent RX/TX CTCSS or DCS and adjustable CTCSS transmit level.
+- [M17](https://m17project.org/) digital voice with Codec2-mod 3200, callsign
   addressing and CAN filtering.
-  FM explicitly enables the BK4819 microphone AGC, 300 Hz voice high-pass,
-  low-pass, pre-emphasis and audio level controller. The chip generates
-  CTCSS/DCS separately from microphone audio. Previously the voice filters
-  and level controller were enabled, but microphone AGC was left at its
-  disabled reset setting (see the [BK4819 register list](https://alfaexploit.com/files/BK4819V3Registers_List_20201218.pdf)).
-  CTCSS/DCS transmit gain (`51[6:0]`) is set when enabling a TX tone; previously
-  it remained at the minimum reset value. Provisional values are 74 for CTCSS
-  and 51 for DCS, following the [egzumer BK4819 driver](https://github.com/egzumer/uv-k5-firmware-custom/blob/main/driver/bk4819.c).
-  **Invert LNA GPIOs** toggles both BK4819 GPIO0/1 polarities in RX, TX, idle
-  and shutdown for FM and M17. It defaults to off and can be changed only in RX.
-  The global setting is saved after 10 seconds or power-off and is available
-  in the companion global settings editor. PA and LED GPIOs are unaffected.
-  Cold boot uses the default inactive outputs until settings are loaded; the
-  saved polarity is applied before radio initialization and its error cleanup.
-  **FM CTCSS level** in the radio menu adjusts the global CTCSS value from 0–127
-  with P1/P2 (OK increases); default 74. The companion's global settings editor
-  provides the same setting. It applies to VFO and all memories, saves after
-  10 seconds or power-off, and is locked during TX. It does not change DCS level
-  or M17. Zero selects minimum gain; use TX tone Off to disable CTCSS.
-  Existing saved settings/codeplug JSON load with default 74. New saves use a
-  v3 manifest, which older firmware cannot read; export a backup before a downgrade.
-  These are raw gain codes, not calibrated deviation in Hz. M17 retains its flat
-  audio path. Verify tone frequency, tone deviation and peak voice deviation on
-  both bands with matching channel bandwidths, including after an M17/FM switch.
-  For the reported 162.2 Hz CTCSS case, check that the CS7000 opens with no speech
-  and stays open during loud speech. If dropout persists, also check the upstream
-  microphone ADC for clipping; BK4819 AGC cannot repair it.
-- Requested transmit power is shown in watts on the radio and in the companion
-  editor. The C62 uses provisional 1, 2.5 and 5 W PWM settings; these are not
-  measured power readings. Builds with `config/resources.conf` log the APC duty,
-  timer configuration and PA pin mux at TX setup for hardware diagnosis.
 - VFO and Memory operation, separate RX/TX frequencies, 256 channels and 16
   ordered banks. Edit them on the radio or share a JSON codeplug.
-- Seven themes (including Terminal Green, Amber and Ice), contrast settings,
-  idle backlight dimming, keypad lock and a TX time limit. The desktop emulator runs the shared radio UI with fake hardware.
-- Codec2-mod 3200 voice, with live processing statistics in **Status → Codec2**.
-  Encoder/decoder average and maximum elapsed times are per 20 ms codec frame,
-  including preemption. The page reports frame counts, processing above 20 ms,
-  fixed state reservation and zero codec heap usage. **OK Reset** clears counters;
-  it does not reset the live codec predictors. Emulator timings are simulated.
-- **Status → RX Path / RX Gain / RX Squelch** shows read-only BK4819 register
-  values in hexadecimal and the sample age. The radio samples every 250 ms in
-  RX without stopping reception; values are unavailable in the emulator and
-  hidden outside RX. RX Path covers power (`30`, `37`), LNA GPIOs (`33`), tuning
-  (`38`, `39`), filters (`43`) and audio (`47`, `48`). RX Gain covers the gain
-  table (`10`–`14`) and AGC (`49`, `7B`, `7E`). RX Squelch covers status (`0C`),
-  glitches (`63`), noise (`65`), RSSI (`67`) and hardware thresholds (`4D`–`4F`,
-  `78`). Read errors follow the existing latched radio-fault shutdown path.
-  For FM sensitivity checks, hold Monitor to bypass software RSSI/tone gating:
-  default SQL 4 opens above −109 dBm on the uncalibrated RSSI scale. Compare
-  readings with no signal and with a known weak signal on each band. Register
-  observations do not establish measured RF sensitivity.
-- **FM weak BW** and **FM AF DAC** in the menu are temporary FM RX test controls.
-  Use P1/P2 to decrease/increase, or OK to increase. Weak BW adjusts only
-  `43[11:9]` through the eight filter settings and displays the effective kHz
-  value (doubled for 25 kHz channels). AF DAC adjusts only `48[3:0]`, 0–15,
-  approximately 2 dB per step; this is audio output gain, not RF gain. The
-  defaults are filter index 0 and DAC gain 1. Changes briefly restart reception,
-  preserve the selected channel and survive retuning/PTT. They apply only to
-  FM, retain the original M17 levels, and reset on reboot. They are not saved
-  in the codeplug. Adjustments are rejected during TX.
-- M17 Home shows `BER~` (latest stream Viterbi distance divided by 272 received
-  coded bits), `L` (inferred sequence-gap loss) and `B` (rejected stream frames).
-  This is an error estimate, excluding sync/LICH bits, and does not measure true
-  or residual BER. Loss includes rejected/undetected frames, is not a separate
-  additional error total, and begins at the first observed frame. Counts above
-  9999 display as `9999+`. The values
-  clear on sync loss/new LSF, expire after 500 ms without a stream frame, and
-  are unavailable during TX. Storage warnings retain priority over these stats.
+- Selectable transmit power of 1, 2.5 or 5 W (provisional settings, not measured output).
+- Seven display themes, adjustable contrast, idle backlight dimming, keypad lock
+  and a transmit time limit.
+- Physical PTT and companion connection available without a mode switch;
+  PTT activates after a 300 ms hold.
+- Desktop emulator for exploring the radio interface.
 
 <img src="assets/screenshots/radio-vfo.png" alt="Emulator FM VFO Home" width="320">
 <img src="assets/screenshots/radio-m17.png" alt="Emulator M17 Memory Home" width="320">
@@ -136,12 +79,11 @@ Normal firmware updates preserve settings and do not clear this error.
 
 <img src="assets/screenshots/companion-cps.png" alt="Companion channel programming editor" width="680">
 
-- Shared LVGL live display and virtual keypad
+- Live radio display and virtual keypad
 
 <img src="assets/screenshots/companion-remote.png" alt="Companion live radio display and virtual keypad" width="680">
 
-- Separate bootloader tools for flash backups, application/DSP updates, optional
-  post-write readback and read-only factory calibration inspection
+- Firmware updates, complete flash backups and read-only factory calibration inspection
 
 <img src="assets/screenshots/companion-bootloader.png" alt="Companion CSK6 bootloader firmware tools" width="680">
 
