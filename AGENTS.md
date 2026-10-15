@@ -72,10 +72,12 @@ The user's current request defines the task scope.
   or browser audio streaming.
 - CPS writes replace the complete validated codeplug. Reject stale writes,
   preserve browser drafts for export and require a fresh read before retrying.
-- Preserve companion-mode pin ownership and local unplug/Done confirmation.
-  Remote keys must not confirm disconnection or restore physical PTT. Remote
-  PTT requires controller validation and a radio-enforced expiry/release path
-  independent of browser cleanup, ordinary queues and bulk transfers.
+- Keep UART reception and physical PTT available without a companion-mode
+  toggle. On C62, a continuous shared-pin low of 300 ms is physical PTT; valid
+  UART bytes reset the timer. Physical PTT takes priority over remote intent.
+  Remote PTT requires controller validation and a radio-enforced expiry/release
+  path independent of browser cleanup, ordinary queues and bulk transfers.
+  Remote cancellation must never release a physical hold.
 - Keep CSK bootloader flashing/readback separate from the application protocol.
   Preserve matching application/DSP images and factory/settings regions.
   Build one release bundle with matching images, release identity, addresses

@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include <errno.h>
-#include <ht/companion.h>
 #include <ht/companion_contract.hpp>
 #include <ht/ui.hpp>
 #include <zephyr/kernel.h>
@@ -8,14 +7,6 @@
 namespace ht {
 K_MSGQ_DEFINE(front_inputs, sizeof(UiInput), 16, 4);
 static struct k_spinlock input_lock;
-
-static bool companion_enabled() {
-#ifdef CONFIG_HT_COMPANION
-    return ht_companion_enabled();
-#else
-    return false;
-#endif
-}
 
 static uint64_t remote_session;
 static uint32_t generation = 1, held;
@@ -33,7 +24,7 @@ static void clear_remote(int64_t now) {
 }
 
 static void expire(int64_t now) {
-    if (deadline && (now >= deadline || !companion_enabled())) {
+    if (deadline && (now >= deadline)) {
         clear_remote(now);
     }
 }
@@ -87,7 +78,7 @@ int ui_remote_key(UiInput input, unsigned wire_key) {
     expire(now);
     int error = 0;
     const uint32_t bit = uint32_t(1) << wire_key;
-    if (!remote_session || !companion_enabled() || generation == UINT32_MAX) {
+    if (!remote_session || generation == UINT32_MAX) {
         error = -ESTALE;
     } else if (!input.pressed) {
         held &= ~bit;

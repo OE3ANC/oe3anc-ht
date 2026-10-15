@@ -1080,15 +1080,6 @@ extern "C" int __wrap_ht_companion_read(uint8_t *, size_t) {
 static void remote_start(const RadioConfig &config) {
     radio_power(true);
     zassert_ok(radio_start(config));
-    const auto state = radio_snapshot();
-    RadioCommand command;
-    command.kind = CommandKind::CompanionMode;
-    command.expected_generation = state.generation;
-    command.expected_revision = state.configuration_revision;
-    command.companion_enabled = true;
-    zassert_ok(radio_submit(command));
-    radio_service();
-    zassert_ok(radio_snapshot().command_error);
     k_sleep(K_MSEC(10));
     radio_remote_session(42);
     radio_service();

@@ -117,7 +117,7 @@ int RadioController::start(const RadioConfig &config, bool power_active,
     int error = valid_selection(selection) ? validate_config(config) : -EINVAL;
 #ifdef CONFIG_HT_COMPANION
     if (!error) {
-        error = ht_companion_set_enabled(false);
+        error = ht_companion_restore_console();
     }
 #endif
     if (error) {
@@ -277,18 +277,6 @@ int RadioController::execute(const RadioCommand &command) {
                 ++state_.configuration_revision;
             }
             break;
-        case CommandKind::CompanionMode:
-#ifdef CONFIG_HT_COMPANION
-            if (command.expected_generation != state_.generation ||
-                command.expected_revision != state_.configuration_revision) {
-                error = -ESTALE;
-            } else {
-                error = set_companion(command.companion_enabled, command.companion_disconnected);
-            }
-#else
-            error = -ENOTSUP;
-#endif
-            break;
         case CommandKind::EnterDiagnostics:
             if (state_.phase != RadioPhase::Receiving || ptt_) {
                 error = -EBUSY;
@@ -341,46 +329,11 @@ int RadioController::execute(const RadioCommand &command) {
     return error;
 }
 
-int RadioController::set_companion(bool enabled, bool disconnected) {
-#ifdef CONFIG_HT_COMPANION
-    if (!state_.power_active) {
-        return -EHOSTDOWN;
-    }
-    if (state_.fault) {
-        return state_.fault;
-    }
-    if (state_.phase != RadioPhase::Receiving || ptt_) {
-        return -EBUSY;
-    }
-    if (state_.companion_mode && !enabled && !disconnected) {
-        return -EPERM;
-    }
-    if (enabled != state_.companion_mode) {
-        const int error = ht_companion_set_enabled(enabled);
-        if (error) {
-            return error;
-        }
-        state_.companion_mode = enabled;
-        ptt_armed_ = false;
-        ++state_.configuration_revision;
-    }
-    return 0;
-#else
-    return -ENOTSUP;
-#endif
-}
-
 void RadioController::set_ptt(bool pressed) {
-    if (state_.companion_mode) {
-        return;
-    }
     apply_ptt(pressed, false);
 }
 
 void RadioController::set_remote_ptt(bool pressed) {
-    if (!state_.companion_mode) {
-        return;
-    }
     apply_ptt(pressed, true);
 }
 
@@ -410,7 +363,7 @@ void RadioController::apply_ptt(bool pressed, bool remote) {
             lease_deadline && (!tx_deadline_ms_ || lease_deadline < tx_deadline_ms_)
                 ? lease_deadline
                 : tx_deadline_ms_;
-        const int error = backend_finish_transmit(deadline);
+        const int error = backend_finish_transmit(deadline, remote_ptt_);
         if (error == -ETIME && remote_ptt_) {
             backend_stop();
             receive();

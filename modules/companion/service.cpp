@@ -84,17 +84,9 @@ static void reset_product() {
 
 static void run(void *, void *, void *) {
     uint8_t bytes[64];
-    bool was_enabled = false;
     reset_product();
     while (true) {
         const int64_t now = k_uptime_get();
-        const bool enabled = ht_companion_enabled();
-        if (was_enabled && !enabled) {
-            session.reset();
-            decoder.reset();
-            reset_product();
-        }
-        was_enabled = enabled;
         if (session.expire(now)) {
             reset_product();
         }
@@ -108,30 +100,10 @@ static void run(void *, void *, void *) {
                 if (!decoder.feed(bytes[i], k_uptime_get(), request)) {
                     continue;
                 }
-                int admission = 0;
-                if (!ht_companion_enabled()) {
-                    session.reset();
-                    reset_product();
-                    // Only a complete CRC-checked HELLO request can claim the pin.
-                    // Accept its envelope even across versions to report mismatch.
-                    if (request.type != MSG_HELLO || request.flags != FLAG_REQUEST ||
-                        !request.request || request.session) {
-                        continue;
-                    }
-                    admission = radio_companion_connect();
-                }
                 const auto previous = session.identity();
-                if (admission) {
-                    response = {};
-                    response.type = request.type;
-                    response.flags = FLAG_RESPONSE;
-                    response.request = request.request;
-                    response.size = 1;
-                    response.payload[0] = admission == -EBUSY ? STATUS_BUSY : STATUS_FAILED;
-                } else if (!session.handle(request, k_uptime_get(), response)) {
+                if (!session.handle(request, k_uptime_get(), response)) {
                     continue;
                 }
-                was_enabled = ht_companion_enabled();
                 if (previous != session.identity()) {
                     reset_product();
                     radio_remote_session(session.identity());

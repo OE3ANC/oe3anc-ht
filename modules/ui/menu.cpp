@@ -14,8 +14,7 @@ unsigned menu_item_at(unsigned position) {
         OperatingItem,     FrequencyItem,   VfoStepItem,      QuickControlsItem, BacklightItem,
         TransmitLimitItem, CallsignItem,    StatusItem,       ModeItem,          BandwidthItem,
         SquelchItem,       PowerItem,       RxToneItem,       TxToneItem,        GainItem,
-        FmWeakFilterItem,  FmAfDacGainItem, FmCtcssLevelItem, LnaPolarityItem,   CompanionItem,
-        DiagnosticsItem};
+        FmWeakFilterItem,  FmAfDacGainItem, FmCtcssLevelItem, LnaPolarityItem,   DiagnosticsItem};
     static_assert(sizeof(order) / sizeof(order[0]) == MenuCount,
                   "Every menu identity needs one position");
     return order[position];
@@ -45,9 +44,6 @@ bool menu_available(unsigned item, Mode mode) {
     if (item == FmWeakFilterItem || item == FmAfDacGainItem) {
         return mode == Mode::Fm && backend_capabilities().registers;
     }
-    if (item == CompanionItem) {
-        return IS_ENABLED(CONFIG_HT_COMPANION);
-    }
 #ifndef CONFIG_HT_CODEPLUG_STORAGE
     if (item >= AppearanceItem && item != StatusItem) {
         return false;
@@ -70,8 +66,7 @@ bool menu_available(unsigned item, Mode mode) {
 
 bool menu_inline(unsigned item) {
     return item == LnaPolarityItem || item == FmCtcssLevelItem || item == FmWeakFilterItem ||
-           item == FmAfDacGainItem ||
-           item == CompanionItem || item == ModeItem || item == BandwidthItem ||
+           item == FmAfDacGainItem || item == ModeItem || item == BandwidthItem ||
            item == PowerItem || item == RxToneItem || item == TxToneItem
 #ifndef CONFIG_HT_CODEPLUG_STORAGE
            || item == SquelchItem || item == GainItem
@@ -210,12 +205,7 @@ void UiModel::menu_page(UiListPage &page) const {
             auto &row = page.rows[index - first];
             row.id = item;
             char value[28];
-            if (item == CompanionItem) {
-                snprintf(value, sizeof(value), "Companion: %s",
-                         state_.companion_mode ? "on" : "off");
-            } else {
-                menu_label(item, state_, vfo_step_hz_, value);
-            }
+            menu_label(item, state_, vfo_step_hz_, value);
             snprintf(row.name, sizeof(row.name), "%.24s", value);
         }
         ++index;

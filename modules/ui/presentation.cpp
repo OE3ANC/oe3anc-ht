@@ -25,8 +25,7 @@ void ui_capture_presentation(const UiModel &model, UiPresentation &view) {
     static_cast<UiHomeContent &>(view.home) = home;
     strcpy(view.home.mode, home.mode);
     view.system_visible = model.system_state(view.status);
-    if (!view.system_visible &&
-        (view.screen == UiScreen::Status || view.screen == UiScreen::CompanionExit)) {
+    if (!view.system_visible && view.screen == UiScreen::Status) {
         model.status(view.status);
     }
     view.list = model.list_page();
@@ -53,11 +52,10 @@ void ui_capture_presentation(const UiModel &model, UiPresentation &view) {
         }
     } else if (screen == UiScreen::Menu) {
         model.menu_actions(actions);
-    } else if (screen == UiScreen::Status || screen == UiScreen::CompanionExit) {
-        const bool exiting = screen == UiScreen::CompanionExit;
-        actions[0] = exiting ? "OK Done" : model.codec_statistics_page() ? "OK Reset" : "";
-        actions[1] = exiting ? "BACK Cancel" : "BACK Menu";
-        actions[2] = exiting ? "" : "P1 Page";
+    } else if (screen == UiScreen::Status) {
+        actions[0] = model.codec_statistics_page() ? "OK Reset" : "";
+        actions[1] = "BACK Menu";
+        actions[2] = "P1 Page";
     } else if (screen == UiScreen::Appearance) {
         if (!view.appearance_pending) {
             actions[0] = "OK Apply";

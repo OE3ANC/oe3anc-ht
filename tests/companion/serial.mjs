@@ -169,7 +169,7 @@ const shortError = new Port({ shortError: true });
 await assert.rejects(connection.connect(shortError), /rejected the handshake/);
 assert.equal(shortError.closed, 1);
 const busy = new Port({ busy: true });
-await assert.rejects(connection.connect(busy), /Release PTT/);
+await assert.rejects(connection.connect(busy), /rejected the handshake/);
 assert.equal(busy.closed, 1);
 assert.equal(connection.session, 0n);
 const silent = new Port({ silent: true });

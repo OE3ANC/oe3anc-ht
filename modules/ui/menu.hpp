@@ -26,7 +26,6 @@ enum MenuItem {
     QuickControlsItem,
     BacklightItem,
     StatusItem,
-    CompanionItem,
     FmWeakFilterItem,
     FmAfDacGainItem,
     FmCtcssLevelItem,

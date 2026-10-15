@@ -105,16 +105,6 @@ static void timing(char (&text)[32], const char *name, const m17::VoiceTiming &s
 
 void UiModel::status(UiStatus &view) const {
     view = {};
-    if (screen_ == UiScreen::CompanionExit) {
-        strcpy(view.title, "DISCONNECT CABLE");
-        strcpy(view.detail, "Before restoring PTT");
-        strcpy(view.rows[0], "Unplug companion cable");
-        strcpy(view.rows[1], "Serial shares the PTT pin");
-        strcpy(view.rows[2], "Then confirm below");
-        strcpy(view.rows[3], "BACK keeps UART active");
-        view.color = UiStatusColor::Amber;
-        return;
-    }
     const auto &config = state_.config;
     if (status_page_ >= rx_status_first_page) {
         const unsigned page = status_page_ - rx_status_first_page;

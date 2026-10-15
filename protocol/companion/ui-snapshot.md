@@ -81,7 +81,8 @@ Text layout and a positive cursor. Encoder normalizes irrelevant flags to zero.
 Sequence values affect rendering only and grant no input/RF permission.
 
 Layout selection has priority: system-visible → System; home-visible → Home;
-otherwise select by screen: Menu → Menu; Status/CompanionExit → Status;
+Screen ID 28 (CompanionExit) is retained for wire numbering but no longer emitted.
+Otherwise select by screen: Menu → Menu; Status → Status;
 Appearance → Appearance; Diagnostics → Hex if editing, otherwise List;
 Frequency/Callsign/ChannelNumber/ChannelField/BankName → Text;
 Channels/Banks/ChannelBank/BankMembers/BankAdd → List;

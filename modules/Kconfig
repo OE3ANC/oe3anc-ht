@@ -157,17 +157,16 @@ config HT_RESOURCE_DIAGNOSTICS
       config/resources.conf; measurements still need a hardware acceptance run.
 
 config HT_COMPANION
-    bool "Runtime UART companion mode"
+    bool "UART companion protocol"
     depends on HT_RADIO && (HT_EMULATOR || (HT_C62_UI && HT_UI) || ZTEST)
     depends on !UART_ASYNC_API
     depends on !BOARD_C62 || (!UART_CONSOLE && !LOG_BACKEND_UART && !PRINTK && !SHELL)
     select UART_INTERRUPT_DRIVEN if BOARD_C62
     select RING_BUFFER if BOARD_C62
     help
-      C62 listens for HELLO automatically and detects physical PTT using a
-      sustained UART break outside companion mode. Local unplug/Done restores
-      PTT only after a fresh release. Default C62 firmware
-      reserves UART2 for protocol bytes. Emulator models ownership
-      only. The paired application protocol provides sessions, codeplug/UI
+      C62 keeps UART reception and physical PTT available together. A shared
+      pin low for 300 ms is physical PTT; valid UART bytes reset that timer.
+      Default C62 firmware reserves UART2 for protocol bytes. The emulator
+      has no serial byte transport. The paired protocol provides sessions, codeplug/UI
       transfers, virtual keys and a separately leased controller-owned PTT
       source. ZTEST also permits the C62 RF fixture without a display backend.

@@ -16,16 +16,7 @@ extern "C" int __wrap_ht_companion_read(uint8_t *, size_t) {
 static Frame request, response;
 
 static void enable() {
-    const auto state = radio_snapshot();
-    RadioCommand command;
-    command.kind = CommandKind::CompanionMode;
-    command.expected_generation = state.generation;
-    command.expected_revision = state.configuration_revision;
-    command.companion_enabled = true;
-    zassert_ok(radio_submit(command));
-    radio_service();
-    zassert_ok(radio_snapshot().command_error);
-    k_sleep(K_MSEC(10)); // Let the serial worker observe mode before owning a test session.
+    k_sleep(K_MSEC(10)); // Let the serial worker initialize before owning a test session.
     radio_remote_session(42);
     radio_service();
 }
@@ -61,14 +52,17 @@ ZTEST(companion_ptt, test_source_and_queue_independent_release) {
     const auto sequence = radio_ptt_press_sequence();
     radio_ptt(true);
     radio_service();
-    zassert_equal(radio_ptt_press_sequence(), sequence);
-    zassert_false(emulator_transmitting());
+    zassert_equal(radio_ptt_press_sequence(), sequence + 1);
+    zassert_true(emulator_transmitting());
+    zassert_equal(command(MSG_PTT_PRESS), STATUS_BUSY);
+    radio_ptt(false);
+    radio_service();
     radio_monitor(true);
     radio_service();
     zassert_true(radio_snapshot().monitor_active);
     press();
     zassert_false(radio_snapshot().monitor_active);
-    zassert_equal(radio_ptt_press_sequence(), sequence + 1);
+    zassert_equal(radio_ptt_press_sequence(), sequence + 2);
     for (unsigned i = 0; i < 8; ++i) {
         zassert_ok(radio_submit(RadioCommand{}));
     }
@@ -87,6 +81,23 @@ ZTEST(companion_ptt, test_source_and_queue_independent_release) {
     radio_monitor(true);
     radio_service();
     zassert_true(radio_snapshot().monitor_active);
+}
+
+ZTEST(companion_ptt, test_physical_priority_survives_remote_release_and_session_loss) {
+    press();
+    radio_ptt(true);
+    radio_service();
+    zassert_true(emulator_transmitting());
+    zassert_false(radio_remote_ptt_requested());
+    zassert_equal(command(MSG_PTT_KEEP, 2), STATUS_STALE);
+    zassert_equal(command(MSG_PTT_RELEASE), STATUS_OK);
+    radio_remote_session(0);
+    k_sleep(K_MSEC(PTT_LEASE_MS + 10));
+    radio_service();
+    zassert_true(emulator_transmitting(), "Remote cancellation must not stop physical PTT");
+    radio_ptt(false);
+    radio_service();
+    zassert_false(emulator_transmitting(), "Remote hold must not resume");
 }
 
 ZTEST(companion_ptt, test_lease_expires_without_serial_worker_cleanup) {

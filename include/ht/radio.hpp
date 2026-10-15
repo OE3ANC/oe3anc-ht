@@ -74,7 +74,6 @@ struct RadioState {
     bool power_active = true; // Normal operation allowed; faults survive inactivity.
     bool rx_active = false;
     bool monitor_active = false; // Transient FM RX override, never a setting.
-    bool companion_mode = false; // Temporary UART ownership; physical PTT disabled.
     int16_t rssi_dbm = -127;
     Bk4819RxStatus rx_registers;
     FmRxControls fm_rx_controls;
@@ -100,7 +99,6 @@ enum class CommandKind : uint8_t {
     ReadRegister,
     WriteRegister,
     TransmitLimit, // Global limit only; guarded, without RF/audio reconfiguration.
-    CompanionMode,
     LnaPolarity, // Global GPIO0/1 polarity; guarded by lifecycle/revision/selection.
     FmCtcssLevel, // Global CTCSS TX level; guarded by lifecycle/revision/selection.
     FmRxControls  // Temporary RX-only fields; guarded by lifecycle/revision/selection.
@@ -115,8 +113,6 @@ struct RadioCommand {
     uint32_t expected_revision = 0;
     uint8_t register_address = 0;
     uint16_t register_value = 0;
-    bool companion_enabled = false;
-    bool companion_disconnected = false; // Local exit confirmation, not an idle-line guess.
     FmRxControls fm_rx_controls;
 };
 
@@ -128,7 +124,6 @@ class RadioController {
   public:
     int start(const RadioConfig &config, bool power_active = true, const Selection &selection = {});
     int execute(const RadioCommand &command);
-    int set_companion(bool enabled, bool disconnected = false);
     void set_ptt(bool pressed);
     void set_remote_ptt(bool pressed);
     void set_power(bool active);
@@ -166,8 +161,6 @@ class RadioController {
 int radio_start(const RadioConfig &config, const Selection &selection = {});
 void radio_service();
 int radio_submit(const RadioCommand &command);
-// Admit an automatic HELLO without replacing a queued UI command result.
-int radio_companion_connect();
 void radio_ptt(bool pressed);
 // Companion intent has its own non-queued slot and bounded lease. Only the
 // radio owner calls RF; release/session cancellation never waits for its mutex.

@@ -105,7 +105,7 @@ int backend_monitor(bool enabled) {
     return result;
 }
 
-int backend_finish_transmit(int64_t) {
+int backend_finish_transmit(int64_t, bool) {
     return 0; // Emulator models control state, without live audio.
 }
 

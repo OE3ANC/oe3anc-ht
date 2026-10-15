@@ -1,4 +1,4 @@
-# Companion application protocol 1.4
+# Companion application protocol 1.5
 
 This document and `contract.json` are the normative definition. `fixtures.json`
 contains frozen examples used by both codecs. Generated constants belong to both
@@ -20,28 +20,24 @@ CSK bootloader traffic is a separate protocol and must never use this envelope.
 
 ## Automatic connection and physical PTT
 
-Since 1.4, C62 continuously receives UART input. No menu action is needed before
-Connect. While mode is off, only a complete CRC-valid HELLO request envelope
-(request flag, nonzero request ID, zero session) can request companion mode.
-Version or payload rejection still leaves that mode latched, so a failed browser
-handshake cannot restore physical PTT with a cable attached. Other requests are
-ignored until mode is enabled. The controller admits entry only while powered,
-fault-free and receiving, without physical PTT intent. A busy controller returns
-a one-byte BUSY HELLO response; power/fault/backend failures return FAILED.
-No session is created on failed admission; retrying the HELLO is allowed.
+Protocol 1.5 removes companion mode: UART and physical PTT remain enabled
+without a menu toggle or unplug/Done confirmation. HELLO establishes a session
+independently of RF state; individual operations retain their controller guards.
 
-Physical PTT outside companion mode requires a UART break followed by 300 ms
-low with no ordinary received byte or non-break UART error. A released interval
-of at least 20 ms arms detection; startup holds and holds across mode exit are
-consumed. Release is immediate at the next controls sample. UART remains muxed
-throughout. The C62 bench must verify GPIO DATAIN visibility in UART mode and
-break/release behavior with the actual programming cable. A cable holding the
-line low is electrically indistinguishable from PTT before session admission.
+C62 recognizes physical PTT after the shared pin remains low for 300 ms.
+Shorter pulses are treated as UART activity. A valid received byte proves a stop
+bit occurred and resets the low timer, even when GPIO polling misses that high
+level. Break/framing indications neither start nor reset the timer. A released
+interval of 20 ms arms detection at startup; startup holds are consumed. Release
+is immediate at the next controls sample. UART remains muxed throughout.
 
-CLOSE, expiry, UART errors and cable removal revoke remote intent but leave
-companion mode latched. Unplug the cable, then use the radio's Companion menu
-and local Done confirmation to restore physical PTT. Remote keys cannot confirm
-this page. The menu can still enable companion mode manually.
+CLOSE, expiry and UART errors revoke remote intent without suppressing physical
+PTT. Physical PTT takes priority over remote PTT and cancels its hold; remote
+expiry/release cannot stop physical TX or resume TX after physical release.
+The C62 bench must verify GPIO DATAIN visibility with UART muxed and the actual
+cable. A continuous cable-driven low is electrically indistinguishable from a
+PTT hold. UART reception stays enabled, but bytes cannot be received on a wire
+physically held low; framing/session recovery follows release.
 
 ## Wire envelope
 
@@ -55,7 +51,7 @@ complete wire frame at most 219 bytes, below the backend's 256-byte write limit.
 | --- | --- | --- |
 | 0 | 2 | Magic ASCII `HT` (`48 54`) |
 | 2 | 1 | Protocol major, currently 1 |
-| 3 | 1 | Protocol minor, currently 4 |
+| 3 | 1 | Protocol minor, currently 5 |
 | 4 | 1 | Message ID |
 | 5 | 1 | Flags: request 0, response 1; other values invalid |
 | 6 | 2 | Payload length, 0..192 |
@@ -70,8 +66,7 @@ length, flags or CRC without exposing partial payloads or replying. A partial
 frame expires 500 ms after its first body byte. Oversize or expired input is
 discarded through the next zero. Every outgoing frame has a leading zero so a
 failed write's prefix cannot poison the next complete frame. UART errors reset
-the parser and session. Mode off also resets both. Cable loss does not exit the
-radio's latched companion mode or restore physical PTT.
+the parser and session. Physical PTT remains available during session recovery.
 
 Responses use this pair's major/minor, echo message and request IDs and normally
 echo session. The browser accepts only its outstanding request's response and
@@ -115,7 +110,7 @@ cached reply without extending the lease. The browser schedules a PING every
 **CLOSE (3)** requires the active session and an empty payload. It returns OK and
 immediately clears the session. Retransmitting CLOSE after closure returns
 SESSION. Browser disconnect cancels serial streams and lets the radio lease
-expire; it does not acknowledge the radio's local unplug/Done exit.
+expire. Neither action changes physical PTT availability.
 
 Non-HELLO requests require the active nonce and increasing request IDs. For the
 last accepted ID, exactly matching message/payload returns the cached reply;
@@ -210,9 +205,9 @@ It does not claim the radio has remained unchanged since application.
 
 CANCEL discards an incomplete read/completed baseline/upload, leaving applied
 settings untouched. Accepted COMMITs return BUSY to cancellation and may settle
-after cable loss or session expiry. Expiry, new HELLO, UART errors or mode-off
+after cable loss or session expiry. Expiry, new HELLO, UART errors
 discard all partial transfers/baselines; they do not undo a complete accepted
-write or restore physical PTT. A lost COMMIT/status reply therefore has uncertain
+write or change physical PTT availability. A lost COMMIT/status reply therefore has uncertain
 completion until a fresh read. The browser preserves its draft, offers export,
 shows uncertainty and requires a fresh radio read before retrying. Before/after
 JSON review and explicit confirmation precede each browser write.
@@ -250,8 +245,7 @@ INVALID. Neither firmware nor browser auto-repeats ordinary keys. Browser OS
 repeat is ignored; repeated taps require releases. Producer uptime preserves
 multi-tap timing. Existing shared drafts, Cancel/Save and wake-only first input
 remain authoritative. Independent local RF/monitor/shutdown paths bypass this
-queue. Every remote key is ignored on the radio's local unplug/Done page,
-including OK: remote input cannot acknowledge disconnection or restore PTT pins.
+queue.
 
 Accepted presses start a separate 500 ms virtual-key lease. KEEP requires a
 positive mask exactly matching the radio's held keys and renews it for 500 ms;
@@ -260,7 +254,7 @@ this lease. A stale KEEP returns STALE and cannot reassert a held key. Release
 is idempotent, bypasses FIFO capacity and clears its held bit/Star level; it
 does not discard already accepted taps or extend their expiry. CLEAR bypasses
 capacity, releases every remote key and invalidates unapplied remote presses.
-Session replacement, close, lease expiry, UART error and mode-off do the same.
+Session replacement, close, lease expiry, UART error do the same.
 Local entries survive all remote cancellation. After expiry no old press is
 applied; a freshly accepted press establishes a new input generation. Generations
 never wrap; exhaustion disables remote admission with STALE until reboot.
@@ -283,7 +277,7 @@ the focused keypad, preserving typing in the offline codeplug editor.
 ## Remote PTT
 
 `CAP_PTT` enables a separate controller-owned companion source. Physical PTT
-remains suppressed throughout Companion mode. Audio uses the radio microphone
+remains available and takes priority over remote intent. Audio uses the radio microphone
 and existing FM/M17 path; the browser sends no audio. All request/session/retry
 rules above apply, including cached retries without renewal.
 
@@ -293,9 +287,9 @@ rules above apply, including cached retries without renewal.
 | PTT_KEEP (49) | press token:u32, nonzero | None |
 | PTT_RELEASE (50) | Empty | None |
 
-PRESS accepts one hold only in active receiving Companion mode, with valid TX
+PRESS accepts one hold only while powered and receiving, with valid TX
 configuration, no TX inhibit and no fault. Busy controller/preparation/drain,
-diagnostics, or an already held source returns BUSY; absent/old source session
+diagnostics, physical PTT intent, or an already held source returns BUSY; absent/old source session
 returns STALE; invalid M17 callsign returns INVALID; power/fault/inhibit returns
 FAILED. Acceptance is intent admission, not proof of RF keying. The sole radio
 owner validates again and publishes actual TX/error in its normal presentation.
@@ -313,7 +307,7 @@ or browser cleanup. Release bypasses ordinary queue/state-mutex capacity and is
 idempotent within the active session. A normal M17 release may send its end
 marker only within the remaining RF lease and normal transmit deadline; expiry
 forces PA/audio stop without classifying expiry as a hardware fault. Session
-replacement/close/UART error/mode loss and power/fault shorten the deadline
+replacement/close/UART error and power/fault shorten the deadline
 immediately, including during termination. Existing hardware shutdown bounds
 still apply; physical RF/audio timing requires the C62 acceptance bench.
 
@@ -386,5 +380,5 @@ companion link only; unknown protocol versions are rejected without a probe.
 
 Protocol 1.3 adds `global.lna_inverted` (boolean, default false) and CPS binary v3.
 The manifest appends one boolean after the CTCSS level; maximum payload is
-40597 bytes. Both peers require protocol 1.4 and an exact release match before
+40597 bytes. Both peers require protocol 1.5 and an exact release match before
 live UI or CPS mutation. See [CPS binary v3](cps-binary.md) for compatibility.

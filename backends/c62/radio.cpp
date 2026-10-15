@@ -240,7 +240,7 @@ int backend_monitor(bool enabled) {
     return 0; // The controller polls to apply the owned audio gate.
 }
 
-int backend_finish_transmit(int64_t limit_deadline_ms) {
+int backend_finish_transmit(int64_t limit_deadline_ms, bool remote) {
     if (!transmitting || configuration.mode != Mode::M17)
         return 0;
     int error = m17_finish_transmit();
@@ -254,7 +254,7 @@ int backend_finish_transmit(int64_t limit_deadline_ms) {
         }
 #ifdef CONFIG_HT_COMPANION
         // Session cancellation can shorten the lease during an in-flight drain.
-        if (ht_companion_enabled() && k_uptime_get() >= radio_remote_ptt_deadline()) {
+        if (remote && k_uptime_get() >= radio_remote_ptt_deadline()) {
             return -ETIME;
         }
 #endif

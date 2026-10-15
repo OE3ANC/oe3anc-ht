@@ -288,17 +288,6 @@ void UiModel::menu(int direction) {
         submit(command);
         return;
     }
-    case CompanionItem:
-        if (state_.companion_mode) {
-            screen_ = UiScreen::CompanionExit;
-            return;
-        }
-        command.kind = CommandKind::CompanionMode;
-        command.companion_enabled = !state_.companion_mode;
-        command.expected_generation = state_.generation;
-        command.expected_revision = state_.configuration_revision;
-        submit(command);
-        return;
     case ModeItem:
         if (!backend_capabilities().m17) {
             error_ = -ENOTSUP;
@@ -535,10 +524,6 @@ void UiModel::text_input(const UiInput &input) {
 }
 
 void UiModel::input(const UiInput &input, bool external_pending) {
-    // Only a physical key can acknowledge cable removal and restore PTT pins.
-    if (input.remote_generation && screen_ == UiScreen::CompanionExit) {
-        return;
-    }
     const bool consumed_wake_key = light_input(input);
     const bool consumed_lock_key = lock_input(input, consumed_wake_key);
     // Cancellation happens before pending/phase guards. PTT and release still
@@ -663,21 +648,6 @@ void UiModel::input(const UiInput &input, bool external_pending) {
     }
     if (screen_ == UiScreen::Channels || screen_ == UiScreen::Banks) {
         browse(input);
-        return;
-    }
-    if (screen_ == UiScreen::CompanionExit) {
-        if (input.key == UiKey::Back) {
-            screen_ = UiScreen::Menu;
-        } else if (input.key == UiKey::Enter && state_.phase == RadioPhase::Receiving &&
-                   state_.companion_mode) {
-            RadioCommand command;
-            command.kind = CommandKind::CompanionMode;
-            command.companion_disconnected = true;
-            command.expected_generation = state_.generation;
-            command.expected_revision = state_.configuration_revision;
-            submit(command);
-            screen_ = UiScreen::Menu;
-        }
         return;
     }
     if (screen_ == UiScreen::Status) {

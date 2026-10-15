@@ -43,9 +43,9 @@ int backend_transmit(int64_t &started_ms);
 // Normal release only: complete queued protocol termination while RF is keyed.
 // Must be bounded and observe pending faults without the service state mutex.
 // Fault shutdown bypasses this operation and calls stop immediately.
-// A nonzero uptime deadline limits normal drain. Return -ETIME on deadline,
-// without latching a peripheral error; caller immediately stops and returns RX.
-int backend_finish_transmit(int64_t deadline_ms);
+// A nonzero uptime deadline limits normal drain. Remote drains also observe RF lease
+// cancellation. Return -ETIME without latching a peripheral error; caller stops and returns RX.
+int backend_finish_transmit(int64_t deadline_ms, bool remote);
 void backend_stop(); // Idempotent: unkey before cancelling any audio work.
 BackendStatus backend_status();
 int backend_read_register(uint8_t address, uint16_t &value);

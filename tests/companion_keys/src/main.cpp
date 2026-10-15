@@ -19,7 +19,6 @@ static Frame request, response;
 static void before(void *) {
     radio_power(true);
     zassert_ok(radio_start(RadioConfig{}));
-    zassert_ok(ht_companion_set_enabled(true));
     k_sleep(K_MSEC(10));
     ui_remote_session(42);
     ui_remote_clear();
@@ -30,7 +29,6 @@ static void before(void *) {
     }
     model = {};
     auto state = radio_snapshot();
-    state.companion_mode = true;
     model.sync(state);
     request = {};
     request.session = 42;
@@ -191,7 +189,7 @@ ZTEST(companion_keys, test_other_held_key_cancels_star_in_both_orders) {
     }
 }
 
-ZTEST(companion_keys, test_remote_wake_only_and_mode_off_invalidates_queue) {
+ZTEST(companion_keys, test_remote_wake_only_and_session_loss_invalidates_queue) {
     model.advance(k_uptime_get() + 60001);
     zassert_true(model.dimmed());
     press(UI_KEY_DIGIT_4);
@@ -205,7 +203,7 @@ ZTEST(companion_keys, test_remote_wake_only_and_mode_off_invalidates_queue) {
     zassert_equal(model.screen(), UiScreen::Frequency);
     press(UI_KEY_STAR);
     zassert_ok(ui_queue_input({UiKey::Back}));
-    zassert_ok(ht_companion_set_enabled(false));
+    ui_remote_session(0);
     UiInput input;
     zassert_true(ui_take_input(input));
     zassert_equal(input.remote_generation, 0);
@@ -245,30 +243,6 @@ ZTEST(companion_keys, test_duplicate_key_ack_does_not_repeat_or_renew_hold) {
     k_sleep(K_MSEC(100));
     zassert_false(ui_keypad_gesture().pressed);
     zassert_equal(keep(1u << UI_KEY_STAR), STATUS_STALE);
-}
-
-ZTEST(companion_keys, test_local_only_disconnect_confirmation) {
-    model.input({UiKey::Enter});
-    UiListPage page;
-    for (unsigned i = 0; i < 30; ++i) {
-        model.menu_page(page);
-        if (strstr(page.rows[page.cursor % 4].name, "Companion")) {
-            break;
-        }
-        model.input({UiKey::Down});
-    }
-    model.menu_page(page);
-    zassert_not_null(strstr(page.rows[page.cursor % 4].name, "Companion"));
-    model.input({UiKey::Enter});
-    zassert_equal(model.screen(), UiScreen::CompanionExit);
-    press(UI_KEY_OK);
-    drain();
-    zassert_equal(model.screen(), UiScreen::CompanionExit);
-    press(UI_KEY_BACK);
-    drain();
-    zassert_equal(model.screen(), UiScreen::CompanionExit);
-    model.input({UiKey::Back});
-    zassert_equal(model.screen(), UiScreen::Menu);
 }
 
 ZTEST_SUITE(companion_keys, nullptr, nullptr, before, nullptr, nullptr);

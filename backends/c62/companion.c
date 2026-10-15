@@ -8,7 +8,6 @@
 #include <zephyr/drivers/pinctrl.h>
 #include <zephyr/drivers/uart.h>
 #include <zephyr/kernel.h>
-#include <zephyr/sys/atomic.h>
 #include <zephyr/sys/ring_buffer.h>
 
 PINCTRL_DT_DEFINE(DT_NODELABEL(uart_companion));
@@ -17,19 +16,18 @@ static DW_UART_RegDef *const registers = (DW_UART_RegDef *)DT_REG_ADDR(DT_NODELA
 static K_MUTEX_DEFINE(owner_lock);
 static struct k_spinlock rx_lock;
 RING_BUF_DECLARE(rx, 512);
-static atomic_t active;
 static int rx_error;
 static bool initialized;
 static const struct gpio_dt_spec ptt = GPIO_DT_SPEC_GET(DT_NODELABEL(button_ptt), gpios);
 /* rx_lock owns the detector as well as all reads of the clear-on-read LSR. */
-static bool ptt_armed, break_byte;
-static int64_t released_at = -1, break_at = -1;
+static bool ptt_armed, invalid_byte;
+static int64_t released_at = -1, low_at = -1;
 #define PTT_HOLD_MS 300
 #define PTT_RELEASE_MS 20
 
 static void disarm_ptt(void) {
     ptt_armed = false;
-    released_at = break_at = -1;
+    released_at = low_at = -1;
 }
 
 /* Caller holds rx_lock. Every LSR read acknowledges RX error flags, including
@@ -39,22 +37,11 @@ static uint32_t line_status(void) {
     const uint32_t status = registers->REG_LSR.all;
     if (status & (UARTC_LSR_OE | UARTC_LSR_PE | UARTC_LSR_FE | UARTC_LSR_BI)) {
         rx_error = -EIO;
-        if ((status & (UARTC_LSR_OE | UARTC_LSR_PE)) ||
-            ((status & UARTC_LSR_FE) && !(status & UARTC_LSR_BI))) {
-            disarm_ptt();
-        }
     }
-    if (status & UARTC_LSR_BI) {
-        break_byte = true;
-        if (ptt_armed && !atomic_get(&active)) {
-            break_at = k_uptime_get();
-        }
+    if (status & (UARTC_LSR_PE | UARTC_LSR_FE | UARTC_LSR_BI)) {
+        invalid_byte = true;
     }
     return status;
-}
-
-bool ht_companion_enabled(void) {
-    return atomic_get(&active) != 0;
 }
 
 /* Vendor fifo_read waits for TX empty, so use bounded register reads here.
@@ -70,11 +57,11 @@ static void receive_irq(const struct device *dev, void *user_data) {
             break;
         }
         const uint8_t byte = registers->REG_RBR.all;
-        if (break_byte) {
-            break_byte = false;
+        if (invalid_byte) {
+            invalid_byte = false;
         } else {
             /* Even bytes sampled low by the controls thread cancel PTT. */
-            disarm_ptt();
+            low_at = -1;
             if (ring_buf_put(&rx, &byte, 1) != 1) {
                 rx_error = -EOVERFLOW;
             }
@@ -120,7 +107,7 @@ static int initialize(void) {
     }
     k_spinlock_key_t key = k_spin_lock(&rx_lock);
     disarm_ptt();
-    break_byte = false;
+    invalid_byte = false;
     initialized = true;
     k_spin_unlock(&rx_lock, key);
     uart_irq_rx_enable(uart);
@@ -140,14 +127,16 @@ int c62_uart_ptt_read(void) {
     int result = 0;
     if (initialized) {
         const uint32_t status = line_status();
+        if ((status & UARTC_LSR_RDR) && !invalid_byte) {
+            low_at = -1; // A pending valid byte also proves an intervening stop bit.
+        }
         const int down = gpio_pin_get_dt(&ptt);
         const int64_t now = k_uptime_get();
-        if (down < 0 || atomic_get(&active) ||
-            ((status & UARTC_LSR_RDR) && !break_byte)) {
+        if (down < 0) {
             disarm_ptt();
             result = down < 0 ? down : 0;
         } else if (!down) {
-            break_at = -1;
+            low_at = -1;
             if (released_at < 0) {
                 released_at = now;
             }
@@ -156,35 +145,14 @@ int c62_uart_ptt_read(void) {
             }
         } else {
             released_at = -1;
-            result = ptt_armed && break_at >= 0 && now - break_at >= PTT_HOLD_MS;
+            if (low_at < 0) {
+                low_at = now;
+            }
+            result = ptt_armed && low_at >= 0 && now - low_at >= PTT_HOLD_MS;
         }
     }
     k_spin_unlock(&rx_lock, key);
     return result;
-}
-
-int ht_companion_set_enabled(bool enabled) {
-    k_mutex_lock(&owner_lock, K_FOREVER);
-    int error = initialize();
-    if (!error) {
-        k_spinlock_key_t key = k_spin_lock(&rx_lock);
-        if (enabled != (atomic_get(&active) != 0)) {
-            const int down = gpio_pin_get_dt(&ptt);
-            /* A pending physical hold must not be converted into a session. */
-            error = down < 0 ? down : enabled && break_at >= 0 && down ? -EBUSY : 0;
-            if (!error) {
-                atomic_set(&active, enabled);
-                disarm_ptt();
-                if (!enabled) {
-                    ring_buf_reset(&rx);
-                    rx_error = 0;
-                }
-            }
-        }
-        k_spin_unlock(&rx_lock, key);
-    }
-    k_mutex_unlock(&owner_lock);
-    return error;
 }
 
 int ht_companion_read(uint8_t *data, size_t size) {

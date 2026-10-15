@@ -114,10 +114,6 @@ void UiModel::home(UiHome &view) const {
         strcpy(view.activity, "FM monitor / held");
         view.status = UiStatusColor::Accent;
     }
-    if (state_.companion_mode) {
-        strcpy(view.activity, "Companion / PTT disabled");
-        view.status = UiStatusColor::Accent;
-    }
     if (storage_pending_) {
         strcpy(view.context, "Settings pending");
     }

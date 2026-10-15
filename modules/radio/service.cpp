@@ -2,9 +2,6 @@
 #include <errno.h>
 #include <ht/companion_contract.hpp>
 #include <ht/radio.hpp>
-#ifdef CONFIG_HT_COMPANION
-#include <ht/companion.h>
-#endif
 #include <string.h>
 #include <zephyr/kernel.h>
 #include <zephyr/sys/atomic.h>
@@ -31,15 +28,8 @@ static k_spinlock remote_lock;
 static uint64_t remote_session;
 static uint32_t remote_token;
 static bool remote_held, remote_released;
+static bool using_remote; // Owned by state_mutex; distinguishes independent release paths.
 static int64_t remote_deadline;
-
-static bool companion_active() {
-#ifdef CONFIG_HT_COMPANION
-    return ht_companion_enabled();
-#else
-    return false;
-#endif
-}
 
 static void remote_cancel(int64_t now) {
     remote_held = false;
@@ -48,7 +38,7 @@ static void remote_cancel(int64_t now) {
 }
 
 static void remote_expire(int64_t now) {
-    if (remote_held && (now >= remote_deadline || !companion_active() || !radio_power_requested() ||
+    if (remote_held && (now >= remote_deadline || !radio_power_requested() ||
                         radio_latched_fault())) {
         remote_cancel(now);
     }
@@ -74,13 +64,13 @@ int radio_remote_ptt_press(uint64_t session, uint32_t token) {
         return -EBUSY;
     }
     const auto &state = controller.state();
-    int error = !companion_active() || !state.companion_mode      ? -ESTALE
-                : !radio_power_requested() || !state.power_active ? -EHOSTDOWN
-                : state.fault || radio_latched_fault()            ? -EIO
-                : state.phase != RadioPhase::Receiving            ? -EBUSY
-                : state.config.tx_inhibit                         ? -EPERM
-                : state.config.mode == Mode::M17 && !valid_callsign(state.config.callsign) ? -EINVAL
-                                                                                           : 0;
+    int error = !radio_power_requested() || !state.power_active                    ? -EHOSTDOWN
+                : state.fault || radio_latched_fault()                            ? -EIO
+                : atomic_get(&ptt_pressed) || state.phase != RadioPhase::Receiving ? -EBUSY
+                : state.config.tx_inhibit                                         ? -EPERM
+                : state.config.mode == Mode::M17 && !valid_callsign(state.config.callsign)
+                    ? -EINVAL
+                    : 0;
     const auto key = k_spin_lock(&remote_lock);
     const auto now = k_uptime_get();
     remote_expire(now);
@@ -147,6 +137,7 @@ int radio_start(const RadioConfig &config, const Selection &selection) {
     k_mutex_lock(&state_mutex, K_FOREVER);
     k_msgq_purge(&commands);
     radio_remote_session(0);
+    using_remote = false;
     atomic_clear(&ptt_pressed);
     atomic_clear(&ptt_released);
     atomic_clear(&ptt_activity);
@@ -173,23 +164,35 @@ void radio_service() {
     const bool resumed = controller.state().power_active && (stopped || !previous.power_active);
     const bool interrupted = atomic_cas(&ptt_activity, 1, 0);
     controller.poll();
-    // A release edge survives queue saturation and a rapid release/repress.
-    if (atomic_cas(&ptt_released, 1, 0) && !resumed) {
-        controller.set_ptt(false);
+    // Physical PTT takes priority. Cancel remote intent so its expiry/release
+    // cannot stop a physical hold, and it cannot resume after physical release.
+    const bool local_released = atomic_cas(&ptt_released, 1, 0);
+    const bool local_held = atomic_get(&ptt_pressed) != 0;
+    const auto key = k_spin_lock(&remote_lock);
+    remote_expire(k_uptime_get());
+    if (local_held || local_released) {
+        remote_cancel(k_uptime_get());
     }
-    if (controller.state().companion_mode) {
-        const auto key = k_spin_lock(&remote_lock);
-        remote_expire(k_uptime_get());
-        const bool released = remote_released;
-        remote_released = false;
-        const bool held = remote_held;
-        k_spin_unlock(&remote_lock, key);
-        if (released) {
+    const bool released = remote_released;
+    remote_released = false;
+    const bool held = remote_held;
+    k_spin_unlock(&remote_lock, key);
+    const bool next_remote = !local_held && held;
+    // Preserve release edges through queue saturation and rapid release/repress.
+    // Power resume still requires a released sample before another transmission.
+    if (!resumed && (using_remote != next_remote ||
+                     (using_remote ? released : local_released))) {
+        if (using_remote) {
             controller.set_remote_ptt(false);
+        } else {
+            controller.set_ptt(false);
         }
+    }
+    using_remote = next_remote;
+    if (using_remote) {
         controller.set_remote_ptt(held);
     } else {
-        controller.set_ptt(atomic_get(&ptt_pressed) != 0);
+        controller.set_ptt(local_held);
     }
     if (atomic_cas(&monitor_released, 1, 0) && !resumed) {
         controller.set_monitor(false);
@@ -215,24 +218,7 @@ int radio_submit(const RadioCommand &command) {
     return k_msgq_put(&commands, &command, K_NO_WAIT);
 }
 
-int radio_companion_connect() {
-    if (k_mutex_lock(&state_mutex, K_NO_WAIT)) {
-        return -EBUSY;
-    }
-    const int error = !radio_power_requested() ? -EHOSTDOWN
-                      : radio_latched_fault() ? -EIO
-                      : atomic_get(&ptt_pressed) ? -EBUSY
-                                                : controller.set_companion(true);
-    k_mutex_unlock(&state_mutex);
-    return error;
-}
-
 void radio_ptt(bool pressed) {
-#ifdef CONFIG_HT_COMPANION
-    if (pressed && ht_companion_enabled()) {
-        return;
-    }
-#endif
     atomic_set(&ptt_pressed, pressed);
     if (pressed) {
         atomic_inc(&ptt_press_sequence);
@@ -294,13 +280,8 @@ void radio_report_fault(int error) {
 }
 
 bool radio_ptt_requested() {
-#ifdef CONFIG_HT_COMPANION
-    if (ht_companion_enabled()) {
-        return radio_remote_ptt_requested();
-    }
-#endif
-    return atomic_get(&ptt_pressed) != 0 && atomic_get(&peripheral_fault) == 0 &&
-           radio_power_requested();
+    return (atomic_get(&ptt_pressed) != 0 || radio_remote_ptt_requested()) &&
+           atomic_get(&peripheral_fault) == 0 && radio_power_requested();
 }
 
 int radio_latched_fault() {

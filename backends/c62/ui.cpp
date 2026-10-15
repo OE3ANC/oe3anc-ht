@@ -20,7 +20,8 @@ struct HoldInput {
 
 // Press debounce and startup release arming shared by independent side inputs.
 // Release never passes through the bounded front-key queue.
-static void hold_input(HoldInput &state, bool down, int64_t now, void (*submit)(bool)) {
+static void hold_input(HoldInput &state, bool down, int64_t now, void (*submit)(bool),
+                       unsigned delay_ms = 20) {
     if (!down) {
         if (state.pressed) {
             submit(false);
@@ -38,7 +39,7 @@ static void hold_input(HoldInput &state, bool down, int64_t now, void (*submit)(
         if (state.pressed_at < 0) {
             state.pressed_at = now;
         }
-        if (state.armed && !state.pressed && now - state.pressed_at >= 20) {
+        if (state.armed && !state.pressed && now - state.pressed_at >= delay_ms) {
             submit(true);
             state.pressed = true;
         }
@@ -68,7 +69,11 @@ static void controls(void *, void *, void *) {
             radio_report_fault(value);
             return;
         }
+#ifdef CONFIG_HT_COMPANION
+        hold_input(ptt, value != 0, now, radio_ptt, 0); // Already filtered for 300 ms.
+#else
         hold_input(ptt, value != 0, now, radio_ptt);
+#endif
         const int side = c62_monitor_read();
         if (side < 0) {
             radio_report_fault(side);

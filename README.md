@@ -41,6 +41,8 @@ radio, support [M17](https://m17project.org/) and [OpenRTX](https://openrtx.org/
 5. Disconnect the bootloader, unplug the cable and reboot the radio. Reconnect the cable, then select
    **Connect** in the matching web companion. Use the codeplug editor to program
    channels or the live display and virtual keypad to control the radio.
+   UART and physical PTT stay available without a mode switch. Physical PTT
+   activates after a 300 ms hold; shorter shared-pin pulses are UART activity.
 
 If the radio reports **Storage is read-only** with **Load error -134** after using
 an earlier development firmware, retain a complete flash backup and use

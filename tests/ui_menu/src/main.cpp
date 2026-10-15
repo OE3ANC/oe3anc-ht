@@ -248,7 +248,7 @@ ZTEST(ui_menu, test_workflow_order_wrap_capabilities_and_physical_actions) {
     zassert_equal(model.screen(), UiScreen::Menu);
     zassert_equal(radio_snapshot().configuration_revision, revision);
     const auto count = page.count;
-    zassert_equal(count, 25); // No generic gain; includes the global LNA polarity option.
+    zassert_equal(count, 24); // No generic gain or companion-mode toggle.
     for (unsigned i = 0; i < count; ++i) {
         key(UiKey::Down);
     }
@@ -786,35 +786,21 @@ static void finish(void *) {
            minimum_largest, maximum_fragmentation);
 }
 
-ZTEST(ui_menu, test_companion_menu_toggle_and_home_indicator) {
-    find("Companion: off");
+ZTEST(ui_menu, test_menu_has_no_companion_mode_and_ptt_remains_available) {
     key(UiKey::Enter);
-    zassert_true(model.command_pending());
-    tick();
-    zassert_true(radio_snapshot().companion_mode);
     UiListPage page;
-    model.menu_page(page);
-    zassert_equal(strcmp(page.rows[page.cursor % 4].name, "Companion: on"), 0);
+    for (unsigned i = 0; i < 30; ++i) {
+        model.menu_page(page);
+        zassert_is_null(strstr(page.rows[page.cursor % 4].name, "Companion"));
+        key(UiKey::Down);
+    }
     key(UiKey::Back);
-    UiHome home;
-    model.home(home);
-    zassert_equal(strcmp(home.activity, "Companion / PTT disabled"), 0);
     radio_ptt(true);
     tick();
-    zassert_equal(radio_snapshot().phase, RadioPhase::Receiving);
-    find("Companion: on");
-    key(UiKey::Enter);
-    zassert_equal(model.screen(), UiScreen::CompanionExit);
-    zassert_true(radio_snapshot().companion_mode);
-    render("companion-disconnect");
-    label("OK Done");
-    label("BACK Cancel");
-    key(UiKey::Back);
-    zassert_true(radio_snapshot().companion_mode);
-    key(UiKey::Enter);
-    key(UiKey::Enter);
+    zassert_equal(radio_snapshot().phase, RadioPhase::Transmitting);
+    radio_ptt(false);
     tick();
-    zassert_false(radio_snapshot().companion_mode);
+    zassert_equal(radio_snapshot().phase, RadioPhase::Receiving);
 }
 
 ZTEST_SUITE(ui_menu, nullptr, setup, before, nullptr, finish);

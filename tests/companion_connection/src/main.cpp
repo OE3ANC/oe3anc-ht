@@ -80,84 +80,67 @@ static void before(void *) {
     radio_power(true);
     zassert_ok(radio_start({}));
     k_sleep(K_MSEC(20));
-    zassert_false(ht_companion_enabled());
 }
 
-static void exit_mode(bool confirmed) {
-    const auto state = radio_snapshot();
-    RadioCommand command;
-    command.kind = CommandKind::CompanionMode;
-    command.expected_generation = state.generation;
-    command.expected_revision = state.configuration_revision;
-    command.companion_disconnected = confirmed;
-    zassert_ok(radio_submit(command));
-    radio_service();
-}
-
-ZTEST(companion_connection, test_hello_connects_without_menu_and_close_keeps_ptt_suppressed) {
-    zassert_equal(exchange(hello()).payload[0], STATUS_OK);
-    zassert_true(radio_snapshot().companion_mode);
+ZTEST(companion_connection, test_hello_and_close_do_not_suppress_physical_ptt) {
     radio_ptt(true);
     radio_service();
-    zassert_false(emulator_transmitting());
+    zassert_true(emulator_transmitting());
+    zassert_equal(exchange(hello()).payload[0], STATUS_OK);
+    radio_service();
+    zassert_true(emulator_transmitting());
     Frame close;
     close.type = MSG_CLOSE;
     close.request = 2;
     close.session = nonce_base;
     zassert_equal(exchange(close).payload[0], STATUS_OK);
-    zassert_true(ht_companion_enabled());
-    exit_mode(false);
-    zassert_equal(radio_snapshot().command_error, -EPERM);
-    zassert_true(ht_companion_enabled());
-    exit_mode(true);
-    zassert_ok(radio_snapshot().command_error);
-    zassert_false(ht_companion_enabled());
-    k_sleep(K_MSEC(10));
+    radio_service();
+    zassert_true(emulator_transmitting());
+    radio_ptt(false);
+    radio_service();
+    zassert_false(emulator_transmitting());
     zassert_equal(exchange(hello(nonce_base + 1)).payload[0], STATUS_OK);
+    radio_ptt(true);
+    radio_service();
+    zassert_true(emulator_transmitting());
+    atomic_set(&input_error, 1);
+    k_sleep(K_MSEC(20));
+    radio_service();
+    zassert_true(emulator_transmitting());
+    radio_ptt(false);
+    radio_service();
+    zassert_false(emulator_transmitting());
 }
 
 ZTEST(companion_connection, test_noise_crc_and_other_messages_cannot_enter) {
     auto frame = hello();
     send(frame, true);
-    frame.type = MSG_PTT_PRESS;
-    send(frame);
-    frame = hello();
     frame.flags = FLAG_RESPONSE;
     send(frame);
     frame = hello();
     frame.request = 0;
     send(frame);
     k_sleep(K_MSEC(50));
-    zassert_false(ht_companion_enabled());
     zassert_equal(k_msgq_num_used_get(&outgoing), 0);
     zassert_equal(exchange(hello()).payload[0], STATUS_OK);
 }
 
-ZTEST(companion_connection, test_busy_does_not_create_session_or_overwrite_ui_result) {
+ZTEST(companion_connection, test_hello_during_diagnostics_preserves_ui_command_result) {
     RadioCommand command;
     command.id = 123;
     command.kind = CommandKind::EnterDiagnostics;
     zassert_ok(radio_submit(command));
     radio_service();
-    zassert_equal(exchange(hello()).payload[0], STATUS_BUSY);
-    zassert_false(ht_companion_enabled());
+    zassert_equal(exchange(hello()).payload[0], STATUS_OK);
+    zassert_equal(radio_snapshot().phase, RadioPhase::Diagnostics);
     zassert_equal(radio_snapshot().command_id, 123);
     zassert_ok(radio_snapshot().command_error);
-    command.kind = CommandKind::ExitDiagnostics;
-    zassert_ok(radio_submit(command));
-    radio_service();
-    radio_ptt(true); // Pending intent is also busy, before the owner consumes it.
-    zassert_equal(exchange(hello()).payload[0], STATUS_BUSY);
-    radio_ptt(false);
-    radio_service();
-    zassert_equal(exchange(hello()).payload[0], STATUS_OK, "Same nonce can retry admission");
 }
 
-ZTEST(companion_connection, test_mismatch_latches_mode_without_authorizing_remote_ptt) {
+ZTEST(companion_connection, test_mismatch_does_not_authorize_remote_ptt) {
     auto frame = hello();
     frame.minor = MINOR - 1;
     zassert_equal(exchange(frame).payload[0], STATUS_MISMATCH);
-    zassert_true(ht_companion_enabled());
     frame = {};
     frame.type = MSG_PTT_PRESS;
     frame.request = 2;
@@ -166,7 +149,7 @@ ZTEST(companion_connection, test_mismatch_latches_mode_without_authorizing_remot
     zassert_false(emulator_transmitting());
 }
 
-ZTEST(companion_connection, test_errors_and_expiry_revoke_remote_hold_but_keep_mode) {
+ZTEST(companion_connection, test_errors_and_expiry_revoke_remote_hold) {
     zassert_equal(exchange(hello()).payload[0], STATUS_OK);
     radio_service(); // Supply the initial release to the controller.
     Frame press;
@@ -183,10 +166,8 @@ ZTEST(companion_connection, test_errors_and_expiry_revoke_remote_hold_but_keep_m
     zassert_false(radio_remote_ptt_requested(), "Serial worker must revoke before lease expiry");
     radio_service();
     zassert_false(emulator_transmitting());
-    zassert_true(ht_companion_enabled());
     zassert_equal(exchange(hello(nonce_base + 1)).payload[0], STATUS_OK);
     k_sleep(K_MSEC(LEASE_MS + 10));
-    zassert_true(ht_companion_enabled());
     press.session = nonce_base + 1;
     zassert_equal(exchange(press).payload[0], STATUS_SESSION);
 }
