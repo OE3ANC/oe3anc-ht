@@ -8,8 +8,8 @@ extern "C" {
 #endif
 int c62_controls_init(void);
 int c62_ptt_read(void); /* logical pressed=1, released=0, negative errno */
-/* UART owner quiesces PTT before muxing A15; restore consumes held presses. */
-int c62_ptt_enable(bool enabled);
+/* UART owner detects a sustained break while observing A15 without remuxing. */
+int c62_uart_ptt_read(void);
 int c62_monitor_read(void);        /* independent auxiliary side GPIO */
 int c62_keys_read(uint32_t *keys); /* reference matrix bits 0..19 */
 int c62_display_init(void);

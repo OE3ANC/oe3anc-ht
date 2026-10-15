@@ -215,6 +215,18 @@ int radio_submit(const RadioCommand &command) {
     return k_msgq_put(&commands, &command, K_NO_WAIT);
 }
 
+int radio_companion_connect() {
+    if (k_mutex_lock(&state_mutex, K_NO_WAIT)) {
+        return -EBUSY;
+    }
+    const int error = !radio_power_requested() ? -EHOSTDOWN
+                      : radio_latched_fault() ? -EIO
+                      : atomic_get(&ptt_pressed) ? -EBUSY
+                                                : controller.set_companion(true);
+    k_mutex_unlock(&state_mutex);
+    return error;
+}
+
 void radio_ptt(bool pressed) {
 #ifdef CONFIG_HT_COMPANION
     if (pressed && ht_companion_enabled()) {

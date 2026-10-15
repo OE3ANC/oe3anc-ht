@@ -14,9 +14,8 @@
         pinctrls = <UART2_RXD_GPIOA_15 UART2_TXD_GPIOA_18>;
     };
 
-    /* UART2 RX on GPIOA15 shares the physical PTT input. Leave the SDK's
-     * inherited RX group empty: selecting UART RX steals PTT, and configuring
-     * PTT as GPIO steals UART RX. Companion mode must give this pad one owner.
+    /* The console leaves A15 alone. The companion backend configures its pull
+     * and then owns UART2 RX continuously, including physical PTT detection.
      */
 
     /* SPIC alternate function */

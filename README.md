@@ -38,8 +38,7 @@ radio, support [M17](https://m17project.org/) and [OpenRTX](https://openrtx.org/
 4. Select `firmware-bundle.json`, choose **Review firmware update**, and select
    the application/DSP pair for the first installation. Review and acknowledge
    the prompts, then flash. Keep the radio powered and connected until completion.
-5. Disconnect the bootloader, unplug the cable and reboot the radio. Enable
-   **Companion** in the radio's menu before reconnecting the cable, then select
+5. Disconnect the bootloader, unplug the cable and reboot the radio. Reconnect the cable, then select
    **Connect** in the matching web companion. Use the codeplug editor to program
    channels or the live display and virtual keypad to control the radio.
 

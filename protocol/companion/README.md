@@ -1,4 +1,4 @@
-# Companion application protocol 1.3
+# Companion application protocol 1.4
 
 This document and `contract.json` are the normative definition. `fixtures.json`
 contains frozen examples used by both codecs. Generated constants belong to both
@@ -18,6 +18,31 @@ Protocol 1.0 is the public baseline; 1.1 extends its theme enumeration. Developm
 formats are unsupported; use firmware and companion from the same public release.
 CSK bootloader traffic is a separate protocol and must never use this envelope.
 
+## Automatic connection and physical PTT
+
+Since 1.4, C62 continuously receives UART input. No menu action is needed before
+Connect. While mode is off, only a complete CRC-valid HELLO request envelope
+(request flag, nonzero request ID, zero session) can request companion mode.
+Version or payload rejection still leaves that mode latched, so a failed browser
+handshake cannot restore physical PTT with a cable attached. Other requests are
+ignored until mode is enabled. The controller admits entry only while powered,
+fault-free and receiving, without physical PTT intent. A busy controller returns
+a one-byte BUSY HELLO response; power/fault/backend failures return FAILED.
+No session is created on failed admission; retrying the HELLO is allowed.
+
+Physical PTT outside companion mode requires a UART break followed by 300 ms
+low with no ordinary received byte or non-break UART error. A released interval
+of at least 20 ms arms detection; startup holds and holds across mode exit are
+consumed. Release is immediate at the next controls sample. UART remains muxed
+throughout. The C62 bench must verify GPIO DATAIN visibility in UART mode and
+break/release behavior with the actual programming cable. A cable holding the
+line low is electrically indistinguishable from PTT before session admission.
+
+CLOSE, expiry, UART errors and cable removal revoke remote intent but leave
+companion mode latched. Unplug the cable, then use the radio's Companion menu
+and local Done confirmation to restore physical PTT. Remote keys cannot confirm
+this page. The menu can still enable companion mode manually.
+
 ## Wire envelope
 
 UART is 115200 baud, 8 data bits, no parity, one stop bit, no flow control.
@@ -30,7 +55,7 @@ complete wire frame at most 219 bytes, below the backend's 256-byte write limit.
 | --- | --- | --- |
 | 0 | 2 | Magic ASCII `HT` (`48 54`) |
 | 2 | 1 | Protocol major, currently 1 |
-| 3 | 1 | Protocol minor, currently 1 |
+| 3 | 1 | Protocol minor, currently 4 |
 | 4 | 1 | Message ID |
 | 5 | 1 | Flags: request 0, response 1; other values invalid |
 | 6 | 2 | Payload length, 0..192 |
@@ -46,7 +71,7 @@ frame expires 500 ms after its first body byte. Oversize or expired input is
 discarded through the next zero. Every outgoing frame has a leading zero so a
 failed write's prefix cannot poison the next complete frame. UART errors reset
 the parser and session. Mode off also resets both. Cable loss does not exit the
-radio's locally enabled companion mode or restore physical PTT.
+radio's latched companion mode or restore physical PTT.
 
 Responses use this pair's major/minor, echo message and request IDs and normally
 echo session. The browser accepts only its outstanding request's response and
@@ -361,5 +386,5 @@ companion link only; unknown protocol versions are rejected without a probe.
 
 Protocol 1.3 adds `global.lna_inverted` (boolean, default false) and CPS binary v3.
 The manifest appends one boolean after the CTCSS level; maximum payload is
-40597 bytes. Both peers require protocol 1.3 and an exact release match before
+40597 bytes. Both peers require protocol 1.4 and an exact release match before
 live UI or CPS mutation. See [CPS binary v3](cps-binary.md) for compatibility.

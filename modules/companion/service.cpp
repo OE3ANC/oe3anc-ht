@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
+#include <errno.h>
 #include <ht/companion.h>
 #include <ht/companion_protocol.hpp>
 #include <ht/companion_ptt.hpp>
@@ -83,43 +84,65 @@ static void reset_product() {
 
 static void run(void *, void *, void *) {
     uint8_t bytes[64];
+    bool was_enabled = false;
     reset_product();
     while (true) {
         const int64_t now = k_uptime_get();
+        const bool enabled = ht_companion_enabled();
+        if (was_enabled && !enabled) {
+            session.reset();
+            decoder.reset();
+            reset_product();
+        }
+        was_enabled = enabled;
         if (session.expire(now)) {
             reset_product();
         }
-        if (!ht_companion_enabled()) {
+        const int count = ht_companion_read(bytes, sizeof(bytes));
+        if (count < 0) {
             session.reset();
             decoder.reset();
             reset_product();
         } else {
-            const int count = ht_companion_read(bytes, sizeof(bytes));
-            if (count < 0) {
-                session.reset();
-                decoder.reset();
-                reset_product();
-            } else {
-                for (int i = 0; i < count; ++i) {
-                    if (decoder.feed(bytes[i], k_uptime_get(), request)) {
-                        const auto previous = session.identity();
-                        if (!session.handle(request, k_uptime_get(), response)) {
-                            continue;
-                        }
-                        if (previous != session.identity()) {
-                            reset_product();
-                            radio_remote_session(session.identity());
-#ifdef CONFIG_HT_UI
-                            ui_remote_session(session.identity());
-#endif
-                        }
-                        const size_t length = encode(response, wire, sizeof(wire));
-                        // A failed reply is retried by the peer with the same ID.
-                        // Every frame starts with zero to discard a failed prefix.
-                        if (length) {
-                            (void)ht_companion_write(wire, length, 100);
-                        }
+            for (int i = 0; i < count; ++i) {
+                if (!decoder.feed(bytes[i], k_uptime_get(), request)) {
+                    continue;
+                }
+                int admission = 0;
+                if (!ht_companion_enabled()) {
+                    session.reset();
+                    reset_product();
+                    // Only a complete CRC-checked HELLO request can claim the pin.
+                    // Accept its envelope even across versions to report mismatch.
+                    if (request.type != MSG_HELLO || request.flags != FLAG_REQUEST ||
+                        !request.request || request.session) {
+                        continue;
                     }
+                    admission = radio_companion_connect();
+                }
+                const auto previous = session.identity();
+                if (admission) {
+                    response = {};
+                    response.type = request.type;
+                    response.flags = FLAG_RESPONSE;
+                    response.request = request.request;
+                    response.size = 1;
+                    response.payload[0] = admission == -EBUSY ? STATUS_BUSY : STATUS_FAILED;
+                } else if (!session.handle(request, k_uptime_get(), response)) {
+                    continue;
+                }
+                was_enabled = ht_companion_enabled();
+                if (previous != session.identity()) {
+                    reset_product();
+                    radio_remote_session(session.identity());
+#ifdef CONFIG_HT_UI
+                    ui_remote_session(session.identity());
+#endif
+                }
+                const size_t length = encode(response, wire, sizeof(wire));
+                // Every frame starts with zero to discard a failed prefix.
+                if (length) {
+                    (void)ht_companion_write(wire, length, 100);
                 }
             }
         }

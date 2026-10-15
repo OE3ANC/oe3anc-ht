@@ -13,6 +13,7 @@ class Port {
         versionMismatch = false,
         legacyMinor = null,
         shortError = false,
+        busy = false,
         silent = false
     } = {}) {
         this.writes = [];
@@ -76,6 +77,9 @@ class Port {
                                 );
                                 payload[0] = C.STATUS_MISMATCH;
                             }
+                        }
+                        if (busy) {
+                            payload = Uint8Array.of(C.STATUS_BUSY);
                         }
                         if (shortError) {
                             session = 0n;
@@ -164,6 +168,10 @@ for (const legacyMinor of [0, 1]) {
 const shortError = new Port({ shortError: true });
 await assert.rejects(connection.connect(shortError), /rejected the handshake/);
 assert.equal(shortError.closed, 1);
+const busy = new Port({ busy: true });
+await assert.rejects(connection.connect(busy), /Release PTT/);
+assert.equal(busy.closed, 1);
+assert.equal(connection.session, 0n);
 const silent = new Port({ silent: true });
 await assert.rejects(connection.connect(silent), /timed out/);
 assert.equal(silent.writes.length, 2);

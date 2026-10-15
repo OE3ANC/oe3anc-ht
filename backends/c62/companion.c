@@ -4,6 +4,7 @@
 #include <ht/companion.h>
 #include <uart.h>
 #include <zephyr/device.h>
+#include <zephyr/drivers/gpio.h>
 #include <zephyr/drivers/pinctrl.h>
 #include <zephyr/drivers/uart.h>
 #include <zephyr/kernel.h>
@@ -11,7 +12,6 @@
 #include <zephyr/sys/ring_buffer.h>
 
 PINCTRL_DT_DEFINE(DT_NODELABEL(uart_companion));
-PINCTRL_DT_DEFINE(DT_NODELABEL(uart2));
 static const struct device *uart = DEVICE_DT_GET(DT_NODELABEL(uart2));
 static DW_UART_RegDef *const registers = (DW_UART_RegDef *)DT_REG_ADDR(DT_NODELABEL(uart2));
 static K_MUTEX_DEFINE(owner_lock);
@@ -19,6 +19,18 @@ static struct k_spinlock rx_lock;
 RING_BUF_DECLARE(rx, 512);
 static atomic_t active;
 static int rx_error;
+static bool initialized;
+static const struct gpio_dt_spec ptt = GPIO_DT_SPEC_GET(DT_NODELABEL(button_ptt), gpios);
+/* rx_lock owns the detector as well as all reads of the clear-on-read LSR. */
+static bool ptt_armed, break_byte;
+static int64_t released_at = -1, break_at = -1;
+#define PTT_HOLD_MS 300
+#define PTT_RELEASE_MS 20
+
+static void disarm_ptt(void) {
+    ptt_armed = false;
+    released_at = break_at = -1;
+}
 
 /* Caller holds rx_lock. Every LSR read acknowledges RX error flags, including
  * TX readiness polls, so retain those errors for the transport consumer.
@@ -27,6 +39,16 @@ static uint32_t line_status(void) {
     const uint32_t status = registers->REG_LSR.all;
     if (status & (UARTC_LSR_OE | UARTC_LSR_PE | UARTC_LSR_FE | UARTC_LSR_BI)) {
         rx_error = -EIO;
+        if ((status & (UARTC_LSR_OE | UARTC_LSR_PE)) ||
+            ((status & UARTC_LSR_FE) && !(status & UARTC_LSR_BI))) {
+            disarm_ptt();
+        }
+    }
+    if (status & UARTC_LSR_BI) {
+        break_byte = true;
+        if (ptt_armed && !atomic_get(&active)) {
+            break_at = k_uptime_get();
+        }
     }
     return status;
 }
@@ -48,23 +70,15 @@ static void receive_irq(const struct device *dev, void *user_data) {
             break;
         }
         const uint8_t byte = registers->REG_RBR.all;
-        if (atomic_get(&active) && ring_buf_put(&rx, &byte, 1) != 1) {
-            rx_error = -EOVERFLOW;
+        if (break_byte) {
+            break_byte = false;
+        } else {
+            /* Even bytes sampled low by the controls thread cancel PTT. */
+            disarm_ptt();
+            if (ring_buf_put(&rx, &byte, 1) != 1) {
+                rx_error = -EOVERFLOW;
+            }
         }
-    }
-    k_spin_unlock(&rx_lock, key);
-}
-
-static void discard_rx(void) {
-    k_spinlock_key_t key = k_spin_lock(&rx_lock);
-    ring_buf_reset(&rx);
-    rx_error = 0;
-    /* RX remains connected until exit completes; clear at most one FIFO. */
-    for (unsigned i = 0; i < CSK_UART2_FIFO; ++i) {
-        if (!(registers->REG_LSR.all & UARTC_LSR_RDR)) {
-            break;
-        }
-        (void)registers->REG_RBR.all;
     }
     k_spin_unlock(&rx_lock, key);
 }
@@ -77,67 +91,98 @@ static int normal_uart(void) {
         .data_bits = UART_CFG_DATA_BITS_8,
         .flow_ctrl = UART_CFG_FLOW_CTRL_NONE,
     };
-    const int error =
-        pinctrl_apply_state(PINCTRL_DT_DEV_CONFIG_GET(DT_NODELABEL(uart2)), PINCTRL_STATE_DEFAULT);
+    const int error = pinctrl_apply_state(
+        PINCTRL_DT_DEV_CONFIG_GET(DT_NODELABEL(uart_companion)), PINCTRL_STATE_DEFAULT);
     return error ? error : uart_configure(uart, &config);
 }
 
-int ht_companion_restore_console(void) {
-    if (!device_is_ready(uart)) {
+/* owner_lock held. Configure GPIO input/pull once, then leave A15 on UART RX.
+ * DATAIN observes the pad without gpio_pin_configure stealing the UART mux.
+ */
+static int initialize(void) {
+    if (initialized) {
+        return 0;
+    }
+    if (!device_is_ready(uart) || !gpio_is_ready_dt(&ptt)) {
         return -ENODEV;
     }
+    uart_irq_rx_disable(uart);
+    uart_irq_err_disable(uart);
+    int error = gpio_pin_configure_dt(&ptt, GPIO_INPUT);
+    if (!error) {
+        error = normal_uart();
+    }
+    if (!error) {
+        error = uart_irq_callback_user_data_set(uart, receive_irq, NULL);
+    }
+    if (error) {
+        return error;
+    }
+    k_spinlock_key_t key = k_spin_lock(&rx_lock);
+    disarm_ptt();
+    break_byte = false;
+    initialized = true;
+    k_spin_unlock(&rx_lock, key);
+    uart_irq_rx_enable(uart);
+    uart_irq_err_enable(uart);
+    return 0;
+}
+
+int ht_companion_restore_console(void) {
     k_mutex_lock(&owner_lock, K_FOREVER);
-    const int error = ht_companion_enabled() ? 0 : normal_uart();
+    const int error = initialize();
     k_mutex_unlock(&owner_lock);
     return error;
 }
 
-int ht_companion_set_enabled(bool enabled) {
-    if (!device_is_ready(uart)) {
-        return -ENODEV;
-    }
-    k_mutex_lock(&owner_lock, K_FOREVER);
-    int error = 0;
-    if (enabled == ht_companion_enabled()) {
-        goto done;
-    }
-    uart_irq_rx_disable(uart);
-    uart_irq_err_disable(uart);
-    discard_rx();
-    if (enabled) {
-        error = c62_ptt_enable(false);
-        if (error) {
-            goto done;
-        }
-        error = normal_uart();
-        if (!error) {
-            error = pinctrl_apply_state(PINCTRL_DT_DEV_CONFIG_GET(DT_NODELABEL(uart_companion)),
-                                        PINCTRL_STATE_DEFAULT);
-        }
-        if (!error) {
-            error = uart_irq_callback_user_data_set(uart, receive_irq, NULL);
-        }
-        if (error) {
-            const int restore_error = c62_ptt_enable(true);
-            if (restore_error) {
-                error = restore_error;
+int c62_uart_ptt_read(void) {
+    k_spinlock_key_t key = k_spin_lock(&rx_lock);
+    int result = 0;
+    if (initialized) {
+        const uint32_t status = line_status();
+        const int down = gpio_pin_get_dt(&ptt);
+        const int64_t now = k_uptime_get();
+        if (down < 0 || atomic_get(&active) ||
+            ((status & UARTC_LSR_RDR) && !break_byte)) {
+            disarm_ptt();
+            result = down < 0 ? down : 0;
+        } else if (!down) {
+            break_at = -1;
+            if (released_at < 0) {
+                released_at = now;
             }
-            goto done;
-        }
-        atomic_set(&active, 1);
-        uart_irq_rx_enable(uart);
-        uart_irq_err_enable(uart);
-    } else {
-        /* Keep PTT suppressed until GPIO ownership and rearming are installed. */
-        error = c62_ptt_enable(true);
-        if (!error) {
-            atomic_clear(&active);
+            if (now - released_at >= PTT_RELEASE_MS) {
+                ptt_armed = true;
+            }
         } else {
-            uart_irq_rx_enable(uart);
-            uart_irq_err_enable(uart);
+            released_at = -1;
+            result = ptt_armed && break_at >= 0 && now - break_at >= PTT_HOLD_MS;
         }
     }
-done:
+    k_spin_unlock(&rx_lock, key);
+    return result;
+}
+
+int ht_companion_set_enabled(bool enabled) {
+    k_mutex_lock(&owner_lock, K_FOREVER);
+    int error = initialize();
+    if (!error) {
+        k_spinlock_key_t key = k_spin_lock(&rx_lock);
+        if (enabled != (atomic_get(&active) != 0)) {
+            const int down = gpio_pin_get_dt(&ptt);
+            /* A pending physical hold must not be converted into a session. */
+            error = down < 0 ? down : enabled && break_at >= 0 && down ? -EBUSY : 0;
+            if (!error) {
+                atomic_set(&active, enabled);
+                disarm_ptt();
+                if (!enabled) {
+                    ring_buf_reset(&rx);
+                    rx_error = 0;
+                }
+            }
+        }
+        k_spin_unlock(&rx_lock, key);
+    }
     k_mutex_unlock(&owner_lock);
     return error;
 }
@@ -148,8 +193,8 @@ int ht_companion_read(uint8_t *data, size_t size) {
     }
     k_spinlock_key_t key = k_spin_lock(&rx_lock);
     int result;
-    if (!ht_companion_enabled()) {
-        result = -EACCES;
+    if (!initialized) {
+        result = -EAGAIN;
     } else if (rx_error) {
         result = rx_error;
         ring_buf_reset(&rx);
@@ -170,7 +215,7 @@ int ht_companion_write(const uint8_t *data, size_t size, uint32_t timeout_ms) {
     }
     int result = -EACCES;
     const int64_t deadline = k_uptime_get() + timeout_ms;
-    if (!ht_companion_enabled()) {
+    if (!initialized) {
         goto done;
     }
     for (size_t i = 0; i <= size; ++i) {

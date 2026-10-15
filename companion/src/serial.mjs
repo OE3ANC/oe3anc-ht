@@ -69,6 +69,9 @@ export class CompanionConnection {
                 }
                 throw error;
             }
+            if (frame.payload.length === 1 && frame.payload[0] === C.STATUS_BUSY) {
+                throw new Error('Release PTT and wait for the radio to finish its current operation, then connect again.');
+            }
             if (frame.payload.length === 1) {
                 throw new Error(`The radio rejected the handshake (status ${frame.payload[0]}).`);
             }

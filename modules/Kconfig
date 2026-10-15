@@ -164,8 +164,9 @@ config HT_COMPANION
     select UART_INTERRUPT_DRIVEN if BOARD_C62
     select RING_BUFFER if BOARD_C62
     help
-      Temporary menu toggle. C62 UART2 RX replaces physical PTT; normal mode
-      requires a fresh PTT release before transmitting. Default C62 firmware
+      C62 listens for HELLO automatically and detects physical PTT using a
+      sustained UART break outside companion mode. Local unplug/Done restores
+      PTT only after a fresh release. Default C62 firmware
       reserves UART2 for protocol bytes. Emulator models ownership
       only. The paired application protocol provides sessions, codeplug/UI
       transfers, virtual keys and a separately leased controller-owned PTT

@@ -4,15 +4,16 @@
 #include <errno.h>
 #include <ht/companion.h>
 #include <zephyr/device.h>
+#include <zephyr/drivers/gpio.h>
 #include <zephyr/drivers/pinctrl.h>
 #include <zephyr/drivers/uart.h>
 #include <zephyr/kernel.h>
 #include <zephyr/ztest.h>
 
 static struct device fake_device;
-static int uart2_pins_config, uart_companion_pins_config;
-static bool ready = true, physical_ptt, ptt_on = true, rx_on, err_on, uart_pins;
-static int pin_error, callback_error, restore_error;
+static int uart_companion_pins_config;
+static bool ready = true, physical_ptt, rx_on, err_on, uart_pins;
+static int pin_error, callback_error, gpio_error, read_error;
 static uart_irq_callback_user_data_t callback;
 static unsigned configure_count;
 static bool late_ready;
@@ -25,17 +26,6 @@ static void delayed_sleep(k_timeout_t timeout) {
     } else {
         k_sleep(timeout);
     }
-}
-
-extern "C" int c62_ptt_enable(bool enabled) {
-    if (!enabled && physical_ptt) {
-        return -EBUSY;
-    }
-    if (enabled && restore_error) {
-        return restore_error;
-    }
-    ptt_on = enabled;
-    return 0;
 }
 
 static int configure(const struct uart_config *config) {
@@ -60,6 +50,11 @@ static int set_callback(uart_irq_callback_user_data_t next) {
     return 0;
 }
 
+#undef GPIO_DT_SPEC_GET
+#define GPIO_DT_SPEC_GET(node, prop) {}
+#define gpio_is_ready_dt(spec) ready
+#define gpio_pin_configure_dt(spec, flags) gpio_error
+#define gpio_pin_get_dt(spec) (read_error ? read_error : int(physical_ptt))
 #undef DT_NODELABEL
 #define DT_NODELABEL(node) node
 #undef DT_REG_ADDR
@@ -84,14 +79,18 @@ static int set_callback(uart_irq_callback_user_data_t next) {
 
 static void before(void *) {
     ready = true;
-    restore_error = 0;
-    zassert_ok(ht_companion_set_enabled(false));
     physical_ptt = false;
-    pin_error = callback_error = 0;
+    initialized = false;
+    atomic_clear(&active);
+    ring_buf_reset(&rx);
+    rx_error = 0;
+    pin_error = callback_error = gpio_error = read_error = 0;
     input_size = input_pos = output_size = status_reads = configure_count = 0;
+    rx_on = err_on = uart_pins = false;
     tx_ready = true;
     late_ready = false;
     line_error = 0;
+    zassert_ok(ht_companion_restore_console());
 }
 
 static void receive(unsigned count = 32) {
@@ -103,38 +102,126 @@ static void receive(unsigned count = 32) {
     callback(&fake_device, nullptr);
 }
 
-ZTEST(c62_companion, test_ownership_rollback_and_audio_restore) {
-    physical_ptt = true;
-    zassert_equal(ht_companion_set_enabled(true), -EBUSY);
+static void arm() {
     physical_ptt = false;
-    pin_error = -EIO;
-    zassert_equal(ht_companion_set_enabled(true), -EIO);
-    zassert_true(ptt_on);
-    zassert_false(ht_companion_enabled());
-    pin_error = 0;
-    callback_error = -ENOTSUP;
-    zassert_equal(ht_companion_set_enabled(true), -ENOTSUP);
-    zassert_true(ptt_on);
-    callback_error = 0;
+    zassert_equal(c62_uart_ptt_read(), 0);
+    k_sleep(K_MSEC(20));
+    zassert_equal(c62_uart_ptt_read(), 0);
+}
+
+static void press_break() {
+    physical_ptt = true;
+    line_error = UARTC_LSR_BI | UARTC_LSR_FE;
+    receive(1);
+}
+
+ZTEST(c62_companion, test_continuous_reception_and_audio_restore) {
+    receive(1);
+    uint8_t data[2];
+    zassert_equal(ht_companion_read(data, sizeof(data)), 1, "Listen before mode entry");
     zassert_ok(ht_companion_set_enabled(true));
-    zassert_false(ptt_on);
-    zassert_true(rx_on);
-    zassert_true(err_on);
-    zassert_true(uart_pins);
+    zassert_true(rx_on && err_on && uart_pins);
+    zassert_true(ht_companion_enabled());
     const auto configs = configure_count;
     zassert_ok(ht_companion_restore_console());
-    zassert_equal(configure_count, configs, "Audio must not reset active transport");
-    restore_error = -EIO;
-    zassert_equal(ht_companion_set_enabled(false), -EIO);
-    zassert_true(ht_companion_enabled());
-    zassert_true(rx_on);
-    restore_error = 0;
+    physical_ptt = true;
     zassert_ok(ht_companion_set_enabled(false));
-    zassert_true(ptt_on);
-    zassert_false(rx_on);
-    zassert_false(err_on);
+    zassert_false(ht_companion_enabled());
+    zassert_true(rx_on && err_on && uart_pins, "Exit must not steal the UART mux");
     zassert_ok(ht_companion_restore_console());
-    zassert_equal(configure_count, configs + 1);
+    zassert_equal(configure_count, configs);
+}
+
+ZTEST(c62_companion, test_initialization_errors_retry_without_arming_ptt) {
+    initialized = false;
+    ready = false;
+    zassert_equal(ht_companion_restore_console(), -ENODEV);
+    ready = true;
+    gpio_error = -EIO;
+    zassert_equal(ht_companion_restore_console(), -EIO);
+    gpio_error = 0;
+    pin_error = -EINVAL;
+    zassert_equal(ht_companion_restore_console(), -EINVAL);
+    pin_error = 0;
+    callback_error = -ENOTSUP;
+    zassert_equal(ht_companion_restore_console(), -ENOTSUP);
+    zassert_false(initialized);
+    zassert_false(ht_companion_enabled());
+    callback_error = 0;
+    zassert_ok(ht_companion_restore_console());
+    read_error = -EIO;
+    zassert_equal(c62_uart_ptt_read(), -EIO);
+    zassert_equal(ht_companion_set_enabled(true), -EIO);
+}
+
+ZTEST(c62_companion, test_delayed_press_immediate_release_and_startup_hold) {
+    press_break();
+    k_sleep(K_MSEC(500));
+    zassert_equal(c62_uart_ptt_read(), 0, "Startup hold must be consumed");
+    arm();
+    press_break();
+    zassert_equal(c62_uart_ptt_read(), 0);
+    k_sleep(K_MSEC(250));
+    zassert_equal(c62_uart_ptt_read(), 0);
+    k_sleep(K_MSEC(50));
+    zassert_equal(c62_uart_ptt_read(), 1);
+    zassert_equal(ht_companion_set_enabled(true), -EBUSY);
+    physical_ptt = false;
+    zassert_equal(c62_uart_ptt_read(), 0, "Release has no hold delay");
+}
+
+ZTEST(c62_companion, test_data_and_errors_cancel_even_when_every_sample_is_low) {
+    arm();
+    press_break();
+    k_sleep(K_MSEC(200));
+    for (unsigned i = 0; i < 80; ++i) {
+        receive(1); // Stop bits occur between low GPIO samples.
+        k_sleep(K_MSEC(5));
+        zassert_equal(c62_uart_ptt_read(), 0);
+    }
+    press_break();
+    k_sleep(K_MSEC(500));
+    zassert_equal(c62_uart_ptt_read(), 0, "Traffic requires a fresh released interval");
+    arm();
+    press_break();
+    line_error = UARTC_LSR_OE;
+    callback(&fake_device, nullptr);
+    k_sleep(K_MSEC(500));
+    zassert_equal(c62_uart_ptt_read(), 0);
+}
+
+ZTEST(c62_companion, test_mode_exit_requires_release_and_new_break) {
+    arm();
+    zassert_ok(ht_companion_set_enabled(true));
+    press_break();
+    k_sleep(K_MSEC(500));
+    zassert_equal(c62_uart_ptt_read(), 0);
+    zassert_ok(ht_companion_set_enabled(false));
+    k_sleep(K_MSEC(500));
+    zassert_equal(c62_uart_ptt_read(), 0);
+    arm();
+    physical_ptt = true;
+    k_sleep(K_MSEC(500));
+    zassert_equal(c62_uart_ptt_read(), 0, "A low sample alone never keys RF");
+    press_break();
+    k_sleep(K_MSEC(300));
+    zassert_equal(c62_uart_ptt_read(), 1);
+}
+
+ZTEST(c62_companion, test_clear_on_read_break_survives_tx_and_control_polls) {
+    arm();
+    physical_ptt = true;
+    line_error = UARTC_LSR_BI | UARTC_LSR_FE;
+    input_pos = 0;
+    input_size = 1;
+    uint8_t byte = 7;
+    zassert_equal(ht_companion_write(&byte, 1, 10), 1);
+    zassert_equal(c62_uart_ptt_read(), 0);
+    callback(&fake_device, nullptr); // BI has already been acknowledged by TX.
+    k_sleep(K_MSEC(300));
+    zassert_equal(c62_uart_ptt_read(), 1);
+    zassert_equal(ht_companion_read(&byte, 1), -EIO);
+    zassert_equal(ht_companion_read(&byte, 1), 0, "Break byte is never protocol input");
 }
 
 ZTEST(c62_companion, test_full_duplex_rx_overflow_and_line_error_recovery) {
@@ -159,11 +246,12 @@ ZTEST(c62_companion, test_full_duplex_rx_overflow_and_line_error_recovery) {
     receive(1);
     zassert_equal(ht_companion_read(data, sizeof(data)), 1);
     zassert_ok(ht_companion_set_enabled(false));
-    zassert_equal(ht_companion_read(data, sizeof(data)), -EACCES);
+    zassert_equal(ht_companion_read(data, sizeof(data)), 0);
 }
 
 ZTEST(c62_companion, test_transmit_deadline_validation_and_mode_exclusion) {
     uint8_t bytes[] = {0, 1, 255};
+    initialized = false;
     zassert_equal(ht_companion_write(bytes, sizeof(bytes), 10), -EACCES);
     zassert_ok(ht_companion_set_enabled(true));
     zassert_equal(ht_companion_write(bytes, sizeof(bytes), 10), 3);
@@ -186,6 +274,7 @@ ZTEST(c62_companion, test_transmit_deadline_validation_and_mode_exclusion) {
     zassert_equal(ht_companion_write(bytes, 1, 101), -EINVAL);
     zassert_ok(ht_companion_set_enabled(false), "Timeout must release ownership lock");
     ready = false;
+    initialized = false;
     zassert_equal(ht_companion_set_enabled(true), -ENODEV);
 }
 

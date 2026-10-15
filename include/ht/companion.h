@@ -6,9 +6,10 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-/* The radio owner alone changes modes. Transport calls are thread-only.
+/* The radio owner alone changes modes. RX remains available with mode off for
+ * automatic HELLO admission. Transport calls are thread-only.
  * Read is nonblocking; negative errors discard buffered input, requiring the
- * future protocol to resynchronize. Write may have emitted a prefix on error.
+ * protocol to resynchronize. Write may have emitted a prefix on error.
  * The emulator simulates mode ownership only; byte I/O returns -ENOTSUP.
  */
 int ht_companion_set_enabled(bool enabled);
@@ -16,7 +17,7 @@ bool ht_companion_enabled(void);
 int ht_companion_read(uint8_t *data, size_t size);
 /* At most 256 bytes and 1..100 ms. Serialized with mode/audio changes. */
 int ht_companion_write(const uint8_t *data, size_t size, uint32_t timeout_ms);
-/* Audio worker restores normal console state under the same ownership lock. */
+/* Idempotently initialize UART reception; also called after DSP boot. */
 int ht_companion_restore_console(void);
 #ifdef __cplusplus
 }

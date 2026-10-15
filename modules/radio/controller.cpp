@@ -282,18 +282,8 @@ int RadioController::execute(const RadioCommand &command) {
             if (command.expected_generation != state_.generation ||
                 command.expected_revision != state_.configuration_revision) {
                 error = -ESTALE;
-            } else if (state_.phase != RadioPhase::Receiving || ptt_) {
-                error = -EBUSY;
-            } else if (state_.companion_mode && !command.companion_enabled &&
-                       !command.companion_disconnected) {
-                error = -EPERM;
-            } else if (command.companion_enabled != state_.companion_mode) {
-                error = ht_companion_set_enabled(command.companion_enabled);
-                if (!error) {
-                    state_.companion_mode = command.companion_enabled;
-                    ptt_armed_ = false;
-                    ++state_.configuration_revision;
-                }
+            } else {
+                error = set_companion(command.companion_enabled, command.companion_disconnected);
             }
 #else
             error = -ENOTSUP;
@@ -349,6 +339,35 @@ int RadioController::execute(const RadioCommand &command) {
         state_.command_error = error;
     }
     return error;
+}
+
+int RadioController::set_companion(bool enabled, bool disconnected) {
+#ifdef CONFIG_HT_COMPANION
+    if (!state_.power_active) {
+        return -EHOSTDOWN;
+    }
+    if (state_.fault) {
+        return state_.fault;
+    }
+    if (state_.phase != RadioPhase::Receiving || ptt_) {
+        return -EBUSY;
+    }
+    if (state_.companion_mode && !enabled && !disconnected) {
+        return -EPERM;
+    }
+    if (enabled != state_.companion_mode) {
+        const int error = ht_companion_set_enabled(enabled);
+        if (error) {
+            return error;
+        }
+        state_.companion_mode = enabled;
+        ptt_armed_ = false;
+        ++state_.configuration_revision;
+    }
+    return 0;
+#else
+    return -ENOTSUP;
+#endif
 }
 
 void RadioController::set_ptt(bool pressed) {

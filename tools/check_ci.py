@@ -17,6 +17,7 @@ NATIVE_TESTS = (
     'companion_cps',
     'companion_keys',
     'companion_ptt',
+    'companion_connection',
     'c62_companion',
     'c62_radio',
     'c62_power_io',

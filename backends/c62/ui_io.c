@@ -4,6 +4,9 @@
  */
 #include "ui_io.h"
 #include <errno.h>
+#ifdef CONFIG_HT_COMPANION
+#include <ht/companion.h>
+#endif
 #include <zephyr/drivers/display.h>
 #include <zephyr/drivers/gpio.h>
 #include <zephyr/drivers/pwm.h>
@@ -26,10 +29,6 @@ static const struct gpio_dt_spec senses[] = {
     GPIO_DT_SPEC_GET(DT_NODELABEL(row3), gpios), GPIO_DT_SPEC_GET(DT_NODELABEL(row4), gpios)};
 
 static K_MUTEX_DEFINE(display_lock);
-static K_MUTEX_DEFINE(ptt_lock);
-static bool ptt_enabled = true;
-static bool ptt_rearm;
-static int64_t ptt_released_at = -1;
 static bool power_allowed = !IS_ENABLED(CONFIG_HT_POWER);
 static bool display_started;
 static uint8_t backlight_level = 100;
@@ -105,7 +104,11 @@ int c62_controls_init(void) {
     if (!gpio_is_ready_dt(&ptt) || !gpio_is_ready_dt(&side)) {
         return -ENODEV;
     }
+#ifdef CONFIG_HT_COMPANION
+    int error = ht_companion_restore_console();
+#else
     int error = gpio_pin_configure_dt(&ptt, GPIO_INPUT);
+#endif
     if (!error) {
         error = gpio_pin_configure_dt(&side, GPIO_INPUT);
     }
@@ -122,38 +125,11 @@ int c62_controls_init(void) {
 }
 
 int c62_ptt_read(void) {
-    k_mutex_lock(&ptt_lock, K_FOREVER);
-    int value = ptt_enabled ? gpio_pin_get_dt(&ptt) : 0;
-    if (ptt_enabled && ptt_rearm && value >= 0) {
-        if (value) {
-            ptt_released_at = -1;
-        } else if (ptt_released_at < 0) {
-            ptt_released_at = k_uptime_get();
-        } else if (k_uptime_get() - ptt_released_at >= 20) {
-            ptt_rearm = false;
-        }
-        value = 0;
-    }
-    k_mutex_unlock(&ptt_lock);
-    return value;
-}
-
-int c62_ptt_enable(bool enabled) {
-    k_mutex_lock(&ptt_lock, K_FOREVER);
-    int error = 0;
-    if (!enabled && ptt_enabled) {
-        const int value = gpio_pin_get_dt(&ptt);
-        error = value < 0 ? value : value ? -EBUSY : 0;
-    } else if (enabled && !ptt_enabled) {
-        error = gpio_pin_configure_dt(&ptt, GPIO_INPUT);
-    }
-    if (!error) {
-        ptt_enabled = enabled;
-        ptt_rearm = true;
-        ptt_released_at = -1;
-    }
-    k_mutex_unlock(&ptt_lock);
-    return error;
+#ifdef CONFIG_HT_COMPANION
+    return c62_uart_ptt_read();
+#else
+    return gpio_pin_get_dt(&ptt);
+#endif
 }
 
 int c62_monitor_read(void) {
