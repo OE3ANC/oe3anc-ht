@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #pragma once
 
+#include <ht/modem_service.hpp>
 #include <ht/m17_settings.hpp>
 #include <ht/m17.hpp>
 #include <ht/selection.hpp>
@@ -72,6 +73,7 @@ struct RadioState {
     uint32_t shutdown_sequence = 0; // Counts off transitions; survives explicit restart.
     int64_t shutdown_ms = 0;        // Uptime when latest backend stop completed.
     RadioConfig config;
+    bool modem_enabled = false;
     RadioPhase phase = RadioPhase::Starting;
     bool power_active = true; // Normal operation allowed; faults survive inactivity.
     bool rx_active = false;
@@ -106,11 +108,16 @@ enum class CommandKind : uint8_t {
     FmCtcssLevel,    // Global CTCSS TX level; guarded by lifecycle/revision/selection.
     ApplyVfo,        // Guarded shared editor commit.
     ReceiveOverride, // Temporary listening mode; never written to settings.
+    Modem,          // Volatile KISS enable/settings; guarded by lifecycle and cancel epoch.
     FmRxControls     // Temporary RX-only fields; guarded by lifecycle/revision/selection.
 };
 
 struct RadioCommand {
     CommandKind kind = CommandKind::Configure;
+    bool modem_enabled = false;
+    uint32_t modem_epoch = 0;
+    uint32_t modem_ptt_sequence = 0;
+    ModemSettings modem_settings;
     ReceiveOverride receive_override = ReceiveOverride::Normal;
     uint32_t id = 0;
     RadioConfig config;
@@ -147,6 +154,7 @@ class RadioController {
 
   private:
     RadioState state_;
+    bool packet_tx_ = false;
     bool chime_active_ = false;
     int64_t chime_deadline_ = 0;
     bool ptt_ = false;
@@ -161,6 +169,7 @@ class RadioController {
     int fail(int error);
     void expire_transmit();
     void cancel_monitor();
+    void stop_modem();
 };
 
 // Call start/service from one owner thread. Producers may submit from other

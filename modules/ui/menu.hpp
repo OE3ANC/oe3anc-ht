@@ -36,6 +36,18 @@ enum MenuItem {
     RxPathItem,
     RxGainItem,
     RxSquelchItem,
+    ModemItem,
+    ModemEnabledItem,
+    ModemDelayItem,
+    ModemPersistenceItem,
+    ModemSlotItem,
+    ModemTailItem,
+    ModemDuplexItem,
+    ModemLevelItem,
+    ModemCountersItem,
+    ModemTxCountItem,
+    ModemDropsItem,
+    ModemQueueItem,
     MenuCount
 };
 

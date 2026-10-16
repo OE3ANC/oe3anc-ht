@@ -111,7 +111,8 @@ extern "C" int bk4819_write(uint8_t address, uint16_t value) {
             atomic_inc(&keyed_after_release);
         }
         zassert_true(duty != 0, "PA keyed before APC preparation");
-        zassert_equal(atomic_get(&audio_running), 3, "PA keyed before audio readiness");
+        zassert_equal(atomic_get(&audio_running), modem_tx_requested() ? 2 : 3,
+                      "PA keyed before required audio readiness");
         if (check_m17_keying)
             zassert_equal(m17_status().phase, M17Phase::Prepared,
                           "M17 samples started before RF keying completed");
@@ -1173,6 +1174,43 @@ ZTEST(c62_radio, test_remote_m17_tail_lease_and_session_cancellation) {
         k_sem_give(&tail_block);
         k_sleep(K_MSEC(50));
     }
+}
+
+ZTEST(c62_radio, test_kiss_capture_carrier_and_voice_takeover) {
+    auto config = controller.state().config;
+    config.rx_tone = {ToneKind::Ctcss, 885, false};
+    configure(config);
+    RadioCommand command;
+    command.kind = CommandKind::Modem;
+    command.modem_enabled = true;
+    command.modem_settings.persistence = 255;
+    command.expected_generation = controller.state().generation;
+    command.expected_revision = controller.state().configuration_revision;
+    command.modem_epoch = modem_epoch();
+    command.modem_ptt_sequence = radio_ptt_press_sequence();
+    zassert_ok(controller.execute(command));
+    zassert_true(modem_enabled());
+    zassert_false(speaker);
+    zassert_equal(atomic_get(&audio_running), 1, "Continuous radio capture, speaker muted");
+    modem::KissMessage message;
+    message.frame.size = 3;
+    message.frame.bytes[0] = 0x42;
+    modem_host(message, modem_epoch());
+    rssi(-70);
+    controller.poll();
+    zassert_equal(controller.state().phase, RadioPhase::Receiving,
+                  "A carrier without the configured tone must still defer KISS");
+    rssi(-125);
+    k_sleep(K_MSEC(110));
+    controller.poll();
+    zassert_equal(controller.state().phase, RadioPhase::Transmitting);
+    zassert_equal(atomic_get(&audio_running), 2, "Packet TX is buffer playback only");
+    set_ptt(true);
+    zassert_false(modem_enabled());
+    zassert_equal(controller.state().phase, RadioPhase::Transmitting);
+    zassert_equal(atomic_get(&audio_running), 3, "Voice takeover restores microphone capture");
+    set_ptt(false);
+    zassert_equal(controller.state().phase, RadioPhase::Receiving);
 }
 
 ZTEST_SUITE(c62_radio, nullptr, nullptr, before, nullptr, nullptr);

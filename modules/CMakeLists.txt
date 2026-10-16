@@ -49,3 +49,7 @@ endif()
 if(CONFIG_HT_COMPANION)
   add_subdirectory(companion)
 endif()
+
+if(CONFIG_HT_MODEM)
+  add_subdirectory(modem)
+endif()

@@ -8,17 +8,24 @@
 
 namespace ht {
 static const MenuItem main_menu[] = {EditChannelItem, ChannelsItem,  BanksItem,  RadioItem,
-                                     AppearanceItem,  BacklightItem, StatusItem, DevelopmentItem};
+                                     AppearanceItem,  BacklightItem, StatusItem, DevelopmentItem,
+                                     ModemItem};
 static const MenuItem radio_menu[] = {OperatingItem, VfoStepItem, CallsignItem, TransmitLimitItem};
 static const MenuItem development_menu[] = {DiagnosticsItem,  FmWeakFilterItem, FmAfDacGainItem,
                                             FmCtcssLevelItem, LnaPolarityItem,  CodecStatsItem,
                                             RxPathItem,       RxGainItem,       RxSquelchItem};
 
+static const MenuItem modem_menu[] = {ModemEnabledItem, ModemDelayItem, ModemPersistenceItem,
+                                      ModemSlotItem, ModemTailItem, ModemDuplexItem,
+                                      ModemLevelItem, ModemCountersItem, ModemTxCountItem, ModemDropsItem,
+                                      ModemQueueItem};
+
 unsigned menu_count(unsigned group) {
 #ifndef CONFIG_HT_CODEPLUG_STORAGE
     return RadioItem;
 #endif
-    return group == 1   ? ARRAY_SIZE(radio_menu)
+    return group == 3   ? ARRAY_SIZE(modem_menu)
+           : group == 1   ? ARRAY_SIZE(radio_menu)
            : group == 2 ? ARRAY_SIZE(development_menu)
                         : ARRAY_SIZE(main_menu);
 }
@@ -27,7 +34,8 @@ unsigned menu_item_at(unsigned position, unsigned group) {
 #ifndef CONFIG_HT_CODEPLUG_STORAGE
     return position;
 #endif
-    return group == 1   ? radio_menu[position]
+    return group == 3   ? modem_menu[position]
+           : group == 1   ? radio_menu[position]
            : group == 2 ? development_menu[position]
                         : main_menu[position];
 }
@@ -48,6 +56,13 @@ unsigned menu_move(unsigned current, Mode mode, int direction, unsigned group) {
 }
 
 bool menu_available(unsigned item, Mode mode) {
+    if (item >= ModemItem && item <= ModemQueueItem) {
+#ifdef CONFIG_HT_MODEM
+        return mode == Mode::Fm;
+#else
+        return false;
+#endif
+    }
     if (item == CodecStatsItem) {
 #ifdef CONFIG_HT_CODEC2
         return true;
@@ -86,7 +101,8 @@ bool menu_available(unsigned item, Mode mode) {
 }
 
 bool menu_inline(unsigned item) {
-    return item == LnaPolarityItem || item == FmCtcssLevelItem || item == FmWeakFilterItem ||
+    return (item >= ModemDelayItem && item <= ModemLevelItem) || item == LnaPolarityItem ||
+           item == FmCtcssLevelItem || item == FmWeakFilterItem ||
            item == FmAfDacGainItem || item == ModeItem || item == BandwidthItem ||
            item == PowerItem || item == RxToneItem || item == TxToneItem
 #ifndef CONFIG_HT_CODEPLUG_STORAGE
@@ -98,6 +114,49 @@ bool menu_inline(unsigned item) {
 void menu_label(unsigned item, const RadioState &state, uint32_t step, char (&value)[28]) {
     const auto &config = state.config;
     switch (item) {
+    case ModemItem:
+        strcpy(value, "Modem / KISS");
+        break;
+#ifdef CONFIG_HT_MODEM
+    case ModemEnabledItem:
+        snprintf(value, sizeof(value), "AFSK1200: %s", modem_enabled() ? "on" : "off");
+        break;
+    case ModemCountersItem:
+    case ModemTxCountItem:
+    case ModemDropsItem:
+    case ModemQueueItem: {
+        const auto stats = modem_status();
+        const char *label = item == ModemCountersItem ? "RX frames"
+                            : item == ModemTxCountItem ? "TX frames"
+                            : item == ModemDropsItem ? "Drop/invalid" : "Queued";
+        const unsigned count = item == ModemCountersItem ? stats.received
+                               : item == ModemTxCountItem ? stats.transmitted
+                               : item == ModemDropsItem ? stats.dropped + stats.rejected
+                                                       : stats.queued;
+        snprintf(value, sizeof(value), "%s: %u", label, count);
+        break;
+    }
+    case ModemDelayItem:
+    case ModemPersistenceItem:
+    case ModemSlotItem:
+    case ModemTailItem:
+    case ModemDuplexItem:
+    case ModemLevelItem: {
+        const auto settings = modem_status().settings;
+        const unsigned n = item == ModemDelayItem ? settings.txdelay
+                           : item == ModemPersistenceItem ? settings.persistence
+                           : item == ModemSlotItem ? settings.slot_time
+                           : item == ModemTailItem ? settings.txtail
+                           : item == ModemDuplexItem ? settings.full_duplex : settings.level;
+        const char *label = item == ModemDelayItem ? "TX delay (10ms)"
+                            : item == ModemPersistenceItem ? "Persistence"
+                            : item == ModemSlotItem ? "Slot (10ms)"
+                            : item == ModemTailItem ? "TX tail (10ms)"
+                            : item == ModemDuplexItem ? "Ignore carrier" : "TX level (%)";
+        snprintf(value, sizeof(value), "%s: %u", label, n);
+        break;
+    }
+#endif
     case RadioItem:
         strcpy(value, "Radio");
         break;
@@ -218,13 +277,21 @@ void menu_label(unsigned item, const RadioState &state, uint32_t step, char (&va
 
 void UiModel::menu_page(UiListPage &page) const {
     page = {};
-    strcpy(page.title, menu_group_ == 1 ? "RADIO" : menu_group_ == 2 ? "DEVELOPMENT" : "MENU");
+    strcpy(page.title, menu_group_ == 3 ? "MODEM / AFSK1200"
+                       : menu_group_ == 1 ? "RADIO"
+                       : menu_group_ == 2 ? "DEVELOPMENT" : "MENU");
     strcpy(page.detail, state_.phase == RadioPhase::Transmitting ? "TX / read-only actions"
                         : selected_ == LnaPolarityItem           ? "Global / RX, TX and idle"
                         : selected_ == FmCtcssLevelItem          ? "Global / 0-127 / default 74"
                         : selected_ == FmWeakFilterItem || selected_ == FmAfDacGainItem
                             ? "FM RX test / until reboot"
                             : "Choose an action");
+    if (menu_group_ == 3) {
+        snprintf(page.detail, sizeof(page.detail), "%u.%03u MHz / %s",
+                 state_.config.rx_frequency_hz / 1000000,
+                 state_.config.rx_frequency_hz % 1000000 / 1000,
+                 state_.phase == RadioPhase::Transmitting ? "TX" : "RX");
+    }
     for (unsigned position = 0; position < menu_count(menu_group_); ++position) {
         const unsigned item = menu_item_at(position, menu_group_);
         if (menu_available(item, state_.config.mode)) {
@@ -251,6 +318,12 @@ void UiModel::menu_page(UiListPage &page) const {
                 displayed.fm_rx_controls = field_controls_;
             }
             menu_label(item, displayed, vfo_step_hz_, value);
+#ifdef CONFIG_HT_MODEM
+            if (field_editing_ && item == selected_ &&
+                item >= ModemDelayItem && item <= ModemLevelItem) {
+                snprintf(value, sizeof(value), "Value: %u", modem_field_);
+            }
+#endif
             snprintf(row.name, sizeof(row.name), "%.24s", value);
         }
         ++index;
@@ -263,6 +336,10 @@ void UiModel::menu_actions(const char *(&actions)[4]) const {
     actions[1] = "BACK";
     actions[2] = "P1 Prev page";
     actions[3] = "P2 Next page";
+    if (selected_ == ModemEnabledItem && modem_enabled()) {
+        actions[0] = "OK Disable";
+        return;
+    }
     if (command_pending() || appearance_pending_) {
         actions[1] = "";
         return;

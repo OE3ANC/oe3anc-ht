@@ -62,6 +62,8 @@ int validate_config(const RadioConfig &config) {
 }
 
 int RadioController::fail(int error) {
+    modem_disable();
+    state_.modem_enabled = packet_tx_ = false;
     chime_active_ = false;
     backend_stop();
     state_.monitor_active = false;
@@ -127,6 +129,8 @@ int RadioController::start(const RadioConfig &config, bool power_active,
     const uint32_t generation = state_.generation + 1;
     const uint32_t shutdown_sequence = state_.shutdown_sequence;
     const int64_t shutdown_ms = state_.shutdown_ms;
+    modem_disable();
+    packet_tx_ = false;
     state_ = {};
     state_.shutdown_sequence = shutdown_sequence;
     state_.shutdown_ms = shutdown_ms;
@@ -189,6 +193,10 @@ int RadioController::configure(const RadioConfig &config, const FmRxControls &co
 }
 
 int RadioController::execute(const RadioCommand &command) {
+    // A settings/channel operation discards packet authorization before any retune.
+    if (command.kind != CommandKind::Modem && state_.modem_enabled) {
+        stop_modem();
+    }
     int error = 0;
     if (!state_.power_active) {
         error = -EHOSTDOWN;
@@ -196,6 +204,42 @@ int RadioController::execute(const RadioCommand &command) {
         error = state_.fault;
     } else {
         switch (command.kind) {
+        case CommandKind::Modem:
+#ifdef CONFIG_HT_MODEM
+            if (command.expected_generation != state_.generation ||
+                command.expected_revision != state_.configuration_revision ||
+                command.modem_epoch != modem_epoch() ||
+                command.modem_ptt_sequence != radio_ptt_press_sequence()) {
+                error = -ESTALE;
+            } else if (state_.phase != RadioPhase::Receiving || radio_ptt_requested()) {
+                error = -EBUSY;
+            } else if (state_.config.mode != Mode::Fm || !command.modem_settings.level ||
+                       command.modem_settings.level > 100) {
+                error = -EINVAL;
+            } else {
+                stop_modem();
+                modem_settings(command.modem_settings);
+                if (command.modem_enabled) {
+                    radio_remote_session(0);
+                    modem_enable();
+                    if (command.modem_ptt_sequence != radio_ptt_press_sequence() ||
+                        radio_ptt_requested()) {
+                        modem_disable();
+                        error = -ECANCELED;
+                    }
+                    state_.modem_enabled = modem_enabled();
+                }
+                state_.receive_override = ReceiveOverride::Normal;
+                // ListenTx temporarily retunes the backend without changing state_.config.
+                // Restore the authoritative channel before opening the modem RX route.
+                const int configure_error = backend_configure(state_.config, state_.fm_rx_controls);
+                const int route_error = configure_error ? fail(configure_error) : receive();
+                error = route_error ? route_error : error;
+            }
+#else
+            error = -ENOTSUP;
+#endif
+            break;
         case CommandKind::ApplyVfo:
             if (command.expected_generation != state_.generation ||
                 command.expected_revision != state_.configuration_revision ||
@@ -393,6 +437,9 @@ int RadioController::execute(const RadioCommand &command) {
 }
 
 void RadioController::set_ptt(bool pressed) {
+    if (pressed && state_.modem_enabled) {
+        stop_modem();
+    }
     apply_ptt(pressed, false);
 }
 
@@ -500,6 +547,8 @@ void RadioController::set_power(bool active) {
     if (active == state_.power_active) {
         return;
     }
+    modem_disable();
+    state_.modem_enabled = packet_tx_ = false;
     state_.power_active = active;
     ++state_.generation; // Cancel UI drafts/queued commands even on a coalesced cycle.
     if (!active) {
@@ -576,6 +625,10 @@ void RadioController::interrupt_monitor(bool held) {
 }
 
 void RadioController::expire_transmit() {
+    if (packet_tx_) {
+        modem_disable();
+        state_.modem_enabled = packet_tx_ = false;
+    }
     // Forced stop bypasses queued protocol termination, just as fault shutdown
     // does. Keep the sampled PTT level held so only release/repress can rekey.
     backend_stop();
@@ -586,7 +639,7 @@ void RadioController::expire_transmit() {
 }
 
 void RadioController::startup_chime(bool enabled) {
-    enabled = enabled && state_.power_active && !state_.fault && !ptt_ &&
+    enabled = enabled && !state_.modem_enabled && state_.power_active && !state_.fault && !ptt_ &&
               state_.phase == RadioPhase::Receiving;
     if (chime_active_ && (!enabled || k_uptime_get() >= chime_deadline_)) {
         chime_active_ = false;
@@ -605,7 +658,36 @@ void RadioController::startup_chime(bool enabled) {
     }
 }
 
+void RadioController::stop_modem() {
+    modem_disable();
+    if (state_.modem_enabled) {
+        state_.modem_enabled = packet_tx_ = false;
+        backend_stop();
+        if (state_.power_active && !state_.fault) {
+            receive();
+        }
+    }
+}
+
 void RadioController::poll() {
+#ifdef CONFIG_HT_MODEM
+    if (state_.modem_enabled && !modem_enabled()) {
+        stop_modem();
+    }
+    if (state_.modem_enabled) {
+        const auto modem = modem_status();
+        if (modem.error) {
+            fail(modem.error);
+            return;
+        }
+        if (packet_tx_ && modem.finished) {
+            modem_complete();
+            packet_tx_ = false;
+            backend_stop();
+            receive();
+        }
+    }
+#endif
     if (state_.phase == RadioPhase::Fault || state_.phase == RadioPhase::Inactive) {
         return;
     }
@@ -630,6 +712,30 @@ void RadioController::poll() {
         state_.tx_remaining_s = (remaining_ms + 999) / 1000;
         state_.tx_warning = remaining_ms <= 10000;
     }
+#ifdef CONFIG_HT_MODEM
+    if (state_.modem_enabled && state_.phase == RadioPhase::Receiving &&
+        !state_.config.tx_inhibit && !radio_ptt_requested() && modem_admit(status.rx_active)) {
+        backend_stop();
+        int64_t started_ms = 0;
+        const int error = backend_transmit(started_ms);
+        if (error == -ECANCELED) {
+            stop_modem();
+        } else if (error) {
+            fail(error);
+        } else {
+            packet_tx_ = true;
+            remote_ptt_ = false;
+            state_.phase = RadioPhase::Transmitting;
+            // Maximum 330-byte stuffed packet plus both 2.55 s timing fields is <9 s.
+            // This independent cap also bounds a wedged worker when voice limit is off.
+            tx_deadline_ms_ = started_ms + 10000;
+            if (state_.config.transmit_limit_s &&
+                state_.config.transmit_limit_s * 1000 < 10000) {
+                tx_deadline_ms_ = started_ms + state_.config.transmit_limit_s * 1000;
+            }
+        }
+    }
+#endif
     state_.rssi_dbm = status.rssi_dbm;
     state_.rx_registers = status.rx_registers;
     state_.rx_active = state_.phase == RadioPhase::Receiving && status.rx_active;

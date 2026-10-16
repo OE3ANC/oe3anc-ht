@@ -170,3 +170,11 @@ config HT_COMPANION
       has no serial byte transport. The paired protocol provides sessions, codeplug/UI
       transfers, virtual keys and a separately leased controller-owned PTT
       source. ZTEST also permits the C62 RF fixture without a display backend.
+
+config HT_MODEM
+    bool "Serial KISS 1200 baud AFSK modem"
+    depends on HT_COMPANION && CPP
+    default y if !ZTEST
+    help
+      Volatile, opt-in packet operation on the current FM channel. Physical
+      PTT disables KISS and returns to voice. No automatic startup transmission.

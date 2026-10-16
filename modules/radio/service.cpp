@@ -72,6 +72,7 @@ int radio_remote_ptt_press(uint64_t session, uint32_t token) {
     int error = !radio_power_requested() || !state.power_active                    ? -EHOSTDOWN
                 : state.fault || radio_latched_fault()                            ? -EIO
                 : atomic_get(&ptt_pressed) || state.phase != RadioPhase::Receiving ? -EBUSY
+                : state.modem_enabled                                             ? -EBUSY
                 : state.config.tx_inhibit                                         ? -EPERM
                 : state.config.mode == Mode::M17 && !valid_callsign(state.config.callsign)
                     ? -EINVAL
@@ -169,6 +170,9 @@ void radio_service() {
     controller.set_power(radio_power_requested());
     const bool resumed = controller.state().power_active && (stopped || !previous.power_active);
     const bool interrupted = atomic_cas(&ptt_activity, 1, 0);
+    if (interrupted) {
+        modem_disable();
+    }
     controller.startup_chime(atomic_get(&startup_chime_requested) && !radio_ptt_requested());
     controller.poll();
     // Physical PTT takes priority. Cancel remote intent so its expiry/release
@@ -226,6 +230,9 @@ int radio_submit(const RadioCommand &command) {
 }
 
 void radio_ptt(bool pressed) {
+    if (pressed) {
+        modem_disable();
+    }
     atomic_set(&ptt_pressed, pressed);
     if (pressed) {
         atomic_inc(&ptt_press_sequence);
@@ -243,6 +250,7 @@ uint32_t radio_ptt_press_sequence() {
 void radio_power(bool active) {
     atomic_set(&power_active, active);
     if (!active) {
+        modem_disable();
         atomic_set(&power_off, 1);
         const auto key = k_spin_lock(&remote_lock);
         remote_cancel(k_uptime_get());
@@ -278,6 +286,7 @@ bool radio_monitor_requested() {
 
 void radio_report_fault(int error) {
     if (error) {
+        modem_disable();
         atomic_cas(&peripheral_fault, 0, error < 0 ? error : -EIO);
         radio_ptt(false);
         const auto key = k_spin_lock(&remote_lock);

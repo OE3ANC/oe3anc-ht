@@ -92,6 +92,11 @@ int backend_transmit(int64_t &started_ms) {
     tuned_frequency = configuration.tx_frequency_hz;
     transmitting = true;
     started_ms = k_uptime_get();
+#ifdef CONFIG_HT_MODEM
+    if (modem_tx_requested()) {
+        modem_transmit({});
+    }
+#endif
     k_mutex_unlock(&peripheral_mutex);
     return 0;
 }
@@ -115,6 +120,7 @@ int backend_finish_transmit(int64_t, bool) {
 }
 
 void backend_stop() {
+    modem_audio_stop();
     k_mutex_lock(&peripheral_mutex, K_FOREVER);
     transmitting = false;
     monitor = false;

@@ -211,6 +211,7 @@ class UiModel {
     bool field_editing_ = false;
     RadioConfig field_config_;
     FmRxControls field_controls_;
+    uint8_t modem_field_ = 0;
     uint8_t status_page_ = 0;
     char draft_[5] = {}; // At most four diagnostic hexadecimal digits.
     uint32_t diagnostic_ptt_sequence_ = 0;

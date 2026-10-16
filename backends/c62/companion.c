@@ -16,7 +16,9 @@ static const struct device *uart = DEVICE_DT_GET(DT_NODELABEL(uart2));
 static DW_UART_RegDef *const registers = (DW_UART_RegDef *)DT_REG_ADDR(DT_NODELABEL(uart2));
 static K_MUTEX_DEFINE(owner_lock);
 static struct k_spinlock rx_lock;
-RING_BUF_DECLARE(rx, 512);
+// A maximum escaped KISS response occupies 58 ms at 115200 baud.
+// Retain simultaneous host traffic across that bounded serial write.
+RING_BUF_DECLARE(rx, 2048);
 static int rx_error;
 static bool initialized;
 static const struct gpio_dt_spec ptt = GPIO_DT_SPEC_GET(DT_NODELABEL(button_ptt), gpios);

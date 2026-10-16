@@ -361,7 +361,7 @@ ZTEST(ui_menu, test_workflow_order_wrap_capabilities_and_physical_actions) {
     zassert_equal(model.screen(), UiScreen::Menu);
     zassert_equal(radio_snapshot().configuration_revision, revision);
     const auto count = page.count;
-    zassert_equal(count, 8); // No generic gain or companion-mode toggle.
+    zassert_equal(count, 9); // Includes the opt-in FM modem submenu.
     for (unsigned i = 0; i < count; ++i) {
         key(UiKey::Down);
     }
@@ -369,13 +369,13 @@ ZTEST(ui_menu, test_workflow_order_wrap_capabilities_and_physical_actions) {
     zassert_equal(page.cursor, 0);
     key(UiKey::Up);
     model.menu_page(page);
-    zassert_equal(strcmp(page.rows[page.cursor % 4].name, "Development"), 0);
+    zassert_equal(strcmp(page.rows[page.cursor % 4].name, "Modem / KISS"), 0);
     render("menu-last");
     key(UiKey::Back);
     load(false, Mode::M17);
     key(UiKey::Enter);
     model.menu_page(page);
-    zassert_equal(page.count, count);
+    zassert_equal(page.count, count - 1); // AFSK modem is only available in FM.
     find("Invert LNA GPIOs");
     model.menu_page(page);
     bool has_lna_polarity = false;
@@ -879,6 +879,35 @@ ZTEST(ui_menu, test_all_theme_contrast_status_screens_bounded) {
                           lv_color_hex(colors.white).full);
         }
     }
+}
+
+ZTEST(ui_menu, test_modem_menu_settings_back_and_ptt_exit) {
+    find("Modem / KISS");
+    key(UiKey::Enter);
+    UiListPage page;
+    model.menu_page(page);
+    zassert_equal(strcmp(page.title, "MODEM / AFSK1200"), 0);
+    zassert_not_null(strstr(page.rows[0].name, "off"));
+    key(UiKey::Enter);
+    tick();
+    zassert_true(modem_enabled());
+    key(UiKey::Down);
+    const auto delay = modem_status().settings.txdelay;
+    adjust(1);
+    tick();
+    zassert_equal(modem_status().settings.txdelay, delay + 1);
+    zassert_true(modem_enabled());
+    key(UiKey::Back);
+    model.menu_page(page);
+    zassert_equal(strcmp(page.title, "MENU"), 0);
+    zassert_equal(strcmp(page.rows[page.cursor % 4].name, "Modem / KISS"), 0);
+    key(UiKey::Enter);
+    radio_ptt(true);
+    tick();
+    zassert_false(modem_enabled());
+    zassert_true(emulator_transmitting());
+    radio_ptt(false);
+    tick();
 }
 
 static void finish(void *) {

@@ -53,3 +53,21 @@ external-client interoperability. The user performs those checks on the radio.
 The companion APRS composer targets the [APRS 1.0.1 reference](https://www.aprs.org/doc/APRS101.PDF):
 uncompressed position reports and text messages, with no automatic beacons,
 message acknowledgement handling or retries.
+
+The radio menu's **Modem / KISS** entry enables AFSK1200 and exposes volatile
+TX delay, persistence, slot time, tail, carrier bypass and TX level controls.
+Defaults are 300 ms delay, persistence 63, 100 ms slots, zero tail, carrier
+bypass off, and 37% PCM TX level. TX level requires bench adjustment for RF
+deviation. RX is continuous and muted. Four host packets and four received
+packets can be queued. The menu reports RX/TX counts, dropped/invalid frames
+and queued host packets. Radio channel/settings changes disable KISS and
+clear pending authorization; changing modem settings from the menu restarts
+KISS if it was active. Physical PTT cancels KISS even for a coalesced tap.
+
+Each protocol ownership transition discards buffered input until the serial
+line has been quiet for 20 ms. Hosts must stop sending during the transition
+and wait at least 50 ms before starting the new protocol. Returning to companion
+requires a new discovery/session. KISS parameter commands affect subsequent
+packet modulation/admission; an already rendered packet retains its timing.
+A packet has an independent 10-second RF deadline even with the voice TX limit
+disabled. The emulator models ownership/state only; it does not emulate RF.

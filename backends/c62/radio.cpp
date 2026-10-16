@@ -19,6 +19,7 @@ static constexpr RadioCapabilities capabilities{
     {{136000000, 174000000}, {400000000, 480000000}}, 5000, true, true, false, true, true, true};
 static RadioConfig configuration;
 static FmSquelch squelch;
+static FmSquelch packet_squelch;
 static bool io_ready;
 static bool radio_ready;
 static bool configured;
@@ -59,6 +60,7 @@ void backend_stop() {
     chime = false;
     audio_cancel();
     m17_cancel();
+    modem_audio_stop();
     receiving = transmitting = audible = digital_activity = false;
     rx_registers = {};
     monitor = false;
@@ -151,6 +153,20 @@ int backend_receive() {
     int error = health();
     if (!error)
         error = bk4819_receive();
+#ifdef CONFIG_HT_MODEM
+    if (!error && modem_enabled()) {
+        AudioRoutes routes;
+        routes.input_rate[1] = 48000;
+        AudioSession session;
+        error = audio_route(routes, session);
+        if (!error) {
+            error = bk4819_af(true);
+        }
+        if (!error) {
+            error = modem_receive(session);
+        }
+    }
+#endif
     if (!error && configuration.mode == Mode::M17) {
         AudioRoutes routes;
         routes.input_rate[1] = 24000;
@@ -171,6 +187,9 @@ int backend_receive() {
     }
     if (!error) {
         squelch.configure(configuration);
+        auto carrier_config = configuration;
+        carrier_config.rx_tone = {};
+        packet_squelch.configure(carrier_config);
         receiving = true;
     }
     return finish(error);
@@ -228,14 +247,22 @@ int backend_transmit(int64_t &started_ms) {
     if (!configured) {
         return -ENODEV;
     }
+    const bool packet = modem_tx_requested();
     backend_stop();
+    AudioSession packet_session;
+    const auto requested = [packet]() {
+        return packet ? modem_tx_requested() : radio_ptt_requested();
+    };
     int error = health();
-    if (!error && !radio_ptt_requested()) {
+    if (!error && !requested()) {
         error = -ECANCELED;
     }
     if (!error) {
         AudioRoutes routes;
-        if (configuration.mode == Mode::M17) {
+        if (packet) {
+            routes.output[1] = AudioSource::Buffer;
+            routes.output_rate[1] = 48000;
+        } else if (configuration.mode == Mode::M17) {
             routes.input_rate[0] = 8000;
             routes.output[1] = AudioSource::Buffer;
             routes.output_rate[1] = 48000;
@@ -244,12 +271,13 @@ int backend_transmit(int64_t &started_ms) {
         }
         AudioSession session;
         error = audio_route(routes, session);
-        if (!error && !radio_ptt_requested())
+        packet_session = session;
+        if (!error && !requested())
             error = -ECANCELED;
         if (!error && configuration.mode == Mode::M17)
             error = m17_prepare_transmit(session, configuration.callsign, configuration.m17);
     }
-    if (!error && !radio_ptt_requested()) {
+    if (!error && !requested()) {
         error = -ECANCELED;
     }
     // Provisional reference calibration: <=1 W, <=2.5 W, <=5 W.
@@ -267,11 +295,16 @@ int backend_transmit(int64_t &started_ms) {
             started_ms = k_uptime_get();
         }
     }
-    if (!error && !radio_ptt_requested()) {
+    if (!error && !requested()) {
         error = -ECANCELED;
     }
     if (!error && configuration.mode == Mode::M17)
         error = m17_begin_transmit();
+#ifdef CONFIG_HT_MODEM
+    if (!error && packet) {
+        error = modem_transmit(packet_session);
+    }
+#endif
     if (!error) {
         transmitting = true;
     }
@@ -379,6 +412,7 @@ BackendStatus backend_status() {
             }
             const bool open = configuration.mode == Mode::M17
                                   ? digital.rx_active
+                                  : modem_enabled() ? packet_squelch.update(status.rssi_dbm, false)
                                   : (squelch.update(status.rssi_dbm, tone) || monitor);
             if (configuration.mode == Mode::M17) {
                 if (open != digital_activity) {
@@ -386,7 +420,7 @@ BackendStatus backend_status() {
                     if (!status.error)
                         digital_activity = open;
                 }
-            } else if (open != audible) {
+            } else if (!modem_enabled() && open != audible) {
                 status.error = receive_audio(open);
             }
             status.rx_active = !status.error && open;

@@ -366,6 +366,12 @@ void UiModel::submit(RadioCommand command) {
 }
 
 void UiModel::menu(int direction) {
+#ifdef CONFIG_HT_MODEM
+    if (selected_ == ModemEnabledItem && modem_enabled()) {
+        modem_disable(); // Independent exit, including while a packet owns TX.
+        return;
+    }
+#endif
     if (selected_ != StatusItem &&
         (state_.phase != RadioPhase::Receiving || radio_ptt_requested())) {
         error_ = -EBUSY;
@@ -375,6 +381,27 @@ void UiModel::menu(int direction) {
     command.config = state_.config;
     auto &config = command.config;
     switch (selected_) {
+    case ModemItem:
+        menu_group_ = 3;
+        selected_ = ModemEnabledItem;
+        return;
+    case ModemCountersItem:
+    case ModemTxCountItem:
+    case ModemDropsItem:
+    case ModemQueueItem:
+        return;
+#ifdef CONFIG_HT_MODEM
+    case ModemEnabledItem:
+        command.kind = CommandKind::Modem;
+        command.modem_enabled = true;
+        command.modem_settings = modem_status().settings;
+        command.modem_epoch = modem_epoch();
+        command.modem_ptt_sequence = radio_ptt_press_sequence();
+        command.expected_generation = state_.generation;
+        command.expected_revision = state_.configuration_revision;
+        submit(command);
+        return;
+#endif
     case LnaPolarityItem:
         command.kind = CommandKind::LnaPolarity;
         config.lna_inverted = !config.lna_inverted;
@@ -743,6 +770,13 @@ void UiModel::input(const UiInput &input, bool external_pending) {
         state_.phase == RadioPhase::Fault) {
         return;
     }
+#ifdef CONFIG_HT_MODEM
+    if (screen_ == UiScreen::Menu && selected_ == ModemEnabledItem &&
+        input.key == UiKey::Enter && modem_enabled()) {
+        modem_disable();
+        return;
+    }
+#endif
     if (state_.phase == RadioPhase::Transmitting || radio_ptt_requested()) {
         return;
     }
@@ -875,7 +909,8 @@ void UiModel::input(const UiInput &input, bool external_pending) {
             return;
         }
         if (screen_ == UiScreen::Menu && menu_group_) {
-            selected_ = menu_group_ == 1 ? RadioItem : DevelopmentItem;
+            selected_ = menu_group_ == 1 ? RadioItem
+                        : menu_group_ == 3 ? ModemItem : DevelopmentItem;
             menu_group_ = 0;
         } else {
             screen_ = UiScreen::Home;
@@ -936,7 +971,15 @@ void UiModel::input(const UiInput &input, bool external_pending) {
         if (field_editing_) {
             if (input.key == UiKey::Up || input.key == UiKey::Down) {
                 const int delta = input.key == UiKey::Up ? 1 : -1;
-                if (selected_ == LnaPolarityItem) {
+                if (selected_ >= ModemDelayItem && selected_ <= ModemLevelItem) {
+                    const int maximum = selected_ == ModemDuplexItem ? 1
+                                        : selected_ == ModemLevelItem ? 100 : 255;
+                    const int minimum = selected_ == ModemLevelItem ? 1 : 0;
+                    if (int(modem_field_) + delta >= minimum &&
+                        int(modem_field_) + delta <= maximum) {
+                        modem_field_ += delta;
+                    }
+                } else if (selected_ == LnaPolarityItem) {
                     field_config_.lna_inverted = !field_config_.lna_inverted;
                 } else {
                     auto &value = selected_ == FmCtcssLevelItem   ? field_config_.fm_ctcss_level
@@ -954,6 +997,36 @@ void UiModel::input(const UiInput &input, bool external_pending) {
                 command.kind = selected_ == LnaPolarityItem    ? CommandKind::LnaPolarity
                                : selected_ == FmCtcssLevelItem ? CommandKind::FmCtcssLevel
                                                                : CommandKind::FmRxControls;
+#ifdef CONFIG_HT_MODEM
+                if (selected_ >= ModemDelayItem && selected_ <= ModemLevelItem) {
+                    command.kind = CommandKind::Modem;
+                    command.modem_settings = modem_status().settings;
+                    command.modem_enabled = modem_enabled();
+                    command.modem_epoch = modem_epoch();
+                    command.modem_ptt_sequence = radio_ptt_press_sequence();
+                    auto &settings = command.modem_settings;
+                    switch (selected_) {
+                    case ModemDelayItem:
+                        settings.txdelay = modem_field_;
+                        break;
+                    case ModemPersistenceItem:
+                        settings.persistence = modem_field_;
+                        break;
+                    case ModemSlotItem:
+                        settings.slot_time = modem_field_;
+                        break;
+                    case ModemTailItem:
+                        settings.txtail = modem_field_;
+                        break;
+                    case ModemDuplexItem:
+                        settings.full_duplex = modem_field_;
+                        break;
+                    case ModemLevelItem:
+                        settings.level = modem_field_;
+                        break;
+                    }
+                }
+#endif
                 command.config = field_config_;
                 command.fm_rx_controls = field_controls_;
                 command.expected_generation = state_.generation;
@@ -977,6 +1050,15 @@ void UiModel::input(const UiInput &input, bool external_pending) {
                 field_editing_ = true;
                 field_config_ = state_.config;
                 field_controls_ = state_.fm_rx_controls;
+#ifdef CONFIG_HT_MODEM
+                const auto settings = modem_status().settings;
+                modem_field_ = selected_ == ModemDelayItem ? settings.txdelay
+                               : selected_ == ModemPersistenceItem ? settings.persistence
+                               : selected_ == ModemSlotItem ? settings.slot_time
+                               : selected_ == ModemTailItem ? settings.txtail
+                               : selected_ == ModemDuplexItem ? settings.full_duplex
+                                                             : settings.level;
+#endif
             } else {
                 menu(1);
             }

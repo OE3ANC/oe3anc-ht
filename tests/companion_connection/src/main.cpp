@@ -82,6 +82,20 @@ static void before(void *) {
     k_sleep(K_MSEC(20));
 }
 
+ZTEST(companion_connection, test_normal_ptt_preserves_companion_session) {
+    zassert_equal(exchange(hello()).payload[0], STATUS_OK);
+    radio_ptt(true);
+    radio_service();
+    radio_ptt(false);
+    radio_service();
+    k_sleep(K_MSEC(30));
+    Frame press;
+    press.type = MSG_PTT_PRESS;
+    press.session = nonce_base;
+    press.request = 2;
+    zassert_equal(exchange(press).payload[0], STATUS_OK);
+}
+
 ZTEST(companion_connection, test_hello_and_close_do_not_suppress_physical_ptt) {
     radio_ptt(true);
     radio_service();

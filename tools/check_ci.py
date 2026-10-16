@@ -22,6 +22,7 @@ NATIVE_TESTS = (
     'c62_radio',
     'c62_power_io',
     'radio',
+    'modem_service',
     'codec2',
     'm17',
     'm17_mode',
@@ -79,6 +80,7 @@ def check(dependencies, tag, base_path, skip_tests=False):
     build = ROOT / 'build/ci'
     expected = companion_release.metadata(tag)
     if not skip_tests:
+        run(sys.executable, '-m', 'unittest', 'discover', '-s', 'tests/modem', '-v')
         for script in (
             'tests/build/test_build.py',
             'tests/build/test_ci.py',

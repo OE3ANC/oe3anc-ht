@@ -323,7 +323,7 @@ ZTEST(c62_companion, test_full_duplex_rx_overflow_and_line_error_recovery) {
     for (unsigned i = 0; i < 32; ++i) {
         zassert_equal(data[i], i);
     }
-    for (unsigned i = 0; i < 17; ++i) {
+    for (unsigned i = 0; i < 65; ++i) {
         receive();
     }
     zassert_equal(ht_companion_read(data, sizeof(data)), -EOVERFLOW);
