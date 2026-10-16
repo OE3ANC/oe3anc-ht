@@ -385,6 +385,7 @@ void UiModel::menu(int direction) {
         menu_group_ = 3;
         selected_ = ModemEnabledItem;
         return;
+    case ModemStatusItem:
     case ModemCountersItem:
     case ModemTxCountItem:
     case ModemDropsItem:

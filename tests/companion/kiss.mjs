@@ -43,3 +43,25 @@ for (const text of ['', 'x'.repeat(68), 'hello|', 'hello~', 'hello{', 'ä', '\n'
 }
 assert.throws(() => message({ addressee: 'ABCDEFGHIJ', text: 'hi' }));
 console.log('KISS / AX.25 / APRS checks passed');
+
+// Independent fixed APRS wire vectors, never round-tripped through our composer.
+const fixed = text => Uint8Array.from(Buffer.from(text.replaceAll(' ', ''), 'hex'));
+const positionBytes = fixed('82 a0 a4 a6 40 40 e0 9c 60 86 82 98 98 63 03 f0 21 34 39 30 33 2e 35 30 4e 2f 30 37 32 30 31 2e 37 35 57 2d 54 65 73 74');
+const messageBytes = fixed('82 a0 a4 a6 40 40 e0 9c 60 86 82 98 98 63 03 f0 3a 4e 30 43 41 4c 4c 20 20 20 3a 48 65 6c 6c 6f 7b 31 32');
+const { decodeAprs, describePacket } = await import('../../companion/src/kiss.mjs');
+assert.equal(decodeAprs(decodeAx25(positionBytes)),
+    'Position: 49.05833° N, 72.02917° W · symbol /-\nComment: Test');
+assert.equal(decodeAprs(decodeAx25(messageBytes)), 'Message to N0CALL: Hello (ID 12)');
+for (const text of ['!4960.00N/07201.75W-', '!9000.01N/07201.75W-',
+    '!4903.50N/18000.01W-', '!4903.5 N/07201.75W-', '/092345z4903.50N/07201.75W-',
+    ':N0CALL   :Hello{123456', ':N0CALL   :ack12', ':N0CALL   :Hello\x00']) {
+    assert.equal(decodeAprs({ control: 3, pid: 0xf0, payload: new TextEncoder().encode(text) }), null);
+}
+for (let length = 0; length < 35; ++length) {
+    const data = positionBytes.slice(0, length);
+    const display = describePacket({ command: 0, payload: data });
+    assert.ok(display.includes(hex(data)), 'Truncated packets always retain bytes');
+    assert.ok(!display.includes('Position:'));
+}
+assert.equal(decodeAprs({ ...decodeAx25(positionBytes), pid: 0xcc }), null);
+console.log('Independent APRS vectors and safe raw fallback passed');

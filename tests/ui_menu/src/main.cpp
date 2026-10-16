@@ -892,6 +892,7 @@ ZTEST(ui_menu, test_modem_menu_settings_back_and_ptt_exit) {
     tick();
     zassert_true(modem_enabled());
     key(UiKey::Down);
+    key(UiKey::Down); // Skip the read-only modem state row.
     const auto delay = modem_status().settings.txdelay;
     adjust(1);
     tick();
@@ -908,6 +909,56 @@ ZTEST(ui_menu, test_modem_menu_settings_back_and_ptt_exit) {
     zassert_true(emulator_transmitting());
     radio_ptt(false);
     tick();
+}
+
+ZTEST(ui_menu, test_modem_status_updates_without_navigation) {
+    find("Modem / KISS");
+    key(UiKey::Enter);
+    auto status = [&](const char *expected) {
+        model.sync(radio_snapshot());
+        UiListPage page;
+        model.menu_page(page);
+        zassert_equal(strcmp(page.rows[1].name, expected), 0, "%s", page.rows[1].name);
+        zassert_true(strlen(page.rows[1].name) < 28);
+        ui_view_update(model);
+        label(expected);
+    };
+    status("Off");
+    key(UiKey::Enter);
+    tick();
+    status("Ready");
+    auto settings = modem_status().settings;
+    settings.slot_time = 255;
+    settings.persistence = 255;
+    modem_settings(settings);
+    modem::KissMessage packet;
+    packet.frame.size = 1;
+    packet.frame.bytes[0] = 42;
+    modem_host(packet, modem_epoch());
+    BackendStatus busy;
+    busy.rx_active = true;
+    emulator_inject(busy);
+    tick();
+    status("Waiting: channel busy");
+    busy.rx_active = false;
+    emulator_inject(busy);
+    tick();
+    status("Queued: waiting slot");
+    k_sleep(K_MSEC(2560));
+    tick();
+    status("Transmitting");
+    modem_disable();
+    tick();
+    status("Off");
+    auto config = radio_snapshot().config;
+    config.tx_inhibit = true;
+    zassert_ok(radio_start(config));
+    model.sync(radio_snapshot());
+    find("Modem / KISS");
+    key(UiKey::Enter);
+    key(UiKey::Enter);
+    tick();
+    status("TX inhibited");
 }
 
 static void finish(void *) {

@@ -176,3 +176,48 @@ export function hex(bytes) {
 export function safeText(bytes) {
     return [...bytes].map(byte => byte >= 32 && byte <= 126 ? String.fromCharCode(byte) : '.').join('');
 }
+
+// Deliberately limited to uncompressed, untimestamped positions and text messages.
+// Unsupported/ambiguous positions, telemetry and malformed data retain the raw display.
+export function decodeAprs(item) {
+    if ((item.control & 0xef) !== 3 || item.pid !== 0xf0 ||
+        item.payload.some(byte => byte < 32 || byte > 126)) {
+        return null;
+    }
+    const text = safeText(item.payload);
+    const point = /^[!=](\d{2})(\d{2}\.\d{2})([NS])([/\\0-9A-Z])(\d{3})(\d{2}\.\d{2})([EW])([!-~])(.*)$/.exec(text);
+    if (point) {
+        const latitude = Number(point[1]) + Number(point[2]) / 60;
+        const longitude = Number(point[5]) + Number(point[6]) / 60;
+        if (Number(point[2]) >= 60 || Number(point[6]) >= 60 ||
+            latitude > 90 || longitude > 180) {
+            return null;
+        }
+        return `Position: ${latitude.toFixed(5)}° ${point[3]}, ` +
+            `${longitude.toFixed(5)}° ${point[7]} · symbol ${point[4]}${point[8]}` +
+            (point[9] ? `\nComment: ${point[9]}` : '');
+    }
+    const msg = /^:([A-Z0-9][A-Z0-9 -]{8}):([^|~{]{1,67})(?:\{([A-Za-z0-9]{1,5}))?$/.exec(text);
+    if (msg && !/^(ack|rej)[A-Za-z0-9]{1,5}$/.test(msg[2])) {
+        return `Message to ${msg[1].trimEnd()}: ${msg[2]}` +
+            (msg[3] ? ` (ID ${msg[3]})` : '');
+    }
+    return null;
+}
+
+export function describePacket(frame) {
+    let description = '';
+    if (frame.command === 0) {
+        try {
+            const item = decodeAx25(frame.payload);
+            description = `${item.source} > ${item.destination}` +
+                (item.path.length ? ` via ${item.path.join(', ')}` : '') +
+                ` · control ${item.control.toString(16)} · PID ${item.pid?.toString(16) ?? '—'}` +
+                `\n${decodeAprs(item) ?? 'Raw payload: ' + safeText(item.payload)}\n`;
+        } catch (error) {
+            description = `${error.message}\n`;
+        }
+    }
+    return `KISS ${frame.command.toString(16)} · ${frame.payload.length} bytes\n` +
+        description + hex(frame.payload);
+}

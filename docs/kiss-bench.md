@@ -44,10 +44,44 @@ FCS and are limited to 330 bytes. RX audio is muted. Defaults are TX delay
 hardware calibration. See the [protocol definition](../protocol/kiss/README.md)
 for framing, timing and limits.
 
+## Receive-only verification
+
+1. Leave the composer and Send settings controls alone. Connecting does not
+   queue a transmission. Keep carrier bypass off; it does not improve reception.
+2. Use an independent transmitter/TNC to send a known uncompressed APRS packet,
+   for example `N0CALL-1>APRS:!4903.50N/07201.75W-Test` in a controlled bench
+   setup. Use an appropriate callsign on air; retain the exact transmitted bytes.
+3. Watch the radio's RX frames counter and the companion's **Received** history.
+   The example should show 49.05833° N, 72.02917° W, symbol `/-`, comment `Test`.
+   Compare the complete AX.25 bytes (excluding flags/FCS), callsigns and path
+   against the independent sender. **Sent to modem** is a separate history and
+   is not evidence of reception. Counts include older records until Clear.
+4. If no packet appears, record RX frequency, bandwidth/filter, signal level,
+   deviation and preamble. RX audio is muted during KISS. Check radio mode on
+   the radio itself: a browser port remaining open cannot detect physical PTT
+   exiting KISS. Do not bypass carrier deferral to troubleshoot missing RX.
+
+The radio's separate status row shows **Off**, **Ready**, **TX inhibited**,
+**Waiting: channel busy**, **Queued: waiting slot**, or **Transmitting**. Busy
+and slot states explain queued TX; the channel's existing squelch/carrier rules
+remain in effect. Ready means enabled with no queued packet, not proof of a
+received signal. Carrier bypass is an explicit TX access choice, never automatic.
+
+Automated RX coverage feeds synthetic 48 kHz samples into the radio-input audio
+capture path, through the modem worker's AFSK/HDLC decoder and CRC validation,
+the receive queue, then serial KISS encoding. A fixed independently synthesized AX.25/APRS
+waveform is checked against exact serial bytes; corrupt FCS produces neither
+an RX count increment nor serial output. This synthetic test does not establish
+C62 analog/DSP signal quality or external RF interoperability.
+
 ## Send, exit and reconnect
 
 In **Modem**, compose one APRS uncompressed position or text message using your
-callsign/SSID, destination and optional path. Inspect the raw/decoded history.
+callsign/SSID, destination and optional path. Use **Preview position/message**
+to validate and inspect bytes and interpretation without opening a port.
+**Send once** rebuilds from the current form, including edits made after a
+preview. Drafts stay on this page across disconnect/reconnect; reloading clears
+them. Inspect the separate raw/decoded histories.
 Sending is explicit: there are no automatic beacons, retries, message IDs or
 ACK manager. **Sent to modem** confirms only a browser serial write, not RF
 transmission or receipt. KISS supplies no delivery acknowledgement or mode detection.

@@ -15,10 +15,10 @@ static const MenuItem development_menu[] = {DiagnosticsItem,  FmWeakFilterItem, 
                                             FmCtcssLevelItem, LnaPolarityItem,  CodecStatsItem,
                                             RxPathItem,       RxGainItem,       RxSquelchItem};
 
-static const MenuItem modem_menu[] = {ModemEnabledItem, ModemDelayItem, ModemPersistenceItem,
-                                      ModemSlotItem, ModemTailItem, ModemDuplexItem,
-                                      ModemLevelItem, ModemCountersItem, ModemTxCountItem, ModemDropsItem,
-                                      ModemQueueItem};
+static const MenuItem modem_menu[] = {ModemEnabledItem, ModemStatusItem, ModemDelayItem,
+                                      ModemPersistenceItem, ModemSlotItem, ModemTailItem,
+                                      ModemDuplexItem, ModemLevelItem, ModemCountersItem,
+                                      ModemTxCountItem, ModemDropsItem, ModemQueueItem};
 
 unsigned menu_count(unsigned group) {
 #ifndef CONFIG_HT_CODEPLUG_STORAGE
@@ -121,6 +121,19 @@ void menu_label(unsigned item, const RadioState &state, uint32_t step, char (&va
     case ModemEnabledItem:
         snprintf(value, sizeof(value), "AFSK1200: %s", modem_enabled() ? "on" : "off");
         break;
+    case ModemStatusItem: {
+        const auto stats = modem_status();
+        // Present existing controller/carrier and queue state; never change admission here.
+        const char *label = !state.modem_enabled || !stats.enabled ? "Off"
+                            : stats.transmitting ? "Transmitting"
+                            : config.tx_inhibit ? "TX inhibited"
+                            : !stats.queued ? "Ready"
+                            : state.rx_active && !stats.settings.full_duplex
+                                ? "Waiting: channel busy"
+                                : "Queued: waiting slot";
+        snprintf(value, sizeof(value), "%s", label);
+        break;
+    }
     case ModemCountersItem:
     case ModemTxCountItem:
     case ModemDropsItem:

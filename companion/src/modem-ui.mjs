@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 import { C } from './protocol.mjs';
 import { KissConnection } from './kiss-serial.mjs';
-import { ax25, decodeAx25, position, message, hex, safeText } from './kiss.mjs';
+import { ax25, position, message, describePacket } from './kiss.mjs';
 
 export class ModemUi {
     constructor(root, companion, { available, changed }) {
@@ -10,7 +10,7 @@ export class ModemUi {
         this.available = available;
         this.changed = changed;
         this.status = root.querySelector('[role="status"]');
-        this.log = root.querySelector('#modem-log');
+        this.counts = { Received: 0, Sent: 0 };
         this.kiss = new KissConnection(frame => this.packet('Received', frame), error => {
             if (error) {
                 this.status.textContent = error.message;
@@ -18,11 +18,27 @@ export class ModemUi {
             this.update();
             this.changed();
         });
-        for (const action of ['connect', 'enter', 'exit', 'close', 'settings', 'position', 'message']) {
+        for (const action of ['connect', 'enter', 'exit', 'close', 'settings', 'position', 'message',
+            'preview-position', 'preview-message']) {
             root.querySelector(`#modem-${action}`).addEventListener('click', () => this.run(action));
         }
+        for (const name of ['source', 'destination', 'path', 'latitude', 'longitude', 'table',
+            'symbol', 'comment', 'addressee', 'text']) {
+            root.querySelector(`#modem-${name}`).addEventListener('input', () => {
+                for (const kind of ['position', 'message']) {
+                    const preview = root.querySelector(`#modem-${kind}-preview`);
+                    if (preview.textContent) {
+                        preview.textContent = 'Draft changed — preview again.';
+                    }
+                }
+            });
+        }
         root.querySelector('#modem-clear').addEventListener('click', () => {
-            this.log.textContent = '';
+            for (const kind of ['Received', 'Sent']) {
+                this.root.querySelector(`#modem-${kind.toLowerCase()}-log`).textContent = '';
+                this.counts[kind] = 0;
+            }
+            this.update();
         });
         this.update();
     }
@@ -41,6 +57,13 @@ export class ModemUi {
         for (const action of ['exit', 'settings', 'position', 'message']) {
             this.root.querySelector(`#modem-${action}`).disabled = disabled || !this.kiss.ready;
         }
+        for (const kind of ['Received', 'Sent']) {
+            this.root.querySelector(`#modem-${kind.toLowerCase()}-count`).textContent =
+                String(this.counts[kind]);
+        }
+        this.root.querySelector('#modem-port').textContent = this.kiss.port
+            ? 'Serial port open · radio KISS mode assumed, not monitored'
+            : 'Serial port closed · radio mode unknown';
         this.root.querySelector('#modem-close').disabled = disabled || !this.kiss.port;
     }
 
@@ -48,25 +71,30 @@ export class ModemUi {
         return this.root.querySelector(`#modem-${name}`).value;
     }
 
-    packet(label, frame) {
+    compose(action) {
+        const payload = action === 'position' ? position({
+            latitude: this.value('latitude'), longitude: this.value('longitude'),
+            table: this.value('table'), symbol: this.value('symbol'), comment: this.value('comment')
+        }) : message({ addressee: this.value('addressee'), text: this.value('text') });
+        return ax25({ source: this.value('source'), destination: this.value('destination'),
+            path: this.value('path'), payload });
+    }
+
+    preview(action, bytes) {
+        this.root.querySelector(`#modem-${action}-preview`).textContent =
+            describePacket({ command: 0, payload: bytes });
+    }
+
+    packet(kind, frame) {
         const row = document.createElement('pre');
-        let decoded = '';
-        if (frame.command === 0) {
-            try {
-                const item = decodeAx25(frame.payload);
-                decoded = `${item.source} > ${item.destination}` +
-                    (item.path.length ? ` via ${item.path.join(', ')}` : '') +
-                    ` · control ${item.control.toString(16)} · PID ${item.pid?.toString(16) ?? '—'}` +
-                    `\n${safeText(item.payload)}\n`;
-            } catch (error) {
-                decoded = `${error.message}\n`;
-            }
+        row.textContent = `${kind === 'Sent' ? 'Sent to modem' : 'Received'} · ${describePacket(frame)}`;
+        const log = this.root.querySelector(`#modem-${kind.toLowerCase()}-log`);
+        log.prepend(row);
+        while (log.children.length > 100) {
+            log.lastChild.remove();
         }
-        row.textContent = `${label} · KISS ${frame.command.toString(16)}\n${decoded}${hex(frame.payload)}`;
-        this.log.prepend(row);
-        while (this.log.children.length > 100) {
-            this.log.lastChild.remove();
-        }
+        ++this.counts[kind];
+        this.update();
     }
 
     async run(action) {
@@ -81,7 +109,12 @@ export class ModemUi {
         this.update();
         this.changed();
         try {
-            if (action === 'connect') {
+            if (action.startsWith('preview-')) {
+                const kind = action.slice(8);
+                this.root.querySelector(`#modem-${kind}-preview`).textContent = '';
+                this.preview(kind, this.compose(kind));
+                this.status.textContent = 'Preview only. Review the bytes, then explicitly send once.';
+            } else if (action === 'connect') {
                 await this.kiss.connect(await navigator.serial.requestPort());
                 this.status.textContent = 'Port open. KISS mode assumed from your radio menu selection; no handshake is available.';
             } else if (action === 'enter') {
@@ -108,14 +141,10 @@ export class ModemUi {
                 }
                 this.status.textContent = 'Settings sent to modem (no acknowledgement).';
             } else {
-                const payload = action === 'position' ? position({
-                    latitude: this.value('latitude'), longitude: this.value('longitude'),
-                    table: this.value('table'), symbol: this.value('symbol'), comment: this.value('comment')
-                }) : message({ addressee: this.value('addressee'), text: this.value('text') });
-                const bytes = ax25({ source: this.value('source'), destination: this.value('destination'),
-                    path: this.value('path'), payload });
+                const bytes = this.compose(action);
+                this.preview(action, bytes);
                 await this.kiss.send(bytes);
-                this.packet('Sent to modem', { command: 0, payload: bytes });
+                this.packet('Sent', { command: 0, payload: bytes });
                 this.status.textContent = 'Sent to modem. KISS does not confirm RF transmission or delivery.';
             }
         } catch (error) {

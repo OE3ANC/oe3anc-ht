@@ -2,6 +2,7 @@
 #include <ht/audio_backend.h>
 #include <ht/emulator.hpp>
 #include <string.h>
+#include <math.h>
 #include <ht/modem_service.hpp>
 #include <errno.h>
 #include <zephyr/ztest.h>
@@ -378,6 +379,90 @@ ZTEST(modem_service, test_maximum_escaped_receive_serial_output) {
         zassert_ok(k_msgq_get(&outgoing, actual + i, K_NO_WAIT), "Missing RX byte %u", unsigned(i));
     }
     zassert_mem_equal(expected, actual, length);
+}
+
+// Frozen AX.25 UI: N0CALL-1>APRS:!4903.50N/07201.75W-Test.
+// FCS 0x1874 independently calculated with reflected binascii.crc_hqx(0xffff).
+// This synthesizer does not use the production CRC, HDLC, transmitter or KISS encoder.
+static const uint8_t known_aprs[] = {
+    0x82, 0xa0, 0xa4, 0xa6, 0x40, 0x40, 0xe0, 0x9c, 0x60, 0x86, 0x82, 0x98, 0x98, 0x63,
+    0x03, 0xf0, 0x21, 0x34, 0x39, 0x30, 0x33, 0x2e, 0x35, 0x30, 0x4e, 0x2f, 0x30, 0x37,
+    0x32, 0x30, 0x31, 0x2e, 0x37, 0x35, 0x57, 0x2d, 0x54, 0x65, 0x73, 0x74};
+
+static void independent_capture(bool corrupt) {
+    double phase = 1.723;
+    bool mark = true;
+    capture_count = capture_position = 0;
+    auto bit = [&](bool value) {
+        mark = value ? mark : !mark;
+        for (unsigned i = 0; i < 40; ++i) {
+            zassert_true(capture_count < ARRAY_SIZE(capture_samples));
+            capture_samples[capture_count++] = int16_t(12000 * sin(phase));
+            phase += 2 * 3.141592653589793 * (mark ? 1200 : 2200) / 48000;
+        }
+    };
+    auto flags = [&](unsigned count) {
+        for (unsigned i = 0; i < count; ++i) {
+            for (unsigned b = 0; b < 8; ++b) {
+                bit((0x7e >> b) & 1);
+            }
+        }
+    };
+    flags(40);
+    unsigned ones = 0;
+    for (unsigned i = 0; i < sizeof(known_aprs) + 2; ++i) {
+        const uint8_t byte = i < sizeof(known_aprs) ? known_aprs[i]
+                             : i == sizeof(known_aprs) ? (corrupt ? 0x75 : 0x74) : 0x18;
+        for (unsigned b = 0; b < 8; ++b) {
+            const bool value = (byte >> b) & 1;
+            bit(value);
+            ones = value ? ones + 1 : 0;
+            if (ones == 5) {
+                bit(false);
+                ones = 0;
+            }
+        }
+    }
+    flags(8);
+}
+
+ZTEST(modem_service, test_independent_aprs_capture_to_kiss_and_bad_fcs) {
+    for (unsigned attempt = 0; attempt < 2; ++attempt) {
+        const bool corrupt = attempt == 0;
+        enable();
+        k_sleep(K_MSEC(40)); // Let serial ownership transition settle before capture.
+        const auto received = modem_status().received;
+        k_mutex_lock(&io_mutex, K_FOREVER);
+        independent_capture(corrupt);
+        k_mutex_unlock(&io_mutex);
+        AudioRoutes routes;
+        routes.input_rate[1] = 48000;
+        AudioSession session;
+        zassert_ok(audio_route(routes, session));
+        zassert_ok(modem_receive(session));
+        // The fake backend emits one 480-sample block per service poll (20 ms).
+        k_sleep(K_SECONDS(2));
+        zassert_equal(capture_position, capture_count);
+        zassert_ok(audio_status().error);
+        zassert_ok(modem_status().error);
+        zassert_equal(modem_status().received - received, corrupt ? 0 : 1,
+                      "corrupt %u capture %u/%u received %u->%u", corrupt,
+                      unsigned(capture_position), unsigned(capture_count), received,
+                      modem_status().received);
+        const size_t length = corrupt ? 0 : sizeof(known_aprs) + 3;
+        zassert_equal(k_msgq_num_used_get(&outgoing), length);
+        for (size_t i = 0; i < length; ++i) {
+            uint8_t actual;
+            zassert_ok(k_msgq_get(&outgoing, &actual, K_NO_WAIT));
+            const uint8_t expected = i == 0 || i == length - 1 ? 0xc0
+                                     : i == 1 ? 0 : known_aprs[i - 2];
+            zassert_equal(actual, expected, "KISS byte %u", unsigned(i));
+        }
+        modem_disable();
+        audio_cancel();
+        modem_audio_stop();
+        radio_service();
+    }
 }
 
 ZTEST(modem_service, test_independent_packet_limit_stops_wedged_worker) {

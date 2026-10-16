@@ -61,14 +61,23 @@
     <section id="modem" role="tabpanel" aria-labelledby="tab-modem" tabindex="0" hidden>
       <h2>KISS modem · APRS</h2>
       <p>1200-baud AFSK on the radio’s current FM channel. Select KISS in the radio’s Modem menu before opening a standalone port, or enter from a matching companion connection. Physical PTT exits KISS. No automatic beacons, retries or message acknowledgements.</p>
+      <p><strong>Receive first:</strong> select the intended FM channel and enable KISS, connect below, then watch Received packets. No packet is sent by connecting. RX audio is muted.</p>
       <div class="actions">
         <button id="modem-connect" type="button">Connect already in KISS</button>
         <button id="modem-enter" type="button" disabled>Enter KISS from companion</button>
         <button id="modem-exit" type="button" disabled>Exit KISS &amp; close</button>
         <button id="modem-close" class="secondary" type="button" disabled>Close port</button>
       </div>
+      <p id="modem-port">Serial port closed · radio mode unknown</p>
       <p role="status" aria-live="polite">Disconnected. KISS has no handshake or delivery acknowledgements.</p>
       <p>After physical PTT or a radio settings change, close this port and explicitly reconnect. The browser cannot detect the radio’s mode through KISS.</p>
+      <h3>Packets</h3>
+      <p>Newest first, last 100 records per direction; counts include older records since Clear. Supported APRS positions/messages are interpreted; other payloads remain raw. Sent counts mean serial writes, not RF delivery. Drafts stay on this page across reconnects.</p>
+      <button id="modem-clear" class="secondary" type="button">Clear packets</button>
+      <h4>Received · <span id="modem-received-count">0</span></h4>
+      <div id="modem-received-log" aria-label="Received packet history"></div>
+      <h4>Sent to modem · <span id="modem-sent-count">0</span></h4>
+      <div id="modem-sent-log" aria-label="Sent packet history"></div>
       <fieldset>
         <legend>AX.25 addresses</legend>
         <label class="cps-field">Source callsign / SSID<input id="modem-source" placeholder="OE3ANC-7" maxlength="9" autocapitalize="characters" spellcheck="false"></label>
@@ -82,12 +91,16 @@
         <label class="cps-field">Symbol table<select id="modem-table"><option value="/">Primary /</option><option value="\">Alternate \</option></select></label>
         <label class="cps-field">Symbol character<input id="modem-symbol" value=">" maxlength="1"></label>
         <label class="cps-field">Comment (43 ASCII characters)<input id="modem-comment" maxlength="43"></label>
+        <button id="modem-preview-position" class="secondary" type="button">Preview position</button>
+        <pre id="modem-position-preview" aria-label="Position packet preview" aria-live="polite"></pre>
         <button id="modem-position" type="button" disabled>Send position once</button>
       </fieldset>
       <fieldset>
         <legend>Text message</legend>
         <label class="cps-field">Addressee<input id="modem-addressee" maxlength="9" spellcheck="false"></label>
         <label class="cps-field">Message (67 ASCII characters; no | ~ {)<input id="modem-text" maxlength="67"></label>
+        <button id="modem-preview-message" class="secondary" type="button">Preview message</button>
+        <pre id="modem-message-preview" aria-label="Message packet preview" aria-live="polite"></pre>
         <button id="modem-message" type="button" disabled>Send message once</button>
       </fieldset>
       <details>
@@ -100,10 +113,6 @@
         <label><input id="modem-duplex" type="checkbox">Bypass carrier deferral (radio remains half duplex)</label>
         <button id="modem-settings" type="button" disabled>Send settings</button>
       </details>
-      <h3>Packets</h3>
-      <p>Newest first, last 100 packets. Raw bytes accompany decoded AX.25 headers and printable payload.</p>
-      <button id="modem-clear" class="secondary" type="button">Clear packets</button>
-      <div id="modem-log" aria-label="Packet history"></div>
     </section>
 
     <section id="cps" role="tabpanel" aria-labelledby="tab-cps" tabindex="0">

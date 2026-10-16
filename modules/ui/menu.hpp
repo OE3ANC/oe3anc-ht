@@ -38,6 +38,7 @@ enum MenuItem {
     RxSquelchItem,
     ModemItem,
     ModemEnabledItem,
+    ModemStatusItem,
     ModemDelayItem,
     ModemPersistenceItem,
     ModemSlotItem,

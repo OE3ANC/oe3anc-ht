@@ -12,3 +12,12 @@ No DSP replacement, additional modulation implementation, network service, autom
 | M4 | DONE | Full paired release gate, independent review, focused fixes, committed candidate, matching firmware/companion package and manual bench checklist. | Full gate m3-full-gate.log PASS; independent code/doc reviews clear. Paired archives built and identity/hash/ZIP verified in build/kiss/handoff; metadata refreshed after final commit. Manual guide docs/kiss-bench.md. Hardware/client verification pending user. |
 
 Each milestone requires independent review before commit. Coordinator owns this board/state, integration, commits and final verification; workers do not delegate or commit. New worker per milestone. No external-client or RF test is claimed from automated checks.
+
+## RX verification and client cleanup
+
+User reported successful TX decode on another HT after enabling Ignore carrier; hardware RX remains pending. Preserve standard KISS and explicit sends; no status extension, DSP changes, automatic retries or publication in this follow-up.
+
+| ID | Status | Deliverable and acceptance | Dependencies / evidence |
+|---|---|---|---|
+| M5 | DONE | Trace and verify PCM-to-KISS RX with known packets; radio shows busy-channel/TX-inhibited/queued/TX states; companion separates received/sent records, decodes supported APRS positions/messages, previews packets before explicit send, preserves drafts across reconnect, and clearly distinguishes serial connection from radio mode. Bounded malformed-input tests, review, full paired gate. | Full gate build/kiss/m5-full-gate.log PASS; independent review clear; synthetic RX14/14, menu19/19 and browser preview/invalidation checks pass. Hardware RX pending user. |
+| M6 | ACTIVE | Final matching local packages, metadata/checksum verification and updated RX bench steps. | M5 |

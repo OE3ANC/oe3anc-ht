@@ -39,10 +39,15 @@ explicit confirmation; protected stores and stale writes remain rejected.
 
 
 In **Modem**, enter KISS from a matching connected radio, or select KISS on the
-radio first and use **Connect already in KISS**. Compose one APRS position or
-text message at a time using your callsign/SSID, destination and optional path.
-Raw and decoded packets appear in a bounded history. KISS writes do not confirm
-RF transmission or delivery. Physical PTT and channel/settings changes exit KISS;
-close the port and reconnect explicitly afterward. **Exit KISS & close** sends
-return; **Connect radio** then verifies companion mode. There are no automatic
-beacons, retries or message acknowledgements.
+radio first and use **Connect already in KISS**. Start receive-only: connecting
+sends no packets, and received AX.25/APRS records appear above the composer.
+Received and sent histories have separate counts and retain the last 100 records
+each. Supported uncompressed positions and text messages are readable alongside
+raw bytes; other packet types remain raw. Preview positions/messages offline;
+**Send once** uses the current form. Drafts survive disconnect/reconnect while
+the page stays open. There are no automatic beacons, retries or acknowledgements.
+
+An open serial port is not proof of radio KISS mode, RF transmission or delivery.
+Physical PTT and channel/settings changes exit KISS; close the port and reconnect
+explicitly afterward. **Exit KISS & close** sends return; **Connect radio** then
+verifies companion mode. See the [RX bench steps](../docs/kiss-bench.md).
