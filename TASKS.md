@@ -20,4 +20,4 @@ User reported successful TX decode on another HT after enabling Ignore carrier; 
 | ID | Status | Deliverable and acceptance | Dependencies / evidence |
 |---|---|---|---|
 | M5 | DONE | Trace and verify PCM-to-KISS RX with known packets; radio shows busy-channel/TX-inhibited/queued/TX states; companion separates received/sent records, decodes supported APRS positions/messages, previews packets before explicit send, preserves drafts across reconnect, and clearly distinguishes serial connection from radio mode. Bounded malformed-input tests, review, full paired gate. | Full gate build/kiss/m5-full-gate.log PASS; independent review clear; synthetic RX14/14, menu19/19 and browser preview/invalidation checks pass. Hardware RX pending user. |
-| M6 | ACTIVE | Final matching local packages, metadata/checksum verification and updated RX bench steps. | M5 |
+| M6 | DONE | Final matching local packages, metadata/checksum verification and updated RX bench steps. | M5; build/kiss/rx-handoff paired archives passed identity/hash/ZIP checks; m6-builds.log builds-only pass, full M5 test results reused. Final commit metadata refreshed before handoff. |
