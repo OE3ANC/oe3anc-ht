@@ -2,6 +2,7 @@
 import { C } from './protocol.mjs';
 import { KissConnection } from './kiss-serial.mjs';
 import { ax25, position, message, describePacket } from './kiss.mjs';
+import { ReceivedMap } from './received-map.mjs';
 
 export class ModemUi {
     constructor(root, companion, { available, changed }) {
@@ -11,6 +12,7 @@ export class ModemUi {
         this.changed = changed;
         this.status = root.querySelector('[role="status"]');
         this.counts = { Received: 0, Sent: 0 };
+        this.receivedMap = new ReceivedMap(root);
         this.kiss = new KissConnection(frame => this.packet('Received', frame), error => {
             if (error) {
                 this.status.textContent = error.message;
@@ -38,6 +40,7 @@ export class ModemUi {
                 this.root.querySelector(`#modem-${kind.toLowerCase()}-log`).textContent = '';
                 this.counts[kind] = 0;
             }
+            this.receivedMap.clear();
             this.update();
         });
         this.update();
@@ -88,6 +91,16 @@ export class ModemUi {
     packet(kind, frame) {
         const row = document.createElement('pre');
         row.textContent = `${kind === 'Sent' ? 'Sent to modem' : 'Received'} · ${describePacket(frame)}`;
+        const station = kind === 'Received' ? this.receivedMap.receive(frame) : null;
+        if (station) {
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.className = 'secondary packet-map';
+            button.textContent = 'Map';
+            button.setAttribute('aria-label', `Map received position from ${station.source}`);
+            button.addEventListener('click', () => this.receivedMap.focus(station));
+            row.append(button);
+        }
         const log = this.root.querySelector(`#modem-${kind.toLowerCase()}-log`);
         log.prepend(row);
         while (log.children.length > 100) {

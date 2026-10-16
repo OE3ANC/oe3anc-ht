@@ -47,6 +47,9 @@ def main():
     if (dist / 'bootloader').exists():
         shutil.rmtree(dist / 'bootloader')
     shutil.copytree(ROOT / 'companion/bootloader', dist / 'bootloader')
+    if (dist / 'vendor').exists():
+        shutil.rmtree(dist / 'vendor')
+    shutil.copytree(ROOT / 'companion/vendor', dist / 'vendor')
     (dist / 'src/release.mjs').write_text('export const release = ' + json.dumps(release) + ';\n')
     (dist / 'src/site.mjs').write_text(
         'export const site = ' + json.dumps({'basePath': args.base_path}) + ';\n'

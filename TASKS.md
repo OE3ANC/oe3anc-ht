@@ -21,3 +21,10 @@ User reported successful TX decode on another HT after enabling Ignore carrier; 
 |---|---|---|---|
 | M5 | DONE | Trace and verify PCM-to-KISS RX with known packets; radio shows busy-channel/TX-inhibited/queued/TX states; companion separates received/sent records, decodes supported APRS positions/messages, previews packets before explicit send, preserves drafts across reconnect, and clearly distinguishes serial connection from radio mode. Bounded malformed-input tests, review, full paired gate. | Full gate build/kiss/m5-full-gate.log PASS; independent review clear; synthetic RX14/14, menu19/19 and browser preview/invalidation checks pass. Hardware RX pending user. |
 | M6 | DONE | Final matching local packages, metadata/checksum verification and updated RX bench steps. | M5; build/kiss/rx-handoff paired archives passed identity/hash/ZIP checks; m6-builds.log builds-only pass, full M5 test results reused. Final commit metadata refreshed before handoff. |
+
+## Received APRS map
+
+| ID | Status | Deliverable and acceptance | Dependencies / evidence |
+|---|---|---|---|
+| M7 | DONE | Interactive map of validated received APRS positions, latest position per callsign, bounded state, station details and packet-history focus. Locally bundled map library, optional online basemap with attribution, offline position list, safe malformed-input handling, root/subpath packaging, tests/browser QA/review/full gate. | Full gate build/kiss/m7-full-gate.log PASS; independent review_received_map clear; focused parser/UI/build/archive tests and browser QA pass (m7-focused.log, m7-browser-qa.txt). Standard KISS unchanged. |
+| M8 | ACTIVE | Verified matching local firmware/companion packages and final handoff. | M7 |

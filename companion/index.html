@@ -6,6 +6,7 @@
   <meta name="color-scheme" content="light dark">
   <title>OE3ANC HT companion</title>
   <script src="./src/theme.js"></script>
+  <link rel="stylesheet" href="./vendor/leaflet/leaflet.css">
   <link rel="stylesheet" href="./style.css">
 </head>
 <body>
@@ -74,6 +75,19 @@
       <h3>Packets</h3>
       <p>Newest first, last 100 records per direction; counts include older records since Clear. Supported APRS positions/messages are interpreted; other payloads remain raw. Sent counts mean serial writes, not RF delivery. Drafts stay on this page across reconnects.</p>
       <button id="modem-clear" class="secondary" type="button">Clear packets</button>
+      <h4>Received positions</h4>
+      <p class="hint">Latest valid position per callsign/SSID, up to 100 stations. Uncompressed, untimestamped APRS positions only. Clear packets also clears positions; nothing is saved after closing this page.</p>
+      <div class="actions">
+        <button id="modem-map-fit" class="secondary" type="button" disabled>Fit stations</button>
+        <button id="modem-map-online" class="secondary" type="button" aria-pressed="false" aria-describedby="modem-map-privacy">Enable online map</button>
+      </div>
+      <p id="modem-map-privacy" class="hint">Online tiles need internet and send the viewed map area and your IP address to OpenStreetMap. Positions and station details work offline.</p>
+      <p id="modem-map-status" role="status">Online map disabled.</p>
+      <div id="modem-map" tabindex="0" role="region" aria-label="Received position map. Use arrow keys to pan and plus or minus to zoom."></div>
+      <details class="station-list">
+        <summary>Station coordinates and received times</summary>
+        <ul id="modem-stations" aria-label="Received stations"></ul>
+      </details>
       <h4>Received · <span id="modem-received-count">0</span></h4>
       <div id="modem-received-log" aria-label="Received packet history"></div>
       <h4>Sent to modem · <span id="modem-sent-count">0</span></h4>
@@ -301,6 +315,7 @@
     </section>
     <footer><p>OE3ANC HT · Experimental firmware for the C62</p><a href="https://github.com/OE3ANC/oe3anc-ht" target="_blank" rel="noopener noreferrer">Project on GitHub ↗</a></footer>
   </main>
+  <script src="./vendor/leaflet/leaflet.js"></script>
   <script type="module" src="./src/app.mjs"></script>
 </body>
 </html>

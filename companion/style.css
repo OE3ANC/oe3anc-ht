@@ -820,3 +820,48 @@ footer {
 
 #modem fieldset { margin-block: 1rem; }
 #modem pre { white-space: pre-wrap; overflow-wrap: anywhere; padding: 0.75rem; border-bottom: 1px solid var(--border); }
+
+#modem-map {
+    height: clamp(18rem, 48vh, 30rem);
+    width: 100%;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    z-index: 0;
+}
+
+#modem-map:focus-visible {
+    outline: 3px solid var(--focus);
+    outline-offset: 2px;
+}
+
+#modem-map .leaflet-popup-content-wrapper,
+#modem-map .leaflet-popup-tip,
+#modem-map .leaflet-bar a,
+#modem-map .leaflet-control-attribution {
+    background: var(--panel);
+    color: var(--ink);
+}
+
+#modem-map .leaflet-control-attribution a {
+    color: var(--ink);
+}
+
+.station-details {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+
+#modem-stations {
+    max-height: 20rem;
+    overflow: auto;
+    padding-left: 1.5rem;
+}
+
+#modem-stations li {
+    margin: .75rem 0;
+}
+
+.packet-map {
+    display: block;
+    margin-top: .5rem;
+}

@@ -308,6 +308,13 @@ class ReleaseChecks(unittest.TestCase):
             'stray-test-fixture.mjs',
         ):
             files[website / name] = name.encode()
+        vendor = release_packages.ROOT / 'companion/vendor'
+        vendor_paths = [path.relative_to(vendor) for path in vendor.rglob('*') if path.is_file()]
+        for relative in vendor_paths:
+            content = (vendor / relative).read_bytes()
+            files[root / 'companion/vendor' / relative] = content
+            files[website / 'vendor' / relative] = content
+        files[website / 'vendor/stray-test-fixture.js'] = b'excluded'
         files[website / 'release.json'] = release_packages.canonical(RELEASE)
         for path, content in files.items():
             path.parent.mkdir(parents=True, exist_ok=True)
@@ -324,6 +331,10 @@ class ReleaseChecks(unittest.TestCase):
                 self.assertIn(TAG + '/LICENSES/LVGL.txt', archive.namelist())
                 self.assertIn(TAG + '/LICENSES/project.txt', archive.namelist())
                 self.assertIn(TAG + '/bootloader/LICENSE', archive.namelist())
+                for relative in vendor_paths:
+                    self.assertEqual(archive.read(TAG + '/vendor/' + relative.as_posix()),
+                                     (vendor / relative).read_bytes())
+                self.assertNotIn(TAG + '/vendor/stray-test-fixture.js', archive.namelist())
                 self.assertNotIn(TAG + '/provenance.md', archive.namelist())
                 for name in ('src/release.mjs', 'src/site.mjs'):
                     self.assertEqual(archive.read(TAG + '/' + name), files[website / name])

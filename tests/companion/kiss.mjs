@@ -65,3 +65,19 @@ for (let length = 0; length < 35; ++length) {
 }
 assert.equal(decodeAprs({ ...decodeAx25(positionBytes), pid: 0xcc }), null);
 console.log('Independent APRS vectors and safe raw fallback passed');
+
+const { decodeAprsPosition } = await import('../../companion/src/kiss.mjs');
+const parsePosition = payload => decodeAprsPosition({ control: 3, pid: 0xf0,
+    payload: new TextEncoder().encode(payload) });
+assert.deepEqual(parsePosition('=9000.00S/18000.00W>pole'), {
+    latitude: -90, longitude: -180, northSouth: 'S', eastWest: 'W',
+    symbol: '/>', comment: 'pole'
+});
+assert.equal(parsePosition('!0000.00N/00000.00E>').latitude, 0);
+assert.equal(parsePosition('!9000.00N/18000.00E>').longitude, 180);
+for (const payload of ['!9060.00N/18000.00E>', '!9000.01N/00000.00E>',
+    '!0000.00N/18000.01E>', '!0000.00N/00060.00E>', '!0000.00N/00000.00E>\x00',
+    '/092345z4903.50N/07201.75W-', '!/5L!!<*e7>7P[', '`abcdefg']) {
+    assert.equal(parsePosition(payload), null);
+}
+console.log('Structured APRS signed, zero, boundary and unsupported position checks passed');

@@ -47,6 +47,13 @@ raw bytes; other packet types remain raw. Preview positions/messages offline;
 **Send once** uses the current form. Drafts survive disconnect/reconnect while
 the page stays open. There are no automatic beacons, retries or acknowledgements.
 
+The received-position map keeps the latest valid uncompressed, untimestamped APRS
+position for up to 100 callsigns/SSIDs. Pan/zoom, **Fit stations** or a packet’s
+**Map** button to inspect it. Station coordinates, comments and received times
+work offline. **Enable online map** loads OpenStreetMap tiles over the internet,
+sharing the viewed area and your IP address with OpenStreetMap. **Clear packets**
+also clears positions; positions are not saved after the page closes.
+
 An open serial port is not proof of radio KISS mode, RF transmission or delivery.
 Physical PTT and channel/settings changes exit KISS; close the port and reconnect
 explicitly afterward. **Exit KISS & close** sends return; **Connect radio** then

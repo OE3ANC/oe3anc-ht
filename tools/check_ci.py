@@ -86,6 +86,7 @@ def check(dependencies, tag, base_path, skip_tests=False):
             'tests/build/test_ci.py',
             'tests/build/test_release_pipeline.py',
             'tests/build/test_pages.py',
+            'tests/build/test_companion_assets.py',
             'tests/codeplug/test_codeplug.py',
             'tests/codeplug/test_profiles.py',
             'tests/companion/test_release.py',

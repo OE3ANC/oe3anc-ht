@@ -136,6 +136,11 @@ def package(build, website, output, tag, dependencies):
             for path in sorted((ROOT / 'companion' / folder).glob('*'))
             if path.is_file()
         )
+    paths.extend(
+        path.relative_to(ROOT / 'companion')
+        for path in sorted((ROOT / 'companion/vendor').rglob('*'))
+        if path.is_file()
+    )
     entries = {name + '/' + path: content for path, content in licenses.items()}
     for relative in paths:
         path = website / relative

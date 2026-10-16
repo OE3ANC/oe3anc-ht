@@ -179,7 +179,7 @@ export function safeText(bytes) {
 
 // Deliberately limited to uncompressed, untimestamped positions and text messages.
 // Unsupported/ambiguous positions, telemetry and malformed data retain the raw display.
-export function decodeAprs(item) {
+export function decodeAprsPosition(item) {
     if ((item.control & 0xef) !== 3 || item.pid !== 0xf0 ||
         item.payload.some(byte => byte < 32 || byte > 126)) {
         return null;
@@ -193,10 +193,26 @@ export function decodeAprs(item) {
             latitude > 90 || longitude > 180) {
             return null;
         }
-        return `Position: ${latitude.toFixed(5)}° ${point[3]}, ` +
-            `${longitude.toFixed(5)}° ${point[7]} · symbol ${point[4]}${point[8]}` +
-            (point[9] ? `\nComment: ${point[9]}` : '');
+        return { latitude: latitude * (point[3] === 'S' ? -1 : 1),
+            longitude: longitude * (point[7] === 'W' ? -1 : 1),
+            northSouth: point[3], eastWest: point[7],
+            symbol: point[4] + point[8], comment: point[9] };
     }
+    return null;
+}
+
+export function decodeAprs(item) {
+    const point = decodeAprsPosition(item);
+    if (point) {
+        return `Position: ${Math.abs(point.latitude).toFixed(5)}° ${point.northSouth}, ` +
+            `${Math.abs(point.longitude).toFixed(5)}° ${point.eastWest} · symbol ${point.symbol}` +
+            (point.comment ? `\nComment: ${point.comment}` : '');
+    }
+    if ((item.control & 0xef) !== 3 || item.pid !== 0xf0 ||
+        item.payload.some(byte => byte < 32 || byte > 126)) {
+        return null;
+    }
+    const text = safeText(item.payload);
     const msg = /^:([A-Z0-9][A-Z0-9 -]{8}):([^|~{]{1,67})(?:\{([A-Za-z0-9]{1,5}))?$/.exec(text);
     if (msg && !/^(ack|rej)[A-Za-z0-9]{1,5}$/.test(msg[2])) {
         return `Message to ${msg[1].trimEnd()}: ${msg[2]}` +
