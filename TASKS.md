@@ -27,4 +27,4 @@ User reported successful TX decode on another HT after enabling Ignore carrier; 
 | ID | Status | Deliverable and acceptance | Dependencies / evidence |
 |---|---|---|---|
 | M7 | DONE | Interactive map of validated received APRS positions, latest position per callsign, bounded state, station details and packet-history focus. Locally bundled map library, optional online basemap with attribution, offline position list, safe malformed-input handling, root/subpath packaging, tests/browser QA/review/full gate. | Full gate build/kiss/m7-full-gate.log PASS; independent review_received_map clear; focused parser/UI/build/archive tests and browser QA pass (m7-focused.log, m7-browser-qa.txt). Standard KISS unchanged. |
-| M8 | ACTIVE | Verified matching local firmware/companion packages and final handoff. | M7 |
+| M8 | DONE | Verified matching local firmware/companion packages and final handoff. | build/kiss/map-handoff identity/hash/ZIP/source/vendor checks PASS; m8-builds.log builds-only metadata refresh, unchanged M7 test results reused. Final commit metadata refreshed before handoff. |
