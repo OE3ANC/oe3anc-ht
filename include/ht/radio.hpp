@@ -73,6 +73,9 @@ struct RadioState {
     uint32_t shutdown_sequence = 0; // Counts off transitions; survives explicit restart.
     int64_t shutdown_ms = 0;        // Uptime when latest backend stop completed.
     RadioConfig config;
+    // Retained companion entry result; independent of ordinary UI command results.
+    uint32_t modem_entry_token = 0;
+    int modem_entry_error = 0;
     bool modem_enabled = false;
     RadioPhase phase = RadioPhase::Starting;
     bool power_active = true; // Normal operation allowed; faults survive inactivity.
@@ -114,6 +117,7 @@ enum class CommandKind : uint8_t {
 
 struct RadioCommand {
     CommandKind kind = CommandKind::Configure;
+    uint32_t modem_entry_token = 0; // Zero for menu commands; cancellable ticket otherwise.
     bool modem_enabled = false;
     uint32_t modem_epoch = 0;
     uint32_t modem_ptt_sequence = 0;
@@ -227,4 +231,6 @@ int radio_latched_fault();
 bool radio_idle_lock(bool inactive_only = false);
 void radio_idle_unlock();
 RadioState radio_snapshot();
+// Bounded companion handoff polling must not wait behind backend operations.
+bool radio_try_snapshot(RadioState &state);
 } // namespace ht

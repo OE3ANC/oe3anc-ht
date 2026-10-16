@@ -30,7 +30,74 @@ static ht::companion::Cps cps;
 #else
 #define CPS_CAPABILITY 0
 #endif
+#ifdef CONFIG_HT_MODEM
+#define MODEM_CAPABILITY ht::companion::CAP_KISS
+static bool entering_modem;
+
+static void enter_modem(const ht::companion::Frame &request, ht::companion::Frame &response) {
+    using namespace ht;
+    using namespace ht::companion;
+    response.size = 1;
+    response.payload[0] = STATUS_INVALID;
+    if (request.size) {
+        return;
+    }
+    modem_cancel_entry();
+    RadioState state;
+    if (!radio_try_snapshot(state)) {
+        response.payload[0] = STATUS_BUSY;
+        return;
+    }
+    RadioCommand command;
+    command.kind = CommandKind::Modem;
+    command.modem_enabled = true;
+    command.modem_entry_token = modem_entry_ticket();
+    command.modem_epoch = modem_epoch();
+    command.modem_ptt_sequence = radio_ptt_press_sequence();
+    command.expected_generation = state.generation;
+    command.expected_revision = state.configuration_revision;
+    command.modem_settings = modem_status().settings;
+    int error = radio_submit(command);
+    const auto deadline = k_uptime_get() + 150;
+    while (!error) {
+        RadioState current;
+        if (radio_try_snapshot(current) &&
+            current.modem_entry_token == command.modem_entry_token) {
+            error = current.modem_entry_error;
+            if (!error && !modem_enabled()) {
+                error = -ECANCELED;
+            }
+            break;
+        }
+        if (k_uptime_get() >= deadline) {
+            error = -ETIMEDOUT;
+            break;
+        }
+        k_sleep(K_MSEC(1));
+    }
+    entering_modem = !error;
+    if (error) {
+        // Also revoke a command still queued while modem_enabled() is false.
+        modem_cancel_entry();
+    }
+    response.payload[0] = !error                              ? STATUS_OK
+                          : error == -EBUSY || error == -ENOMSG ? STATUS_BUSY
+                          : error == -ESTALE                   ? STATUS_STALE
+                          : error == -EINVAL                   ? STATUS_INVALID
+                          : error == -ECANCELED                ? STATUS_CANCELLED
+                                                               : STATUS_FAILED;
+}
+#else
+#define MODEM_CAPABILITY 0
+#endif
+
 static void product(void *, const ht::companion::Frame &request, ht::companion::Frame &response) {
+#ifdef CONFIG_HT_MODEM
+    if (request.type == ht::companion::MSG_MODEM_ENTER) {
+        enter_modem(request, response);
+        return;
+    }
+#endif
     if (request.type == ht::companion::MSG_PTT_PRESS ||
         request.type == ht::companion::MSG_PTT_KEEP ||
         request.type == ht::companion::MSG_PTT_RELEASE) {
@@ -60,10 +127,10 @@ static void product(void *, const ht::companion::Frame &request, ht::companion::
 namespace ht {
 namespace companion {
 #ifdef CONFIG_BOARD_C62
-static Session session(HT_RELEASE_IDENTITY, "c62", CPS_CAPABILITY | UI_CAPABILITY | CAP_PTT,
+static Session session(HT_RELEASE_IDENTITY, "c62", CPS_CAPABILITY | UI_CAPABILITY | CAP_PTT | MODEM_CAPABILITY,
                        product);
 #else
-static Session session(HT_RELEASE_IDENTITY, "emulator", CPS_CAPABILITY | UI_CAPABILITY | CAP_PTT,
+static Session session(HT_RELEASE_IDENTITY, "emulator", CPS_CAPABILITY | UI_CAPABILITY | CAP_PTT | MODEM_CAPABILITY,
                        product);
 #endif
 static Decoder decoder;
@@ -176,6 +243,17 @@ static void run(void *, void *, void *) {
                 }
                 const size_t length = encode(response, wire, sizeof(wire));
                 // Every frame starts with zero to discard a failed prefix.
+#ifdef CONFIG_HT_MODEM
+                if (entering_modem) {
+                    // The serial thread remains the only parser owner throughout the
+                    // controller transition. Complete the old-protocol ACK first.
+                    if (!length || ht_companion_write(wire, length, 100) != int(length)) {
+                        modem_cancel_entry();
+                    }
+                    entering_modem = false;
+                    break;
+                }
+#endif
                 if (length && !modem_enabled()) {
                     (void)ht_companion_write(wire, length, 100);
                 }

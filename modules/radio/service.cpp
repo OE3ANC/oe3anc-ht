@@ -328,6 +328,15 @@ void radio_idle_unlock() {
     k_mutex_unlock(&state_mutex);
 }
 
+bool radio_try_snapshot(RadioState &state) {
+    if (k_mutex_lock(&state_mutex, K_NO_WAIT)) {
+        return false;
+    }
+    state = controller.state();
+    k_mutex_unlock(&state_mutex);
+    return true;
+}
+
 RadioState radio_snapshot() {
     k_mutex_lock(&state_mutex, K_FOREVER);
     const RadioState result = controller.state();

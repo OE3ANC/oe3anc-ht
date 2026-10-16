@@ -80,6 +80,7 @@ older firmware may not read settings saved by newer versions.
 <img src="assets/screenshots/companion-cps.png" alt="Companion channel programming editor" width="680">
 
 - Live radio display and virtual keypad
+- KISS AFSK1200 modem with raw/decoded packets and manual APRS position/message composer; physical PTT exits KISS
 
 <img src="assets/screenshots/companion-remote.png" alt="Companion live radio display and virtual keypad" width="680">
 

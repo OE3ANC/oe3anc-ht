@@ -2,6 +2,7 @@
 import assert from 'node:assert/strict';
 import { webcrypto } from 'node:crypto';
 import { C, encode, Decoder } from '../../companion/src/protocol.mjs';
+import { KissConnection } from '../../companion/src/kiss-serial.mjs';
 import { CompanionConnection } from '../../companion/src/serial.mjs';
 globalThis.crypto ??= webcrypto;
 const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -14,6 +15,8 @@ class Port {
         legacyMinor = null,
         shortError = false,
         busy = false,
+        enterSilent = false,
+        enterRejected = false,
         silent = false
     } = {}) {
         this.writes = [];
@@ -36,10 +39,16 @@ class Port {
                     if (!request) {
                         continue;
                     }
+                    if (request.type === C.MSG_MODEM_ENTER && enterSilent) {
+                        continue;
+                    }
                     let major = request.major;
                     let minor = request.minor;
                     let session = request.session;
                     let payload = Uint8Array.of(C.STATUS_OK);
+                    if (request.type === C.MSG_MODEM_ENTER && enterRejected) {
+                        payload[0] = C.STATUS_BUSY;
+                    }
                     if (request.type === C.MSG_HELLO) {
                         const size = request.payload[0];
                         session = new DataView(request.payload.buffer).getBigUint64(1 + size, true);
@@ -55,6 +64,7 @@ class Port {
                         payload.set(new TextEncoder().encode('c62'), target + 1);
                         const view = new DataView(payload.buffer);
                         const tail = target + 4;
+                        view.setUint32(tail, C.CAP_KISS, true);
                         view.setUint16(tail + 4, C.MAX_PAYLOAD, true);
                         view.setUint16(tail + 6, C.LEASE_MS, true);
                         if (mismatch) {
@@ -154,7 +164,7 @@ await assert.rejects(connection.connect(version), error =>
 );
 assert.equal(version.writes.length, 1);
 assert.equal(version.closed, 1);
-for (const legacyMinor of [0, 1]) {
+for (const legacyMinor of [0, 1, 2, 3, 4, 5, 6]) {
     const legacy = new Port({ legacyMinor, mismatch: true });
     await assert.rejects(
         connection.connect(legacy),
@@ -177,3 +187,42 @@ await assert.rejects(connection.connect(silent), /timed out/);
 assert.equal(silent.writes.length, 2);
 assert.equal(silent.closed, 1);
 console.log('Web Serial retry, mismatch, disconnect and reconnect checks passed');
+
+// A handoff drains prior work, emits exactly one final request, and transfers locks.
+const handoffPort = new Port();
+await connection.connect(handoffPort);
+const prior = connection.transfer(async () => { await pause(10); }, { background: true });
+const switching = connection.enterKiss();
+await prior;
+const transport = await switching;
+assert.equal(handoffPort.opened, 1);
+assert.equal(handoffPort.closed, 0);
+assert.equal(connection.session, 0n);
+assert.equal(connection.port, null);
+await assert.rejects(connection.request(C.MSG_PING), /busy or closed/);
+const kiss = new KissConnection(() => {});
+await kiss.connect(transport.port, transport);
+assert.equal(handoffPort.opened, 1);
+await kiss.send(Uint8Array.of(0xc0));
+assert.deepEqual(handoffPort.writes.at(-1), Uint8Array.of(0xc0, 0, 0xdb, 0xdc, 0xc0));
+await kiss.exit();
+assert.deepEqual(handoffPort.writes.at(-1), Uint8Array.of(0xc0, 0xff, 0xc0));
+assert.equal(handoffPort.closed, 1);
+for (const options of [{ enterSilent: true }, { enterRejected: true }]) {
+    const failed = new Port(options);
+    await connection.connect(failed);
+    await assert.rejects(connection.enterKiss(), /KISS state is unknown/);
+    assert.equal(failed.closed, 1);
+    assert.equal(failed.writes.length, 2, 'Only HELLO and one entry request; no retry or heartbeat');
+    await assert.rejects(connection.request(C.MSG_PING));
+}
+const standalone = new Port({ silent: true });
+await kiss.connect(standalone);
+await kiss.send(Uint8Array.of(1));
+standalone.rx.error(new Error('Unplugged'));
+for (let i = 0; i < 50 && !standalone.closed; i++) {
+    await pause(5);
+}
+assert.equal(standalone.closed, 1);
+await assert.rejects(kiss.send(Uint8Array.of(2)));
+console.log('KISS single-send handoff, failure, direct connect and unplug checks passed');

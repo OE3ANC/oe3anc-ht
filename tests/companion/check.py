@@ -215,6 +215,8 @@ def main():
         subprocess.run([str(executable)], check=True)
     subprocess.run([args.node, str(ROOT / 'tests/companion/protocol.mjs')], check=True)
     subprocess.run([args.node, str(ROOT / 'tests/companion/serial.mjs')], check=True)
+    subprocess.run([args.node, str(ROOT / 'tests/companion/kiss.mjs')], check=True)
+    subprocess.run([args.node, str(ROOT / 'tests/companion/modem-ui.mjs')], check=True)
     subprocess.run([args.node, str(ROOT / 'tests/companion/codeplug-wire.mjs')], check=True)
     subprocess.run([args.node, str(ROOT / 'tests/companion/cps-transfer.mjs')], check=True)
     subprocess.run([args.node, str(ROOT / 'tests/companion/presentation-wire.mjs')], check=True)

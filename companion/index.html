@@ -54,8 +54,57 @@
     <nav class="task-nav" role="tablist" aria-label="Companion tools">
       <button type="button" id="tab-cps" role="tab" aria-controls="cps" aria-selected="true">Channels</button>
       <button type="button" id="tab-live-ui" role="tab" aria-controls="live-ui" aria-selected="false" tabindex="-1">Radio</button>
+      <button type="button" id="tab-modem" role="tab" aria-controls="modem" aria-selected="false" tabindex="-1">Modem</button>
       <button type="button" id="tab-firmware-tools" role="tab" aria-controls="firmware-tools" aria-selected="false" tabindex="-1">Firmware</button>
     </nav>
+
+    <section id="modem" role="tabpanel" aria-labelledby="tab-modem" tabindex="0" hidden>
+      <h2>KISS modem · APRS</h2>
+      <p>1200-baud AFSK on the radio’s current FM channel. Select KISS in the radio’s Modem menu before opening a standalone port, or enter from a matching companion connection. Physical PTT exits KISS. No automatic beacons, retries or message acknowledgements.</p>
+      <div class="actions">
+        <button id="modem-connect" type="button">Connect already in KISS</button>
+        <button id="modem-enter" type="button" disabled>Enter KISS from companion</button>
+        <button id="modem-exit" type="button" disabled>Exit KISS &amp; close</button>
+        <button id="modem-close" class="secondary" type="button" disabled>Close port</button>
+      </div>
+      <p role="status" aria-live="polite">Disconnected. KISS has no handshake or delivery acknowledgements.</p>
+      <p>After physical PTT or a radio settings change, close this port and explicitly reconnect. The browser cannot detect the radio’s mode through KISS.</p>
+      <fieldset>
+        <legend>AX.25 addresses</legend>
+        <label class="cps-field">Source callsign / SSID<input id="modem-source" placeholder="OE3ANC-7" maxlength="9" autocapitalize="characters" spellcheck="false"></label>
+        <label class="cps-field">Destination<input id="modem-destination" value="APRS" maxlength="9" spellcheck="false"></label>
+        <label class="cps-field">Path (up to eight, comma separated)<input id="modem-path" placeholder="WIDE1-1,WIDE2-1" maxlength="79" spellcheck="false"></label>
+      </fieldset>
+      <fieldset>
+        <legend>Uncompressed position</legend>
+        <label class="cps-field">Latitude (decimal degrees)<input id="modem-latitude" type="number" min="-90" max="90" step="any"></label>
+        <label class="cps-field">Longitude (decimal degrees)<input id="modem-longitude" type="number" min="-180" max="180" step="any"></label>
+        <label class="cps-field">Symbol table<select id="modem-table"><option value="/">Primary /</option><option value="\">Alternate \</option></select></label>
+        <label class="cps-field">Symbol character<input id="modem-symbol" value=">" maxlength="1"></label>
+        <label class="cps-field">Comment (43 ASCII characters)<input id="modem-comment" maxlength="43"></label>
+        <button id="modem-position" type="button" disabled>Send position once</button>
+      </fieldset>
+      <fieldset>
+        <legend>Text message</legend>
+        <label class="cps-field">Addressee<input id="modem-addressee" maxlength="9" spellcheck="false"></label>
+        <label class="cps-field">Message (67 ASCII characters; no | ~ {)<input id="modem-text" maxlength="67"></label>
+        <button id="modem-message" type="button" disabled>Send message once</button>
+      </fieldset>
+      <details>
+        <summary>KISS settings</summary>
+        <p>Timing values use 10 ms units. These settings are volatile and have no readback. TX level is adjusted on the radio.</p>
+        <label class="cps-field">TX delay<input id="modem-delay" type="number" min="0" max="255" value="30"></label>
+        <label class="cps-field">Persistence<input id="modem-persistence" type="number" min="0" max="255" value="63"></label>
+        <label class="cps-field">Slot time<input id="modem-slot" type="number" min="0" max="255" value="10"></label>
+        <label class="cps-field">TX tail<input id="modem-tail" type="number" min="0" max="255" value="0"></label>
+        <label><input id="modem-duplex" type="checkbox">Bypass carrier deferral (radio remains half duplex)</label>
+        <button id="modem-settings" type="button" disabled>Send settings</button>
+      </details>
+      <h3>Packets</h3>
+      <p>Newest first, last 100 packets. Raw bytes accompany decoded AX.25 headers and printable payload.</p>
+      <button id="modem-clear" class="secondary" type="button">Clear packets</button>
+      <div id="modem-log" aria-label="Packet history"></div>
+    </section>
 
     <section id="cps" role="tabpanel" aria-labelledby="tab-cps" tabindex="0">
       <div class="section-heading">

@@ -570,5 +570,57 @@
       "payload": "086465762d746573742a00000000000000"
     },
     "wire": "0006485401050102110201010101010101010101010b086465762d746573742a0101010101010505c316cf00"
+  },
+  {
+    "name": "modem-enter",
+    "frame": {
+      "major": 1,
+      "minor": 7,
+      "type": 64,
+      "flags": 0,
+      "request": 41,
+      "session": "42",
+      "payload": ""
+    },
+    "wire": "00064854010740010102290101022a010101010101054e94441c00"
+  },
+  {
+    "name": "modem-enter-ok",
+    "frame": {
+      "major": 1,
+      "minor": 7,
+      "type": 64,
+      "flags": 1,
+      "request": 41,
+      "session": "42",
+      "payload": "00"
+    },
+    "wire": "00084854010740010102290101022a0101010101010105f78de95400"
+  },
+  {
+    "name": "modem-enter-invalid",
+    "frame": {
+      "major": 1,
+      "minor": 7,
+      "type": 64,
+      "flags": 1,
+      "request": 42,
+      "session": "42",
+      "payload": "01"
+    },
+    "wire": "000848540107400101022a0101022a0101010101010601afd1249e00"
+  },
+  {
+    "name": "modem-enter-busy",
+    "frame": {
+      "major": 1,
+      "minor": 7,
+      "type": 64,
+      "flags": 1,
+      "request": 43,
+      "session": "42",
+      "payload": "06"
+    },
+    "wire": "000848540107400101022b0101022a0101010101010606899dd6dd00"
   }
 ]

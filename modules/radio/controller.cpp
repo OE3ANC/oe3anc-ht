@@ -209,6 +209,7 @@ int RadioController::execute(const RadioCommand &command) {
             if (command.expected_generation != state_.generation ||
                 command.expected_revision != state_.configuration_revision ||
                 command.modem_epoch != modem_epoch() ||
+                (command.modem_entry_token && command.modem_entry_token != modem_entry_ticket()) ||
                 command.modem_ptt_sequence != radio_ptt_press_sequence()) {
                 error = -ESTALE;
             } else if (state_.phase != RadioPhase::Receiving || radio_ptt_requested()) {
@@ -222,7 +223,9 @@ int RadioController::execute(const RadioCommand &command) {
                 if (command.modem_enabled) {
                     radio_remote_session(0);
                     modem_enable();
-                    if (command.modem_ptt_sequence != radio_ptt_press_sequence() ||
+                    if ((command.modem_entry_token &&
+                         command.modem_entry_token != modem_entry_ticket()) ||
+                        command.modem_ptt_sequence != radio_ptt_press_sequence() ||
                         radio_ptt_requested()) {
                         modem_disable();
                         error = -ECANCELED;
@@ -425,6 +428,17 @@ int RadioController::execute(const RadioCommand &command) {
             error = -EINVAL;
         }
     }
+#ifdef CONFIG_HT_MODEM
+    if (command.kind == CommandKind::Modem && command.modem_entry_token) {
+        if (command.modem_entry_token != modem_entry_ticket()) {
+            modem_disable();
+            error = -ECANCELED;
+        }
+        state_.modem_entry_token = command.modem_entry_token;
+        state_.modem_entry_error = error;
+        return error;
+    }
+#endif
     if (command.kind == CommandKind::Recall || command.kind == CommandKind::Edit) {
         state_.recall_id = command.id;
         state_.recall_generation = state_.generation;

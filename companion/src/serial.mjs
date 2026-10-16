@@ -20,6 +20,7 @@ export class CompanionConnection {
         this.closing = false;
         this.closePromise = null;
         this.sequence = 0;
+        this.switching = false;
         try {
             await port.open({
                 baudRate: 115200,
@@ -45,8 +46,8 @@ export class CompanionConnection {
                 const error = new Error(
                     `Radio protocol ${frame.major}.${frame.minor} requires a matching companion (this companion uses ${C.MAJOR}.${C.MINOR}).`
                 );
-                if (frame.major === 1 && (frame.minor === 0 || frame.minor === 1)) {
-                    // Public 1.0/1.1 share HELLO's layout, but initially return only a status.
+                if (frame.major === 1 && (frame.minor >= 0 && frame.minor <= 6)) {
+                    // Public 1.0–1.6 share HELLO's layout and return a version rejection first.
                     // This identity cannot match a release build, so discovery cannot open a session.
                     try {
                         const probe = await this.request(
@@ -98,7 +99,7 @@ export class CompanionConnection {
     }
 
     request(type, payload = new Uint8Array(), minor = C.MINOR) {
-        if (!this.writer || this.pending) {
+        if (!this.writer || this.pending || (this.switching && type !== C.MSG_MODEM_ENTER)) {
             return Promise.reject(new Error('Connection busy or closed'));
         }
         if (this.sequence >= 0xffffffff) {
@@ -120,13 +121,13 @@ export class CompanionConnection {
                 if (this.pending?.request !== request) {
                     return;
                 }
-                if (++attempts > 2) {
+                if (++attempts > (type === C.MSG_MODEM_ENTER ? 1 : 2)) {
                     this.pending = null;
                     reject(new Error('Radio response timed out'));
                     return;
                 }
                 // Retry the identical frame once, within the radio's lease.
-                this.pending.timeout = setTimeout(send, 250);
+                this.pending.timeout = setTimeout(send, type === C.MSG_MODEM_ENTER ? 1000 : 250);
                 this.writer.write(bytes).catch(error => {
                     if (this.pending?.request === request) {
                         clearTimeout(this.pending.timeout);
@@ -177,6 +178,10 @@ export class CompanionConnection {
                     clearTimeout(pending.timeout);
                     this.pending = null;
                     pending.resolve(frame);
+                    if (pending.type === C.MSG_MODEM_ENTER) {
+                        // No old decoder or request loop survives the ownership handoff.
+                        return;
+                    }
                 }
             }
             if (!this.closing) {
@@ -202,7 +207,7 @@ export class CompanionConnection {
 
     scheduleHeartbeat() {
         this.heartbeat = setTimeout(async () => {
-            if (this.closing || !this.session) {
+            if (this.closing || this.switching || !this.session) {
                 return;
             }
             try {
@@ -223,6 +228,7 @@ export class CompanionConnection {
     async transfer(work, { background = false, input = false } = {}) {
         if (
             this.closing ||
+            this.switching ||
             !this.session ||
             this.foregroundWaiting ||
             (this.bulk && (background || input || !(this.backgroundWork || this.inputWork)))
@@ -283,6 +289,35 @@ export class CompanionConnection {
                 this.inputWork = null;
                 complete();
             }
+        }
+    }
+
+    async enterKiss() {
+        if (!(this.info?.capabilities & C.CAP_KISS)) {
+            throw new Error('This matching radio does not advertise KISS entry');
+        }
+        try {
+            return await this.transfer(async () => {
+                this.switching = true;
+                clearTimeout(this.heartbeat);
+                this.cancelKeys?.();
+                const frame = await this.request(C.MSG_MODEM_ENTER);
+                if (frame.payload.length !== 1 || frame.payload[0] !== C.STATUS_OK) {
+                    throw new Error('Radio rejected KISS entry');
+                }
+                await this.loop;
+                // Keep the same open port and locks; there is never a second reader/writer.
+                const transport = { port: this.port, reader: this.reader, writer: this.writer };
+                this.port = this.reader = this.writer = null;
+                this.session = 0n;
+                this.closing = true;
+                this.onState({ connected: false });
+                return transport;
+            });
+        } catch (error) {
+            await this.close();
+            this.onState({ connected: false, error });
+            throw new Error(`${error.message}. KISS state is unknown; use the radio menu before reconnecting.`);
         }
     }
 

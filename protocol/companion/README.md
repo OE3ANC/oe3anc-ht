@@ -1,4 +1,4 @@
-# Companion application protocol 1.6
+# Companion application protocol 1.7
 
 This document and `contract.json` are the normative definition. `fixtures.json`
 contains frozen examples used by both codecs. Generated constants belong to both
@@ -13,7 +13,7 @@ complete CPS transfer, live UI snapshots, ordinary virtual keys and remote PTT. 
 (`CAP_CPS = 1`) advertises connected CPS when both settings and UI owners are
 present; bit 1 (`CAP_UI_SNAPSHOT = 2`) advertises UI snapshots when the UI owner
 is present; bit 2 (`CAP_UI_KEYS = 4`) advertises ordinary front keys and bit 3
-(`CAP_PTT = 8`) advertises controller-owned remote PTT. Other bits are zero.
+(`CAP_PTT = 8`) advertises controller-owned remote PTT. `CAP_KISS = 16` advertises the explicit KISS handoff. Other bits are zero.
 Protocol 1.0 is the public baseline; 1.1 extends its theme enumeration. Development-era protocol pairs and file
 formats are unsupported; use firmware and companion from the same public release.
 CSK bootloader traffic is a separate protocol and must never use this envelope.
@@ -54,7 +54,7 @@ complete wire frame at most 219 bytes, below the backend's 256-byte write limit.
 | --- | --- | --- |
 | 0 | 2 | Magic ASCII `HT` (`48 54`) |
 | 2 | 1 | Protocol major, currently 1 |
-| 3 | 1 | Protocol minor, currently 5 |
+| 3 | 1 | Protocol minor, currently 7 |
 | 4 | 1 | Message ID |
 | 5 | 1 | Flags: request 0, response 1; other values invalid |
 | 6 | 2 | Payload length, 0..192 |
@@ -396,3 +396,37 @@ It toggles Quick controls from Home and does nothing inside an editor. Firmware
 owns temporary Monitor/Listen-on-TX overrides, drafts and all navigation.
 CPS binary v4 adds `global.ui.startup_animation`; the maximum payload is 40598
 bytes. See [UI encoding](ui-snapshot.md) and [CPS compatibility](cps-binary.md).
+
+
+## Protocol 1.7 KISS handoff
+
+`MODEM_ENTER` (0x40) requires `CAP_KISS`, an exact protocol/release match and
+an established session. The request is empty; the response is one status byte.
+OK means the controller actually enabled KISS on the current FM channel, with
+no packet queued and no RF transmission. Invalid payload/non-FM mode returns
+INVALID, unavailable controller/queue returns BUSY, stale channel/lifecycle
+returns STALE, interruption returns CANCELLED and other errors return FAILED.
+UI snapshots and CPS formats are unchanged.
+
+Before entry the host drains its current transfer and clears virtual keys, then
+stops heartbeat, UI polling, CPS and key traffic. This request is sent **once**,
+never retried: an ACK can be lost after the radio switches parsers. The radio
+waits up to 150 ms for retained controller completion using a cancellable entry
+ticket, then sends the complete final companion response before switching the
+serial parser. Timeout or a failed/short ACK invalidates the ticket and disables
+KISS, including entry still queued while disabled. Controller rejection never
+returns OK. Physical PTT, power/fault and configuration changes still take
+priority; an OK reply does not promise that a later physical action has not
+already exited KISS.
+
+The browser uses a 1000 ms one-shot timeout. Only a confirmed OK transfers its
+existing serial reader/writer to KISS, after a 50 ms guard. Error, timeout or
+unknown outcome closes the port without resuming companion requests. Recovery
+requires explicit radio menu selection and reconnect. KISS has no handshake or
+ACK: direct connections assume the radio is already in KISS, and sending return
+`C0 FF C0` is followed by port closure, not a success claim about radio state.
+Normal discovery must establish a fresh companion session after exit.
+
+Known protocol 1.0–1.6 HELLO layouts support the bounded identity-only discovery
+probe for archived-companion links; mixed protocol/release sessions remain
+rejected before mutation. See [KISS transport](../kiss/README.md).

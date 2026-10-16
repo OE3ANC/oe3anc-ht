@@ -5,6 +5,7 @@ import { CompanionConnection } from './serial.mjs';
 import { CpsEditor } from './cps.mjs';
 import { ConnectedCps } from './connected-cps.mjs';
 import { LiveUi } from './live-ui.mjs';
+import { ModemUi } from './modem-ui.mjs';
 import { FirmwareTools } from './firmware-tools.mjs';
 import { releaseTag, githubReleaseUrl, companionLabel, firmwareLink } from './release-links.mjs';
 import { setupToolTabs } from './tabs.mjs';
@@ -24,11 +25,14 @@ for (const link of document.querySelectorAll('[data-release-link]')) {
 }
 
 let connecting = false;
+let modem;
 
 function updatePortButtons() {
+    disconnect.disabled = !connection.session || !!modem?.ownsPort;
     connect.disabled =
-        connecting || !!connection.port || firmwareTools.ownsPort || !('serial' in navigator);
+        connecting || !!connection.port || firmwareTools.ownsPort || modem?.ownsPort || !('serial' in navigator);
     firmwareTools.update();
+    modem?.update();
 }
 
 function state(value) {
@@ -47,7 +51,11 @@ const connection = new CompanionConnection(release, state);
 const connectedCps = new ConnectedCps(document.querySelector('#cps'), editor, connection);
 const liveUi = new LiveUi(document.querySelector('#live-ui'), connection);
 const firmwareTools = new FirmwareTools(document.querySelector('#firmware-tools'), {
-    available: () => !connecting && !connection.port,
+    available: () => !connecting && !connection.port && !modem?.ownsPort,
+    changed: updatePortButtons
+});
+modem = new ModemUi(document.querySelector('#modem'), connection, {
+    available: () => !connecting && !connection.port && !firmwareTools.ownsPort,
     changed: updatePortButtons
 });
 setupToolTabs(document, () => liveUi.update());
@@ -56,7 +64,7 @@ if (!('serial' in navigator)) {
     status.textContent = 'Serial connections require a desktop browser with Web Serial support.';
 }
 connect.addEventListener('click', async () => {
-    if (connecting || connection.port || firmwareTools.ownsPort) {
+    if (connecting || connection.port || firmwareTools.ownsPort || modem?.ownsPort) {
         return;
     }
     connecting = true;

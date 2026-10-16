@@ -15,6 +15,7 @@ K_MSGQ_DEFINE(tx_queue, sizeof(Packet), 4, 4);
 K_MSGQ_DEFINE(rx_queue, sizeof(Packet), 4, 4);
 K_MUTEX_DEFINE(mutex);
 atomic_t enabled, epoch, transmitting;
+atomic_t entry_ticket = 1;
 ModemStatus status;
 modem::Frame pending;
 int64_t next_slot;
@@ -117,6 +118,15 @@ void worker(void *, void *, void *) {
 K_THREAD_DEFINE(modem_worker, 4096, worker, nullptr, nullptr, nullptr, 7, 0, 0);
 #endif
 } // namespace
+
+uint32_t modem_entry_ticket() {
+    return atomic_get(&entry_ticket);
+}
+
+void modem_cancel_entry() {
+    atomic_inc(&entry_ticket);
+    modem_disable();
+}
 
 void modem_disable() {
     if (atomic_cas(&enabled, 1, 0)) {

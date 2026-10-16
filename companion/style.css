@@ -817,3 +817,6 @@ footer {
     }
 
 }
+
+#modem fieldset { margin-block: 1rem; }
+#modem-log pre { white-space: pre-wrap; overflow-wrap: anywhere; padding: 0.75rem; border-bottom: 1px solid var(--border); }

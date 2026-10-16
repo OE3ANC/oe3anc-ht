@@ -19,6 +19,9 @@ struct ModemStatus {
 #ifdef CONFIG_HT_MODEM
 // Disable is a producer-safe cancellation path; controller alone enables/routes RF.
 void modem_disable();
+// Separate cancellation ticket also invalidates an entry queued while disabled.
+uint32_t modem_entry_ticket();
+void modem_cancel_entry();
 bool modem_enabled();
 uint32_t modem_epoch();
 void modem_enable();

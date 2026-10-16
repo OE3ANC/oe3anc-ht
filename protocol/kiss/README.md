@@ -71,3 +71,11 @@ requires a new discovery/session. KISS parameter commands affect subsequent
 packet modulation/admission; an already rendered packet retains its timing.
 A packet has an independent 10-second RF deadline even with the voice TX limit
 disabled. The emulator models ownership/state only; it does not emulate RF.
+
+The browser Modem tab supports direct KISS connections and explicit entry from a
+matching companion session. It displays raw/decoded AX.25 frames and composes
+uncompressed APRS positions and text messages (no message IDs). It never sends
+automatically. A successful browser write only means “sent to modem”; KISS has
+no RF/delivery acknowledgement or mode detection. After physical PTT or radio
+configuration changes, close and reconnect explicitly. Companion entry uses the
+[paired protocol 1.7 handoff](../companion/README.md#protocol-17-kiss-handoff).

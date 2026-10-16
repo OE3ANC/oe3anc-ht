@@ -4,7 +4,7 @@
 #include <stdint.h>
 namespace ht { namespace companion {
 constexpr unsigned MAJOR = 1;
-constexpr unsigned MINOR = 6;
+constexpr unsigned MINOR = 7;
 constexpr unsigned HEADER_SIZE = 20;
 constexpr unsigned MAX_PAYLOAD = 192;
 constexpr unsigned MAX_ENCODED = 219;
@@ -39,6 +39,7 @@ constexpr unsigned MSG_UI_KEYS_KEEP = 36;
 constexpr unsigned MSG_PTT_PRESS = 48;
 constexpr unsigned MSG_PTT_KEEP = 49;
 constexpr unsigned MSG_PTT_RELEASE = 50;
+constexpr unsigned MSG_MODEM_ENTER = 64;
 constexpr unsigned FLAG_REQUEST = 0;
 constexpr unsigned FLAG_RESPONSE = 1;
 constexpr unsigned STATUS_OK = 0;
@@ -55,6 +56,7 @@ constexpr unsigned CAP_CPS = 1;
 constexpr unsigned CAP_UI_SNAPSHOT = 2;
 constexpr unsigned CAP_UI_KEYS = 4;
 constexpr unsigned CAP_PTT = 8;
+constexpr unsigned CAP_KISS = 16;
 constexpr unsigned CPS_STATE_ACCEPTED = 1;
 constexpr unsigned CPS_STATE_APPLIED = 2;
 constexpr unsigned CPS_STATE_DURABLE = 3;

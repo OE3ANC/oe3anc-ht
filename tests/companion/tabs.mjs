@@ -29,7 +29,7 @@ const tabs = [...html.matchAll(/<button[^>]+role="tab"[^>]+aria-controls="([^"]+
         };
     }
 );
-assert.equal(tabs.length, 3);
+assert.equal(tabs.length, 4);
 globalThis.location = { hash: '#firmware-tools' };
 globalThis.history = {
     replaceState(_state, _title, hash) {
@@ -61,19 +61,19 @@ function key(index, key) {
     tabs[index].events.keydown({ key, preventDefault: () => (prevented = true) });
     return prevented;
 }
-selected(2);
+selected(3);
 const draft = panels.get('#cps').draft;
 tabs[0].events.click();
 selected(0);
 assert.equal(location.hash, '#cps');
 assert.equal(focused, tabs[0]);
 assert(key(0, 'ArrowLeft'));
-selected(2);
-assert(key(2, 'ArrowRight'));
+selected(3);
+assert(key(3, 'ArrowRight'));
 selected(0);
 assert(key(0, 'End'));
-selected(2);
-assert(key(2, 'Home'));
+selected(3);
+assert(key(3, 'Home'));
 selected(0);
 assert(!key(0, 'Tab'));
 location.hash = '#live-ui';

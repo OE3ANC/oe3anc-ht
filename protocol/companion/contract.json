@@ -1,7 +1,7 @@
 {
   "name": "oe3anc-ht-companion",
   "major": 1,
-  "minor": 6,
+  "minor": 7,
   "header_size": 20,
   "max_payload": 192,
   "max_encoded": 219,
@@ -28,7 +28,8 @@
     "UI_KEYS_KEEP": 36,
     "PTT_PRESS": 48,
     "PTT_KEEP": 49,
-    "PTT_RELEASE": 50
+    "PTT_RELEASE": 50,
+    "MODEM_ENTER": 64
   },
   "flags": {
     "REQUEST": 0,
@@ -38,7 +39,8 @@
     "CPS": 1,
     "UI_SNAPSHOT": 2,
     "UI_KEYS": 4,
-    "PTT": 8
+    "PTT": 8,
+    "KISS": 16
   },
   "cps_states": {
     "ACCEPTED": 1,
