@@ -414,13 +414,13 @@ BackendStatus backend_status() {
                                   ? digital.rx_active
                                   : modem_enabled() ? packet_squelch.update(status.rssi_dbm, false)
                                   : (squelch.update(status.rssi_dbm, tone) || monitor);
-            if (configuration.mode == Mode::M17) {
+            if (configuration.mode == Mode::M17 || modem_enabled()) {
                 if (open != digital_activity) {
                     status.error = c62_receive_led(open);
                     if (!status.error)
                         digital_activity = open;
                 }
-            } else if (!modem_enabled() && open != audible) {
+            } else if (open != audible) {
                 status.error = receive_audio(open);
             }
             status.rx_active = !status.error && open;

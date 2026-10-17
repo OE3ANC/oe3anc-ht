@@ -28,3 +28,9 @@ User reported successful TX decode on another HT after enabling Ignore carrier; 
 |---|---|---|---|
 | M7 | DONE | Interactive map of validated received APRS positions, latest position per callsign, bounded state, station details and packet-history focus. Locally bundled map library, optional online basemap with attribution, offline position list, safe malformed-input handling, root/subpath packaging, tests/browser QA/review/full gate. | Full gate build/kiss/m7-full-gate.log PASS; independent review_received_map clear; focused parser/UI/build/archive tests and browser QA pass (m7-focused.log, m7-browser-qa.txt). Standard KISS unchanged. |
 | M8 | DONE | Verified matching local firmware/companion packages and final handoff. | build/kiss/map-handoff identity/hash/ZIP/source/vendor checks PASS; m8-builds.log builds-only metadata refresh, unchanged M7 test results reused. Final commit metadata refreshed before handoff. |
+
+## Modem carrier LED
+
+| ID | Status | Deliverable and acceptance | Dependencies / evidence |
+|---|---|---|---|
+| M9 | DONE | C62 RX LED follows KISS carrier/squelch state while packet capture stays continuous and speaker muted; clear on stop/TX/exit, preserve errors and voice/M17 behavior. Focused regression, independent C++ review, paired release gate and local handoff. | Full gate m9-full-gate.log PASS (C62 radio 30/30, 46 render comparisons); m9-led-open.log and m9-led-close.log fault checks PASS; independent review_modem_led clear. Matching package metadata refreshed after commit; no push/hardware actions. |

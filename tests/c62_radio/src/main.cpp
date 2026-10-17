@@ -26,6 +26,7 @@ static bool speaker;
 static bool green;
 static bool fail_power;
 static bool fail_speaker;
+static bool fail_receive_led;
 static bool fail_keyed_write;
 static bool fail_rx_register;
 static unsigned register_reads[128];
@@ -85,6 +86,10 @@ extern "C" int c62_speaker(bool enabled) {
 }
 
 extern "C" int c62_receive_led(bool enabled) {
+    if (fail_receive_led) {
+        fail_receive_led = false;
+        return -EIO;
+    }
     green = enabled;
     return 0;
 }
@@ -231,6 +236,19 @@ static void stopped() {
 static void configure(const RadioConfig &config) {
     RadioCommand command;
     command.config = config;
+    zassert_ok(controller.execute(command));
+}
+
+static void set_modem(bool enabled, bool ignore_carrier = false) {
+    RadioCommand command;
+    command.kind = CommandKind::Modem;
+    command.modem_enabled = enabled;
+    command.modem_settings.persistence = 255;
+    command.modem_settings.full_duplex = ignore_carrier;
+    command.expected_generation = controller.state().generation;
+    command.expected_revision = controller.state().configuration_revision;
+    command.modem_epoch = modem_epoch();
+    command.modem_ptt_sequence = radio_ptt_press_sequence();
     zassert_ok(controller.execute(command));
 }
 
@@ -868,6 +886,18 @@ ZTEST(c62_radio, test_z_failures_stop_tx_and_latch_until_reboot) {
         controller.poll();
         zassert_equal(controller.state().fault, -EIO);
         zassert_false(controller.state().rx_registers.valid);
+    } else if (fault && (!strcmp(fault, "kiss-led-open") ||
+                         !strcmp(fault, "kiss-led-close"))) {
+        set_modem(true);
+        rssi(-70);
+        if (!strcmp(fault, "kiss-led-close")) {
+            controller.poll();
+            zassert_true(green);
+            rssi(-125);
+        }
+        fail_receive_led = true;
+        controller.poll();
+        zassert_equal(controller.state().fault, -EIO);
     } else if (fault && strcmp(fault, "power") == 0) {
         fail_power = true;
         set_ptt(true);
@@ -1180,15 +1210,7 @@ ZTEST(c62_radio, test_kiss_capture_carrier_and_voice_takeover) {
     auto config = controller.state().config;
     config.rx_tone = {ToneKind::Ctcss, 885, false};
     configure(config);
-    RadioCommand command;
-    command.kind = CommandKind::Modem;
-    command.modem_enabled = true;
-    command.modem_settings.persistence = 255;
-    command.expected_generation = controller.state().generation;
-    command.expected_revision = controller.state().configuration_revision;
-    command.modem_epoch = modem_epoch();
-    command.modem_ptt_sequence = radio_ptt_press_sequence();
-    zassert_ok(controller.execute(command));
+    set_modem(true);
     zassert_true(modem_enabled());
     zassert_false(speaker);
     zassert_equal(atomic_get(&audio_running), 1, "Continuous radio capture, speaker muted");
@@ -1200,10 +1222,12 @@ ZTEST(c62_radio, test_kiss_capture_carrier_and_voice_takeover) {
     controller.poll();
     zassert_equal(controller.state().phase, RadioPhase::Receiving,
                   "A carrier without the configured tone must still defer KISS");
+    zassert_true(green);
     rssi(-125);
     k_sleep(K_MSEC(110));
     controller.poll();
     zassert_equal(controller.state().phase, RadioPhase::Transmitting);
+    zassert_false(green);
     zassert_equal(atomic_get(&audio_running), 2, "Packet TX is buffer playback only");
     set_ptt(true);
     zassert_false(modem_enabled());
@@ -1211,6 +1235,37 @@ ZTEST(c62_radio, test_kiss_capture_carrier_and_voice_takeover) {
     zassert_equal(atomic_get(&audio_running), 3, "Voice takeover restores microphone capture");
     set_ptt(false);
     zassert_equal(controller.state().phase, RadioPhase::Receiving);
+}
+
+ZTEST(c62_radio, test_kiss_carrier_led_preserves_capture_and_clears_on_exit) {
+    auto config = controller.state().config;
+    config.rx_tone = {ToneKind::Ctcss, 885, false};
+    configure(config);
+    // Carrier bypass affects TX admission only; the LED still follows RSSI.
+    for (unsigned bypass = 0; bypass < 2; ++bypass) {
+        set_modem(true, bypass != 0);
+        const int levels[] = {-109, -108, -111, -112, -70};
+        const bool active[] = {false, true, true, false, true};
+        for (unsigned i = 0; i < 5; ++i) {
+            // Tone alone cannot open carrier squelch, nor is tone needed to open it.
+            registers[0x0c] = active[i] ? 0 : 1U << 10;
+            rssi(levels[i]);
+            controller.poll();
+            zassert_equal(controller.state().rx_active, active[i]);
+            zassert_equal(green, active[i]);
+            zassert_false(speaker);
+            zassert_equal(atomic_get(&audio_running), 1);
+            zassert_equal(registers[0x47] & 0x0f00, 0x0100);
+        }
+        backend_stop();
+        stopped();
+        zassert_ok(backend_receive());
+        controller.poll();
+        zassert_true(green); // Stop must also reset the remembered LED state.
+        set_modem(false);
+        zassert_false(green); // FM tone squelch is closed after leaving KISS.
+        zassert_false(speaker);
+    }
 }
 
 ZTEST_SUITE(c62_radio, nullptr, nullptr, before, nullptr, nullptr);

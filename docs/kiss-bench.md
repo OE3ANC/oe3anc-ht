@@ -38,7 +38,10 @@ For a supplied companion archive, serve its extracted directory containing
    50 ms before starting the new protocol.
 
 The modem is 1200-bit/s Bell 202 AFSK AX.25. KISS payloads omit HDLC flags and
-FCS and are limited to 330 bytes. RX audio is muted. Defaults are TX delay
+FCS and are limited to 330 bytes. RX audio is muted. The RX LED follows carrier
+squelch, so it can be used to adjust the channel squelch even with **Ignore
+carrier** enabled. It does not indicate a decoded packet; modem capture remains
+continuous. Defaults are TX delay
 300 ms, persistence 63, slot time 100 ms, tail 0, carrier bypass off and TX level
 37%. Adjust TX level against measured RF deviation; the default is not a
 hardware calibration. See the [protocol definition](../protocol/kiss/README.md)
