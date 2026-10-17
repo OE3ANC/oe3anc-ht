@@ -6,14 +6,35 @@ on:
   release:
     types: [published]
   workflow_dispatch:
+    inputs:
+      release_id:
+        description: Published release that must be included
+        required: false
+        type: string
 permissions:
   contents: read
 concurrency:
   group: companion-pages
   cancel-in-progress: false
 jobs:
+  refresh-release:
+    # Release events can reuse an earlier Pages deployment for the same SHA.
+    # Dispatch on main instead: https://github.com/actions/deploy-pages/issues/383
+    if: github.event_name == 'release'
+    runs-on: ubuntu-22.04
+    timeout-minutes: 5
+    permissions:
+      actions: write
+    steps:
+      - name: Dispatch published release refresh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          RELEASE_ID: ${{ github.event.release.id }}
+        run: gh workflow run pages.yml --ref "$DEFAULT_BRANCH" -f release_id="$RELEASE_ID"
   assemble:
-    if: github.event_name == 'release' || github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    if: github.event_name != 'release' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
     runs-on: ubuntu-22.04
     timeout-minutes: 60
     steps:
@@ -28,7 +49,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_REPOSITORY: ${{ github.repository }}
-          PAGES_RELEASE_ID: ${{ github.event.release.id }}
+          PAGES_RELEASE_ID: ${{ inputs.release_id }}
         run: python3 companion/deploy_pages.py --repository "$RELEASE_REPOSITORY" --output build/pages --nightly-packages build/nightly
       - uses: actions/upload-pages-artifact@56afc609e74202658d3ffba0e8f6dda462b719fa # v3.0.1
         with:

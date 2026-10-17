@@ -182,11 +182,11 @@ def assemble(api, output, base_path, required_release=None, site_base_path=None,
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_bytes(content)
     for name, content in (nightly or {}).items():
-        path = output / name
+        path = output / mount / name
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes(content)
     latest = releases[-1]['tag_name'] if releases else 'nightly'
-    destination = './' + (mount + latest if releases else latest) + '/'
+    destination = './' + mount + latest + '/'
 
     (output / 'index.html').write_text(
         '<!doctype html>\n<html lang="en">\n<meta charset="utf-8">\n'

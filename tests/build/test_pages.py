@@ -342,8 +342,21 @@ class PagesChecks(unittest.TestCase):
         deploy_pages.assemble(self.api, self.output, '/oe3anc-ht/', release['id'], '/', files)
         for name, content in archived.items():
             self.assertEqual((self.output / 'oe3anc-ht' / name).read_bytes(), content)
-        self.assertTrue((self.output / 'nightly/index.html').is_file())
+        for name, content in files.items():
+            self.assertEqual((self.output / 'oe3anc-ht' / name).read_bytes(), content)
+        self.assertFalse((self.output / 'nightly').exists())
         self.assertIn('./oe3anc-ht/v1.0.0/', (self.output / 'index.html').read_text())
+
+    def test_nightly_only_on_custom_domain_resolves_compiled_urls(self):
+        directory, metadata = self.make_nightly()
+        files = deploy_pages.nightly_files(
+            directory, metadata['commit'], '/oe3anc-ht/', '2026-10-15T14:23:45Z'
+        )
+        deploy_pages.assemble(self.api, self.output, '/oe3anc-ht/', site_base_path='/',
+                              nightly=files)
+        self.assertIn('./oe3anc-ht/nightly/', (self.output / 'index.html').read_text())
+        for name, content in files.items():
+            self.assertEqual((self.output / 'oe3anc-ht' / name).read_bytes(), content)
 
     def test_nightly_rejects_wrong_commit_corrupt_packages_and_invalid_date(self):
         directory, metadata = self.make_nightly()
@@ -364,11 +377,28 @@ class PagesChecks(unittest.TestCase):
         self.assertEqual(set(workflow['on']), {'push', 'release', 'workflow_dispatch'})
         self.assertEqual(workflow['on']['release']['types'], ['published'])
         self.assertEqual(workflow['on']['push']['branches'], ['main'])
+        release_input = workflow['on']['workflow_dispatch']['inputs']['release_id']
+        self.assertEqual(release_input['type'], 'string')
+        self.assertEqual(release_input['required'], 'false')
         self.assertEqual(workflow['permissions'], {'contents': 'read'})
         self.assertEqual(workflow['concurrency']['cancel-in-progress'], 'false')
         assemble, deploy = workflow['jobs']['assemble'], workflow['jobs']['deploy']
         self.assertNotIn('permissions', assemble)
         self.assertIn('github.event.repository.default_branch', assemble['if'])
+        self.assertIn("github.event_name != 'release' &&", assemble['if'])
+        refresh = workflow['jobs']['refresh-release']
+        self.assertEqual(refresh['if'], "github.event_name == 'release'")
+        self.assertEqual(refresh['permissions'], {'actions': 'write'})
+        dispatch = refresh['steps'][0]
+        self.assertEqual(dispatch['env']['RELEASE_ID'], '${{ github.event.release.id }}')
+        self.assertEqual(dispatch['env']['DEFAULT_BRANCH'],
+                         '${{ github.event.repository.default_branch }}')
+        self.assertEqual(dispatch['run'],
+                         'gh workflow run pages.yml --ref "$DEFAULT_BRANCH" '
+                         '-f release_id="$RELEASE_ID"')
+        staging = next(step for step in assemble['steps']
+                       if step.get('name') == 'Stage nightly and verified published companions')
+        self.assertEqual(staging['env']['PAGES_RELEASE_ID'], '${{ inputs.release_id }}')
         checkout = assemble['steps'][0]
         self.assertEqual(checkout['with']['ref'], '${{ github.event.repository.default_branch }}')
         self.assertEqual(checkout['with']['persist-credentials'], 'false')
